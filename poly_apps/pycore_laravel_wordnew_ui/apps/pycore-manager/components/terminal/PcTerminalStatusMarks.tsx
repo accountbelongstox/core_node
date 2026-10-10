@@ -59,11 +59,13 @@ interface PcTerminalStatusMarksProps {
   inlineCountdown?: boolean;
   /** The UI holds an unsent draft for this terminal. */
   hasDraft?: boolean;
+  /** Show the AI agent / plain terminal kind icon; dense tiles leave it to the tooltip. */
+  showKind?: boolean;
   className?: string;
 }
 
 /** Tiny per-terminal marks: AI agent / plain terminal, pending confirmation, usage-limit wait, with its countdown. */
-export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdown = true, hasDraft = false, className = '' }: PcTerminalStatusMarksProps) {
+export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdown = true, hasDraft = false, showKind = true, className = '' }: PcTerminalStatusMarksProps) {
   const { t } = useTranslation('pc');
   const watch = usePcTerminalWatch();
   const { openFinished } = usePcTerminalNavActions();
@@ -80,7 +82,7 @@ export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdow
   const plainHint = t(windowInfo.agent_scanned ? 'terminal.marks.plain' : 'terminal.marks.notScanned');
   return (
     <span className={`inline-flex shrink-0 items-center gap-px ${className}`}>
-      {windowInfo.ai_agent ? (
+      {!showKind ? null : windowInfo.ai_agent ? (
         <PcTerminalAgentBadge agent={windowInfo.ai_agent} iconOnly iconClassName={icon} />
       ) : windowInfo.agent_scanned ? (
         <SquareTerminal className={`${icon} text-slate-400`} aria-label={plainHint}><title>{plainHint}</title></SquareTerminal>

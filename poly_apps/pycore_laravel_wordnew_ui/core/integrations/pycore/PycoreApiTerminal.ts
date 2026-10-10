@@ -70,7 +70,7 @@ export interface TerminalLogEntry {
   terminal_number: number;
   title: string;
   date: string;
-  status: 'pending' | 'sent' | 'failed';
+  status: 'pending' | 'sent' | 'failed' | 'draft';
   source?: TerminalLogSource;
   preview?: string;
   success: boolean;
@@ -522,6 +522,8 @@ export interface TerminalDraftResult {
   error_code?: string | null;
   terminal_number?: number;
   has_draft?: boolean;
+  /** Set when the draft was stored as an unsent history entry. */
+  log?: TerminalLogEntry | null;
 }
 
 export interface TerminalViewResult {
@@ -704,6 +706,11 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
     }) as Promise<TerminalActionResult>,
     saveTerminalDraft: (terminalNumber: number, text: string) =>
       requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
+        terminal_number: terminalNumber,
+      }) as Promise<TerminalDraftResult>,
+    /** Stores the draft as an unsent history entry and clears the live draft. */
+    saveTerminalDraftToHistory: (terminalNumber: number, text: string) =>
+      requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraftHistory, text, {
         terminal_number: terminalNumber,
       }) as Promise<TerminalDraftResult>,
     captureTerminalText: (windowId: string, terminalNumber: number, openEditor: boolean) =>

@@ -426,6 +426,8 @@ terminal: {
     draftSaving: '正在以文本文件保存此终端的草稿…',
     draftSaved: '此终端的草稿已保存。',
     draftSaveFailed: '无法保存此终端的草稿。',
+    draftToHistory: '保存草稿到历史记录（不发送）',
+    draftToHistorySaved: '草稿已保存到历史记录，未发送。',
     previousCommand: '上一条命令',
     nextCommand: '下一条命令',
     historyNavigatedUp: '已激活终端并切换到上一条命令。',
@@ -730,6 +732,7 @@ terminal: {
       pending: '处理中',
       sent: '已发送',
       failed: '失败',
+      draft: '草稿',
     },
     logSource: {
       input: '粘贴',
