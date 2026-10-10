@@ -4,6 +4,7 @@ import { Download, Trash2 } from 'lucide-react';
 import type { CloudClipboardFile } from '../../core/contracts/CloudClipboardContract';
 import type { CloudClipboardModel } from './CloudClipboardModel';
 import { SYSTEM_CLIPBOARD_IMAGE_MIMES } from '../../core/browser/SystemClipboard';
+import { offerBlobFile } from '../../core/browser/FileDownload';
 import CloudClipboardCopyButton from './CloudClipboardCopyButton';
 
 interface Props {
@@ -43,16 +44,8 @@ export default function CloudClipboardAttachment({ model, entryId, file, onRemov
   }, [model, entryId, file.id, file.mime_type, preview, attempt]);
 
   const download = async (): Promise<void> => {
-    let blob: Blob;
-    let objectUrl = '';
-    const anchor = document.createElement('a');
     try {
-      blob = await model.api.file(entryId, file.id);
-      objectUrl = URL.createObjectURL(blob);
-      anchor.href = objectUrl;
-      anchor.download = file.original_name;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      offerBlobFile(file.original_name, await model.api.file(entryId, file.id));
     } catch {
       setError(true);
     }

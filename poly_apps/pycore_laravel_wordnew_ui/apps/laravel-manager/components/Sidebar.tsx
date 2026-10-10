@@ -75,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
 
       {/* Bottom Profile/Status */}
       <div className="mt-2">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-400 to-cyan-500 border-2 border-white dark:border-slate-900 shadow-lg cursor-pointer hover:scale-105 transition-transform" />
+        <div aria-hidden className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-400 to-violet-500 border-2 border-white dark:border-slate-900 shadow-lg" />
       </div>
     </aside>
   );

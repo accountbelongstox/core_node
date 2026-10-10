@@ -314,7 +314,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
           >
             <input
               type="text"
-              required
+              required={formData.site_type !== 'proxy'}
               value={formData.config?.www_dir || ''}
               onChange={(e) => handleConfigChange('www_dir', e.target.value)}
               className={commonClasses.input}

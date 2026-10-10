@@ -170,6 +170,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [batchPct, setBatchPct] = useState(0);
+  const treeSeqRef = useRef(0);
 
   // Returns the freshly built tree (or null on error) so callers can reveal a
   // specific path after a mutation. Open folders are preserved across the
@@ -177,6 +178,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   const loadFileTree = async (): Promise<FileNode[] | null> => {
     // Login-gated source while logged out: do not call the API; the render shows
     // an auth prompt (browseBlocked) instead.
+    const seq = ++treeSeqRef.current;
     if (browseBlocked) {
       setFileTree([]);
       setError(null);
@@ -191,6 +193,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
     // The adapter already shapes items into FileNode[] (id/type/fileType/sourceId)
     // and, for recursive sources, the full nested tree; lazy sources return one level.
     const response = await source.listTree();
+    if (seq !== treeSeqRef.current) return null;
 
     if (response.success && response.data) {
       const nodesWithId = response.data.items;
@@ -279,7 +282,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   // For a lazy source, fetch and attach a folder's children the first time it is
   // opened, then mark it open. NO try-catch (adapter normalizes errors).
   const loadAndOpenChildren = async (targetNode: FileNode) => {
+    const seq = treeSeqRef.current;
     const response = await source.listTree(targetNode.id);
+    if (seq !== treeSeqRef.current) return;
     if (response.success && response.data) {
       const kids = response.data.items;
       const attach = (nodes: FileNode[]): FileNode[] => {
