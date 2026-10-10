@@ -4,6 +4,7 @@ export const lmZhUiTask = {
     assist_dist: {
       title: '翻译协助分发',
       scanning: '扫描中…',
+      scan_failed: '扫描失败',
       scan_enqueue: '扫描并入队',
       col_lang: '语言',
       col_prompt: '提示词',
@@ -207,6 +208,10 @@ export const lmZhUiTask = {
     },
     queue: {
       all_types: '全部类型'
+    },
+    confirm_action: {
+      cancel_global_task: '确定取消任务 {{id}}？工作节点将不再领取该任务。',
+      delete_assist_request: '确定删除协助请求 #{{id}}？'
     },
     shared: {
       dismiss_notice: '关闭提示',

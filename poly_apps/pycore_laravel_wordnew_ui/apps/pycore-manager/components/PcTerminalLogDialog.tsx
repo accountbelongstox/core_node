@@ -1,18 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, CornerDownLeft, Pencil, ScrollText, Search, Send, Timer, X } from 'lucide-react';
+import { Copy, CornerDownLeft, Pencil, ScrollText, Search, Send, SquareTerminal, Timer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 
-export const LOG_SOURCES: TerminalLogSource[] = ['input', 'enter', 'schedule'];
+export const LOG_SOURCES: TerminalLogSource[] = ['input', 'enter', 'schedule', 'quick'];
 const DEFAULT_LOG_SOURCE: TerminalLogSource = 'input';
 
 const SOURCE_STYLES: Record<TerminalLogSource, string> = {
   input: 'bg-indigo-500/10 text-indigo-500',
   enter: 'bg-slate-500/15 text-slate-500 dark:text-slate-300',
   schedule: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  quick: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
 };
 
 const STATUS_STYLES: Record<TerminalLogEntry['status'], string> = {
@@ -32,7 +33,7 @@ export function terminalLogNamespace(terminalNumber: number): string {
 export const PcTerminalLogSourceBadge: React.FC<{ entry: TerminalLogEntry }> = ({ entry }) => {
   const { t } = useTranslation('pc');
   const source = terminalLogSource(entry);
-  const Icon = source === 'schedule' ? Timer : source === 'enter' ? CornerDownLeft : Send;
+  const Icon = source === 'schedule' ? Timer : source === 'enter' ? CornerDownLeft : source === 'quick' ? SquareTerminal : Send;
   return (
     <span className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[8px] font-bold ${SOURCE_STYLES[source]}`}>
       <Icon className="h-2.5 w-2.5" />

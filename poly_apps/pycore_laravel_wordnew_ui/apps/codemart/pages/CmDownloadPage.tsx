@@ -29,10 +29,12 @@ const DownloadCard: React.FC<{ download: CmAppDownloadEntry; highlighted: boolea
           <dt>{t('downloadPage.versionLabel')}</dt>
           <dd>{download.version || CM_APP_FALLBACK_VERSION}</dd>
         </div>
-        <div>
-          <dt>{t('downloadPage.requirementLabel')}</dt>
-          <dd>{t(CM_APP_MIN_OS_KEYS[download.platform])}</dd>
-        </div>
+        {download.min_os && (
+          <div>
+            <dt>{t('downloadPage.requirementLabel')}</dt>
+            <dd>{t(CM_APP_MIN_OS_KEYS[download.platform], { version: download.min_os })}</dd>
+          </div>
+        )}
       </dl>
       <a
         className="cm-public-button cm-public-button--primary cm-download-card__action"

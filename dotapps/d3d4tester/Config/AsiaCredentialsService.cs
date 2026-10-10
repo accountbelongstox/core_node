@@ -10,13 +10,13 @@ namespace DotApps.d3d4tester.Config;
 /// <summary>
 /// Battle.net Asia/CN credentials: read/write config with machine-bound encrypted password. 1:1 Python share.asia_credentials.
 /// Config keys: battlenet_asia_credentials, battlenet_cn_credentials (top-level in d3check_config.json, same as Python).
+/// Accounts are entered only on the Battle.net tab (BattlenetAccountService mirrors the active one here); missing credentials show that tab.
 /// </summary>
 public static class AsiaCredentialsService
 {
-
-    private static readonly object DialogLock = new();
-    private static Func<string, bool>? _dialogPresenter;
-    private static bool _dialogPending;
+    private static readonly object PromptLock = new();
+    private static Action<string>? _promptPresenter;
+    private static string? _promptRegion;
 
     private static string ConfigKeyForRegion(string region) =>
         region == BattlenetConstants.RegionCn ? ConfigKeys.BattlenetCnCredentials : ConfigKeys.BattlenetAsiaCredentials;
@@ -132,46 +132,55 @@ public static class AsiaCredentialsService
         return (email, password);
     }
 
-    /// <summary>UI-thread presenter that shows the credentials dialog and blocks until closed (set by MainWindow).</summary>
-    public static void SetDialogPresenter(Func<string, bool>? presenter)
+    /// <summary>UI presenter that shows the accounts of the Battle.net tab (the only place to enter credentials); set by MainWindow.</summary>
+    public static void SetPromptPresenter(Action<string>? presenter)
     {
-        lock (DialogLock) _dialogPresenter = presenter;
+        lock (PromptLock) _promptPresenter = presenter;
     }
 
-    /// <summary>True when the dialog was scheduled or is open; flow ticks skip until it closes. 1:1 Python is_asia_credentials_dialog_pending.</summary>
-    public static bool IsDialogPending
+    /// <summary>True while the accounts were shown for a region that still has no saved credentials; flow ticks skip until they are saved.</summary>
+    public static bool IsPromptPending
     {
         get
         {
-            lock (DialogLock) return _dialogPending;
+            string? region;
+            lock (PromptLock) region = _promptRegion;
+            if (region == null) return false;
+            if (!HasCredentials(region)) return true;
+            lock (PromptLock)
+                if (_promptRegion == region) _promptRegion = null;
+            return false;
         }
     }
 
-    /// <summary>Show the dialog once, non-blocking; pending until OK/Cancel. 1:1 Python schedule_battlenet_credentials_dialog.</summary>
-    public static void ScheduleCredentialsDialog(string defaultRegion = BattlenetConstants.RegionAsia)
+    /// <summary>Show the Battle.net accounts once per missing region (non-blocking); pending until credentials for it are saved.</summary>
+    public static void ScheduleCredentialsPrompt(string region)
     {
-        Func<string, bool>? presenter;
-        lock (DialogLock)
+        Action<string>? presenter;
+        lock (PromptLock)
         {
-            if (_dialogPending) return;
-            presenter = _dialogPresenter;
+            if (_promptRegion == region) return;
+            presenter = _promptPresenter;
             if (presenter == null) return;
-            _dialogPending = true;
+            _promptRegion = region;
         }
-        Task.Run(() =>
+        ColorPrinter.Yellow($"[Credentials] no saved {region} account: showing Battle.net > region and accounts");
+        presenter(region);
+    }
+
+    /// <summary>Email and password are stored for the region (no decrypt, no logging: polled by the flow).</summary>
+    private static bool HasCredentials(string region)
+    {
+        string? rawJson = D3D4TesterConfigService.Instance.GetRawText(ConfigKeyForRegion(region));
+        if (string.IsNullOrWhiteSpace(rawJson)) return false;
+        try
         {
-            try
-            {
-                presenter(defaultRegion);
-            }
-            catch (Exception ex)
-            {
-                ColorPrinter.Yellow($"[Credentials] Credentials dialog failed: {ex.Message}");
-            }
-            finally
-            {
-                lock (DialogLock) _dialogPending = false;
-            }
-        });
+            var stored = JsonSerializer.Deserialize<CredentialsStored>(rawJson, DeserializeOptions);
+            return !string.IsNullOrWhiteSpace(stored?.Email) && !string.IsNullOrWhiteSpace(stored?.Password);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

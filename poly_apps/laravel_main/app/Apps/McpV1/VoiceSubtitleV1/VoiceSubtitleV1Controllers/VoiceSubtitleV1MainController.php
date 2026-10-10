@@ -469,11 +469,33 @@ class VoiceSubtitleV1MainController extends Controller
 
     }
 
-    public function incrementPlayCount(Request $request)
+    private function resolveQueueIndex(Request $request): ?int
     {
         $index = $request->input('index');
-        if ($index === null) {
+        if ($index !== null) {
+            return (int) $index;
+        }
+
+        $id = $request->input('id');
+        if ($id === null || $id === '') {
+            return null;
+        }
+
+        return $this->queueManager->indexOfId((string) $id);
+    }
+
+    public function incrementPlayCount(Request $request)
+    {
+        $hasTarget = $request->input('index') !== null || ($request->input('id') !== null && $request->input('id') !== '');
+        $index = $this->resolveQueueIndex($request);
+        if ($index === null && !$hasTarget) {
             $index = $this->queueManager->getCurrentIndex();
+        }
+        if ($index === null) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Item not found',
+            ], 404);
         }
 
         $updated = $this->queueManager->incrementPlayCount((int) $index);
@@ -494,16 +516,17 @@ class VoiceSubtitleV1MainController extends Controller
 
     public function removeItem(Request $request)
     {
-            $index = $request->input('index');
+            $index = $this->resolveQueueIndex($request);
 
             if ($index === null) {
+                $missing = $request->input('id') !== null && $request->input('id') !== '';
                 return response()->json([
                     'success' => false,
-                    'error' => 'Index is required',
-                ], 400);
+                    'error' => $missing ? 'Item not found' : 'Index or id is required',
+                ], $missing ? 404 : 400);
             }
 
-            $this->queueManager->removeItem((int)$index);
+            $this->queueManager->removeItem($index);
 
             return response()->json([
                 'success' => true,
@@ -515,15 +538,27 @@ class VoiceSubtitleV1MainController extends Controller
     public function removeItems(Request $request)
     {
         $indices = $request->input('indices');
+        $ids = $request->input('ids');
 
-        if (empty($indices)) {
+        if (empty($indices) && empty($ids)) {
             return response()->json([
                 'success' => false,
-                'error' => 'indices is required',
+                'error' => 'indices or ids is required',
             ], 400);
         }
 
-        if (!is_array($indices)) {
+        if (empty($indices)) {
+            if (!is_array($ids)) {
+                $ids = array_map('trim', explode(',', (string) $ids));
+            }
+            $indices = [];
+            foreach ($ids as $itemId) {
+                $position = $this->queueManager->indexOfId((string) $itemId);
+                if ($position !== null) {
+                    $indices[] = $position;
+                }
+            }
+        } elseif (!is_array($indices)) {
             $indices = array_map('trim', explode(',', (string) $indices));
         }
 
@@ -704,17 +739,17 @@ class VoiceSubtitleV1MainController extends Controller
 
     public function updateItemGroup(Request $request)
     {
-        $index = $request->input('index');
+        $index = $this->resolveQueueIndex($request);
         $group = $request->input('group', 'default');
 
         if ($index === null) {
             return response()->json([
                 'success' => false,
-                'error' => 'Index is required',
+                'error' => 'Index or id is required',
             ], 400);
         }
 
-        $success = $this->queueManager->updateItemGroup((int)$index, $group);
+        $success = $this->queueManager->updateItemGroup($index, $group);
 
         if (!$success) {
             return response()->json([

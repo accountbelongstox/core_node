@@ -12,7 +12,7 @@
  * the two tabs stays warm. Header refresh controls arrive from TaskCenter as
  * props.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
@@ -46,6 +46,7 @@ import {
 import { commonClasses } from '@/shared/styles/theme';
 import { AlertBox, EmptyState, InlineSpinner, LoadingBlock } from '../../common';
 import Portal from '@/shared/ui/Portal';
+import { ConfirmModal } from '../../admin';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import {
   StatCard,
@@ -99,6 +100,10 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   const [streamLive, setStreamLive] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const detailSeqRef = useRef(0);
+  const selectedTaskIdRef = useRef<string | null>(null);
+  selectedTaskIdRef.current = selectedTask?.task_id ?? null;
   const [bumpingId, setBumpingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -108,8 +113,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   // The list is server-filtered by status, so a filter change must refetch.
   // Now we fetch all tasks in the shared store, so we filter client-side.
 
-  const handleCancelTask = async (e: React.MouseEvent, taskId: string) => {
-    e.stopPropagation();
+  const handleCancelTask = async (taskId: string) => {
+    setPendingCancelId(null);
     setCancellingId(taskId);
     setNotice(null);
     try {
@@ -128,6 +133,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   };
 
   const openTaskDetail = async (row: GlobalTaskItem) => {
+    const seq = ++detailSeqRef.current;
     setSelectedTask(row);
     setDetailBundle(null);
     setStreamLive(false);
@@ -135,15 +141,14 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
 
     try {
       const response = await api.serverManager.getTaskDetail(row.task_id);
-      if (response.success && response.data && response.data.task) {
-        setDetailBundle(response.data.task ? response.data : null);
+      if (seq === detailSeqRef.current && response.success && response.data && response.data.task) {
+        setDetailBundle(response.data);
       }
     } catch {
       // Fall back silently to the row snapshot already in selectedTask.
     } finally {
-      setDetailLoading(false);
+      if (seq === detailSeqRef.current) setDetailLoading(false);
     }
-
   };
 
   // Re-pull the task half of the bundle (the SSE event carries only the
@@ -151,10 +156,9 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   const refreshDetailTask = async (taskId: string) => {
     try {
       const response = await api.serverManager.getTaskDetail(taskId);
+      if (selectedTaskIdRef.current !== taskId) return;
       if (response.success && response.data && response.data.task) {
-        setDetailBundle((prev) =>
-          prev ? { ...response.data!, events: prev.events } : response.data!
-        );
+        setDetailBundle(response.data);
       }
     } catch {
       // Keep the last good bundle.
@@ -167,9 +171,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
 
     const unsubscribe = laravelRealtime.subscribe(
       LARAVEL_REALTIME_EVENTS.queueChanged,
-      (event) => {
-        const changedId = event.resource_id == null ? '' : String(event.resource_id);
-        if (changedId && changedId !== taskId) return;
+      () => {
         setStreamLive(true);
         void refreshDetailTask(taskId);
       },
@@ -185,6 +187,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   }, [selectedTask?.task_id]);
 
   const closeTaskDetail = () => {
+    detailSeqRef.current += 1;
     setSelectedTask(null);
     setDetailBundle(null);
     setStreamLive(false);
@@ -525,7 +528,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                       <td className="px-4 py-3 text-center">
                         {CANCELLABLE_STATUSES.includes(row.status) && (
                           <button
-                            onClick={(e) => handleCancelTask(e, row.task_id)}
+                            onClick={(e) => { e.stopPropagation(); setPendingCancelId(row.task_id); }}
                             disabled={cancellingId === row.task_id}
                             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
                             title={t.cancel}
@@ -791,6 +794,15 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
               </Portal>
             );
           })()}
+
+          <ConfirmModal
+            isOpen={pendingCancelId !== null}
+            onClose={() => setPendingCancelId(null)}
+            onConfirm={() => { if (pendingCancelId !== null) void handleCancelTask(pendingCancelId); }}
+            message={tr('uiTask.confirm_action.cancel_global_task', { id: pendingCancelId ? shortId(pendingCancelId) : '' })}
+            confirmText={t.cancel}
+            variant="danger"
+          />
 
           {/* Last Updated */}
           <div className="text-center text-xs text-slate-500 dark:text-slate-400">

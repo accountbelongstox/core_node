@@ -66,6 +66,8 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const activeFileIdRef = useRef<string | null>(null);
+  activeFileIdRef.current = activeFile ? activeFile.id : null;
 
   // Fetch content for textual file types (text / code / markdown) when the active
   // file changes. NO try-catch — McpV1 already normalizes errors into the response.
@@ -74,6 +76,8 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     setEditValue('');
     setFileContent(null);
     setContentError(null);
+    setContentLoading(false);
+    setIsSaving(false);
 
     if (!activeFile) return;
 
@@ -139,10 +143,13 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   // NO try-catch allowed. Save edits, then reload content from disk.
   const handleSaveContent = async () => {
      if (!activeFile) return;
+     const savedFileId = activeFile.id;
      setIsSaving(true);
      const response = await source.saveContent(activeFile, editValue);
+     if (activeFileIdRef.current !== savedFileId) return;
      if (response.success) {
        const reload = await source.readContent(activeFile);
+       if (activeFileIdRef.current !== savedFileId) return;
        if (reload.success && reload.data) {
          setFileContent(reload.data as StaticFileContent);
          setEditValue(reload.data.content ? reload.data.content : '');
@@ -303,6 +310,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
             key={activeFile.id}
             controls
             autoPlay
+            playsInline
             onEnded={handleVideoEnd}
             onTimeUpdate={handleVideoTimeUpdate}
             className="w-full h-full"
@@ -310,7 +318,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
           />
           {/* Floating Episode Controls - NO || allowed */}
           {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
-            <div className="absolute bottom-20 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute bottom-20 right-4 flex gap-2 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100">
               {hasPrevious && (
                 <button
                   onClick={playPreviousInPlaylist}

@@ -4,8 +4,8 @@ import { htmlErrorManager } from './HtmlErrorEvents';
 import { unwrapLaravelData } from './LaravelEnvelope';
 import { appendLog } from '../../../logstore/logStore';
 import { clearCoordinatedRequests, coordinateRequest } from '../../../network/RequestCoordinator';
-import { getAuthHeader, setActiveAuthNamespace, setAuthToken } from '../../../auth/AuthSession';
-import { requestGlobalLogin } from './LoginRequestBridge';
+import { clearAuthSession, getAuthHeader, setActiveAuthNamespace, setAuthToken } from '../../../auth/AuthSession';
+import { AUTH_LOGIN_SOURCE_TRANSPORT, requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
 import { withClientKey } from '../ClientKeySigner';
@@ -193,13 +193,13 @@ function normalizeRequestError(error: any): NormalizedRequestError {
 
   let message: string;
   if (isTimeout) {
-    message = 'Request timed out';
+    message = commonMessage('request_timeout');
   } else if (isOffline) {
-    message = 'Network unreachable (device is offline)';
+    message = commonMessage('network_offline');
   } else if (isNetworkError) {
-    message = 'Network unreachable (server did not respond)';
+    message = commonMessage('network_unreachable');
   } else {
-    message = error?.message || 'Network error';
+    message = error?.message || commonMessage('network_error');
   }
 
   const normalized = new Error(message) as NormalizedRequestError;
@@ -383,6 +383,20 @@ export class BaseAPI {
     } as APIResponse<T>;
   }
 
+  /**
+   * The server refused the session token a request carried: end that stale session so the UI
+   * stops showing a signed-in user (a token replaced meanwhile is kept) and ask for a login.
+   * A rejected client key is not fixed by a login and leaves the session alone.
+   */
+  private handleUnauthorized(clientKeyCode: string | null, sentAuth: string | undefined, authBase: string | null): void {
+    if (clientKeyCode) return;
+    if (!this.authTokenResolver && authBase && sentAuth && sentAuth === getAuthHeader(authBase)) {
+      clearAuthSession(authBase);
+    }
+    if (this.unauthorizedHandler) this.unauthorizedHandler();
+    else requestGlobalLogin({ baseUrl: authBase ?? this.baseURL, source: AUTH_LOGIN_SOURCE_TRANSPORT });
+  }
+
   /** One delivery; `throwNetwork` hands a network failure to the caller instead of answering it. */
   private async sendOnce<T>(config: APIRequestConfig, retryCount: number, throwNetwork: boolean): Promise<APIResponse<T>> {
     const fullURL = this.buildURL(config.url, config.baseURL, config.root);
@@ -474,10 +488,7 @@ export class BaseAPI {
       } else {
         serverSchemaGate.observeHttp(response.status, data);
         const clientKeyCode = response.status === 401 ? clientKeyFailureCode(data) : null;
-        if (response.status === 401 && !clientKeyCode) {
-          if (this.unauthorizedHandler) this.unauthorizedHandler();
-          else requestGlobalLogin({ baseUrl: authBase ?? this.baseURL });
-        }
+        if (response.status === 401) this.handleUnauthorized(clientKeyCode, requestHeaders.Authorization, authBase);
         // Error response - trigger HTML error modal if debug info available
         if (data.exception || data.trace) {
           // Pass JSON directly as string - don't convert to HTML
@@ -592,6 +603,10 @@ export class BaseAPI {
         ? await progressUpload(url, signed)
         : await protocolFetch(url, { ...signed, signal: init.signal || abortController.signal });
       logRequestOutcome(method, url, response.status, performance.now() - startedAt, response.ok ? null : response.statusText);
+      if (response.status === 401 && includeAuth && isLaravelEndpoint) {
+        const body = await response.clone().json().catch(() => null);
+        this.handleUnauthorized(clientKeyFailureCode(body), headers.Authorization, this.baseURL);
+      }
       return response;
     } catch (error: any) {
       const normalized = normalizeRequestError(error);
@@ -610,11 +625,13 @@ export class BaseAPI {
     root = false,
   ): Promise<APIResponse<T>> {
     const url = this.buildURL(path, undefined, root);
+    const authBase = this.authBaseFor(path);
+    const requestHeaders = this.resolveRequestHeaders({}, authBase);
     let response: Response;
     try {
       response = await progressUpload(
         url,
-        await withClientKey(url, { method: 'POST', headers: this.resolveRequestHeaders({}, this.authBaseFor(path)), body: data }),
+        await withClientKey(url, { method: 'POST', headers: requestHeaders, body: data }),
         { onProgress: (fraction) => onProgress(Math.round(fraction * 100)) },
       );
     } catch (error: any) {
@@ -634,6 +651,9 @@ export class BaseAPI {
     const text = await response.text();
     try {
       const parsed = JSON.parse(text);
+      if (response.status === 401) {
+        this.handleUnauthorized(clientKeyFailureCode(parsed), requestHeaders.Authorization, authBase);
+      }
       return {
         success,
         data: success ? (parsed?.data ?? parsed) : parsed?.data ?? null,

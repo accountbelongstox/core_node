@@ -12,12 +12,13 @@ import {
   Image as ImageIcon,
   Eraser
 } from 'lucide-react';
-import { useToolModel } from '@/apps/laravel-manager/hooks';
+import { useToolModel, useClipboard } from '@/apps/laravel-manager/hooks';
 import { AI_TOOLS } from '@/apps/laravel-manager/config/tools.config';
 import ToolWrapper from '@/shared/ui/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
 import { commonClasses } from '@/shared/styles/theme';
 import { api } from '@/apps/laravel-manager/api';
+import { offerBlobFile } from '@/core/browser/FileDownload';
 import {
   AI_BODY,
   AI_GRID_2,
@@ -45,6 +46,8 @@ const OCRForm: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [imageUrl, setImageUrl] = useState('');
   const [extractedText, setExtractedText] = useState('');
+  const [ocrNotice, setOcrNotice] = useState('');
+  const { copy } = useClipboard();
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
   // Recognition model hint forwarded to the backend `model_type` field
   // (general|scene|doc|number|english|chinese_traditional); defaults to general.
@@ -64,6 +67,7 @@ const OCRForm: React.FC = () => {
       };
       reader.readAsDataURL(file);
       setExtractedText('');
+      setOcrNotice('');
     }
   };
 
@@ -78,6 +82,7 @@ const OCRForm: React.FC = () => {
       };
       reader.readAsDataURL(file);
       setExtractedText('');
+      setOcrNotice('');
     }
   };
 
@@ -91,6 +96,7 @@ const OCRForm: React.FC = () => {
 
     clearError();
     setExtractedText('');
+    setOcrNotice('');
 
     try {
       // The OCR backend (/api/mcp/v1/ocr/recognize) requires a multipart file
@@ -101,7 +107,7 @@ const OCRForm: React.FC = () => {
       if (uploadMode === 'url') {
         const response = await api.http.rawRequest(imageUrl.trim(), { method: 'GET' }, false);
         if (!response.ok) {
-          setExtractedText(t('uiTools.ocr.error_url_load'));
+          setOcrNotice(t('uiTools.ocr.error_url_load'));
           return;
         }
         const blob = await response.blob();
@@ -120,17 +126,16 @@ const OCRForm: React.FC = () => {
       if (recognized) {
         setExtractedText(recognized);
       } else {
-        setExtractedText(t('uiTools.ocr.error_no_text'));
+        setOcrNotice(t('uiTools.ocr.error_no_text'));
       }
     } catch (err) {
       console.error('OCR extraction failed:', err);
-      setExtractedText(t('uiTools.ocr.error_extraction_failed'));
+      setOcrNotice(t('uiTools.ocr.error_extraction_failed'));
     }
   };
 
   const handleCopy = async () => {
-    if (extractedText) {
-      await navigator.clipboard.writeText(extractedText);
+    if (extractedText && await copy(extractedText)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -138,13 +143,7 @@ const OCRForm: React.FC = () => {
 
   const handleDownload = () => {
     if (extractedText) {
-      const blob = new Blob([extractedText], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ocr_result_${Date.now()}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
+      offerBlobFile(`ocr_result_${Date.now()}.txt`, new Blob([extractedText], { type: 'text/plain' }));
     }
   };
 
@@ -153,6 +152,7 @@ const OCRForm: React.FC = () => {
     setImagePreview('');
     setImageUrl('');
     setExtractedText('');
+    setOcrNotice('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -307,6 +307,8 @@ const OCRForm: React.FC = () => {
                 </div>
               ) : extractedText ? (
                 <p className="whitespace-pre-wrap">{extractedText}</p>
+              ) : ocrNotice ? (
+                <p className="text-sm text-amber-600 dark:text-amber-400">{ocrNotice}</p>
               ) : (
                 <div className="flex items-center justify-center h-full min-h-[240px]">
                   <p className="text-slate-400 text-center">

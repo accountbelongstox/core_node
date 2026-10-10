@@ -2,8 +2,9 @@ import React, { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ClipboardCheck, FilePlus2, ShieldCheck, Store } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { cmApi } from '../api/CmApi';
-import type { CmBootstrap, CmNotification, CmProject, CmReviewSubmission, CmTask } from '../api/CmApiTypes';
+import type { CmBootstrap, CmNotification, CmPagination, CmProject, CmReviewSubmission, CmTask } from '../api/CmApiTypes';
 import type { CmIconName } from '../assets/cmImageRegistry';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmIcon } from '../components/CmImage';
@@ -16,6 +17,8 @@ import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
 
 const PREVIEW_SIZE = 5;
+const MAX_PREVIEW_PAGES = 5;
+const STATE_KEY_SEPARATOR = ',';
 const METRIC_ICON_SIZE = 38;
 const SHORTCUT_ICON_SIZE = 40;
 const STEP_ROUTES: Record<string, string> = {
@@ -110,16 +113,32 @@ const CmPreviewList: React.FC<{
   );
 };
 
-const fetchProjects = (page: number) => cmApi.getProjects({ include_assigned: true, page });
-const extractProjects = (data: { projects: CmProject[] }): CmPagedSlice<CmProject> => ({
-  items: Array.isArray(data.projects) ? data.projects : [],
-  totalPages: 1,
-});
-const fetchTasks = (page: number) => cmApi.getMyTasks(page);
-const extractTasks = (data: { my_tasks: CmTask[] }): CmPagedSlice<CmTask> => ({
-  items: Array.isArray(data.my_tasks) ? data.my_tasks : [],
-  totalPages: 1,
-});
+/**
+ * Walks the server pages (newest first) until enough still-open items are
+ * collected, so closed items on page 1 never hide open work on later pages.
+ */
+async function collectOpenPreview<R, T>(
+  fetchPage: (page: number) => Promise<APIResponse<R>>,
+  itemsOf: (data: R) => T[],
+  paginationOf: (data: R) => CmPagination | undefined,
+  isOpen: (item: T) => boolean,
+): Promise<APIResponse<CmPagedSlice<T>>> {
+  const open: T[] = [];
+  let response = await fetchPage(1);
+  let page = 1;
+  while (response.success && response.data) {
+    open.push(...itemsOf(response.data).filter(isOpen));
+    const totalPages = paginationOf(response.data)?.totalPages ?? 1;
+    if (open.length >= PREVIEW_SIZE || page >= totalPages || page >= MAX_PREVIEW_PAGES) break;
+    page += 1;
+    const next = await fetchPage(page);
+    if (!next.success || !next.data) break;
+    response = next;
+  }
+  const data = response.success && response.data ? { items: open.slice(0, PREVIEW_SIZE), totalPages: 1 } : null;
+  return { ...response, data };
+}
+const sliceOf = <T,>(data: CmPagedSlice<T>): CmPagedSlice<T> => data;
 const fetchReviews = (page: number) => cmApi.getReviewTasks(page);
 const extractReviews = (data: { pending_reviews: CmReviewSubmission[] }): CmPagedSlice<CmReviewSubmission> => ({
   items: (Array.isArray(data.pending_reviews) ? data.pending_reviews : []).slice(0, PREVIEW_SIZE),
@@ -143,8 +162,22 @@ const CmDashboardPage: React.FC = () => {
   const showReviews = hasCapability('review.read') && hasRole('reviewer', 'active');
   const showNotifications = hasCapability('notification.read');
 
-  const projects = useCmPagedList(fetchProjects, extractProjects, 'projects.loadFailed', showProjects);
-  const tasks = useCmPagedList(fetchTasks, extractTasks, 'tasks.loadFailed', showTasks);
+  const closedProjectKey = terminalStates('project').join(STATE_KEY_SEPARATOR);
+  const closedTaskKey = terminalStates('task').join(STATE_KEY_SEPARATOR);
+  const fetchProjects = useCallback(() => collectOpenPreview(
+    (page) => cmApi.getProjects({ include_assigned: true, page }),
+    (data) => (Array.isArray(data.projects) ? data.projects : []),
+    (data) => data.pagination,
+    (project: CmProject) => !closedProjectKey.split(STATE_KEY_SEPARATOR).includes(project.status),
+  ), [closedProjectKey]);
+  const fetchTasks = useCallback(() => collectOpenPreview(
+    (page) => cmApi.getMyTasks(page),
+    (data) => (Array.isArray(data.my_tasks) ? data.my_tasks : []),
+    (data) => data.pagination,
+    (task: CmTask) => !closedTaskKey.split(STATE_KEY_SEPARATOR).includes(task.status),
+  ), [closedTaskKey]);
+  const projects = useCmPagedList(fetchProjects, sliceOf<CmProject>, 'projects.loadFailed', showProjects);
+  const tasks = useCmPagedList(fetchTasks, sliceOf<CmTask>, 'tasks.loadFailed', showTasks);
   const reviews = useCmPagedList(fetchReviews, extractReviews, 'reviews.loadFailed', showReviews);
   const notifications = useCmPagedList(fetchNotifications, extractNotifications, 'notifications.loadFailed', showNotifications);
 
@@ -176,19 +209,14 @@ const CmDashboardPage: React.FC = () => {
   const metrics = METRICS.filter((metric) => hasCapability(metric.capability) && (!metric.roles || metric.roles.some((role) => hasRole(role))));
   const shortcuts = SHORTCUTS.filter((shortcut) => hasCapability(shortcut.capability) && (!shortcut.role || hasRole(shortcut.role) || bootstrap.is_admin));
 
-  const closedProjectStates = terminalStates('project');
-  const closedTaskStates = terminalStates('task');
-  const openProjects = projects.items.filter((project) => !closedProjectStates.includes(project.status)).slice(0, PREVIEW_SIZE);
-  const openTasks = tasks.items.filter((task) => !closedTaskStates.includes(task.status)).slice(0, PREVIEW_SIZE);
-
-  const projectRows: CmPreviewRow[] = openProjects.map((project) => ({
+  const projectRows: CmPreviewRow[] = projects.items.map((project) => ({
     id: project.id,
     title: project.title,
     to: cmProjectPath(project.id),
     meta: project.budget ? format.money(project.budget, project.currency) : undefined,
     badge: <CmStatusBadge group="project" status={project.status} />,
   }));
-  const taskRows: CmPreviewRow[] = openTasks.map((task) => ({
+  const taskRows: CmPreviewRow[] = tasks.items.map((task) => ({
     id: task.id,
     title: task.title,
     to: cmTaskPath(task.id),

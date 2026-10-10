@@ -53,7 +53,7 @@
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <!-- PY STATUS_ROW_1 + STATUS_ROW_2: active config, BN, ROS, D3, Map, Stage, OAuth -->
+        <!-- PY STATUS_ROW_1 + STATUS_ROW_2: active config, BN, ROS, D3, Map, Stage -->
         <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
           <TextBlock x:Name="TxtMacroStatus" Text="Macro area" Style="{StaticResource BodyStrongTextStyle}" TextWrapping="NoWrap" Margin="0,2,12,2" VerticalAlignment="Center"/>
           <Border x:Name="ChipBn" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
@@ -73,9 +73,6 @@
           </Border>
           <Border x:Name="ChipStage" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusStage" Text="Stage: -"/>
-          </Border>
-          <Border x:Name="ChipOauth" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
-            <TextBlock x:Name="TxtStatusOauth" Text="OAuth: -"/>
           </Border>
         </WrapPanel>
         <!-- PY row 3: test_mode left | window size, path indicators (BN D3 D4 ROS) and one-click scan right -->

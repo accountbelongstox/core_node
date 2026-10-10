@@ -51,7 +51,8 @@ class DeliveryScheduler:
             return
         for name in ([kind] if kind else delivery_store.kinds()):
             THREAD_BUS.signal(f"{DRAIN_WAKE_PREFIX}.{name}", True)
-            if delivery_store.begin_drain(name, deliverable_namespaces(name)):
+            definition = delivery_store.definition(name)
+            if delivery_store.begin_drain(name, deliverable_namespaces(name, bool(definition and definition.fanout))):
                 start_bus_task(self._drain, name, thread_name=f"LaravelDelivery-{name[:24]}")
         self._ensure_watcher([kind] if kind else None)
 
@@ -115,7 +116,7 @@ class DeliveryScheduler:
             if definition.ready is not None and not definition.ready():
                 return False
             THREAD_BUS.clear_signal(wake)
-            namespaces = deliverable_namespaces(kind)
+            namespaces = deliverable_namespaces(kind, definition.fanout)
             pause = max(delivery_breaker.pause_seconds(kind), server_schema_gate.paused_for_any(namespaces))
             if pause > 0:
                 THREAD_BUS.wait_signal(wake, timeout=pause)

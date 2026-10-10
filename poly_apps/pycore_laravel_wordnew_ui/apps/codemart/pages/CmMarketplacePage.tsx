@@ -6,6 +6,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmTask } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { cmTaskPath, CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
@@ -14,7 +15,6 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
 
-const DEFAULT_CURRENCY = 'CNY';
 
 interface CmMarketplaceTask extends CmTask {
   milestone?: { id: number; project_id: number; title: string } | null;
@@ -38,7 +38,7 @@ export const CmMarketplacePage: React.FC = () => {
   const format = useCmFormat();
   const { bootstrap, hasRole, refresh } = useCmBootstrap();
   const canAccept = hasRole('developer', 'active');
-  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
+  const { currency } = useCmPolicy();
   const notice = useCmNotice();
   const [keyword, setKeyword] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState('');

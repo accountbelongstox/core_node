@@ -84,7 +84,7 @@ function readStore(): AuthStore {
       if (!isRecord(record)) return;
       const token = typeof record.token === 'string' ? normalizeToken(record.token) : null;
       const user = isRecord(record.user) ? record.user : null;
-      if (token || user) next.sessions[key] = { token, user, savedAt: Number(record.savedAt) || 0 };
+      if (token) next.sessions[key] = { token, user, savedAt: Number(record.savedAt) || 0 };
     });
   }
   if (isRecord(saved) && isRecord(saved.servers)) {
@@ -97,7 +97,9 @@ function readStore(): AuthStore {
 }
 
 function writeStore(): void {
-  StorageManager.set(AuthStorageKeys.SESSIONS, readStore());
+  const current = readStore();
+  const persisted = Object.fromEntries(Object.entries(current.sessions).filter(([, record]) => record.token !== null));
+  StorageManager.set(AuthStorageKeys.SESSIONS, { ...current, sessions: persisted });
 }
 
 function namespaceFor(endpoint?: string | null): string {

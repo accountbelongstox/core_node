@@ -78,6 +78,10 @@ $script:FrankenPhpAppDownloadsManifestFile = [string](Get-ServiceContractValue -
 $script:FrankenPhpAppDownloadsLatestFileTemplate = [string](Get-ServiceContractValue -ContractPath 'app_downloads.latest_file')
 $script:FrankenPhpAppDownloadsPublicAlias = Get-ServiceContractValue -ContractPath 'app_downloads.public_alias'
 $script:FrankenPhpAppDownloadsAliasExtension = 'apk'
+# Worker hot reload (FrankenPHP watch, parity with laravel_runtime_frankenphp.sh): on by
+# default for the Windows service; OCTANE_WATCH=0 opts out.
+$script:FrankenPhpWatchDisabledValue = '0'
+$script:FrankenPhpRelayContractWatchPattern = '{0}/*.json' -f ((Join-Path $script:FrankenPhpRepositoryRoot 'config') -replace '\\', '/')
 # Tailscale exe detection: reuses TailscaleCommon.ps1's Find-TailscaleExecutable
 # and its $script:TailscaleDefaultExePath constant (no local copy here).
 
@@ -126,6 +130,13 @@ function Get-FrankenPhpPhpIniPath {
 
 function Get-FrankenPhpServiceName {
     return $script:FrankenPhpServiceName
+}
+
+# Caddyfile worker watch directives ({$CADDY_SERVER_WATCH_DIRECTIVES}): the official default
+# pattern below the Laravel working directory plus the relay contract JSON files.
+function Get-FrankenPhpWatchDirectives {
+    if ($env:OCTANE_WATCH -eq $script:FrankenPhpWatchDisabledValue) { return '' }
+    return "watch`nwatch `"$script:FrankenPhpRelayContractWatchPattern`""
 }
 
 function Get-FrankenPhpCertificateRoot {
@@ -1631,7 +1642,7 @@ function Ensure-FrankenPhpWindowsService {
         'FRANKENPHP_VARIANT=windows-native',
         'FRANKENPHP_DNS01_MODE=external',
         'CADDY_SERVER_WORKER_DIRECTIVE=',
-        'CADDY_SERVER_WATCH_DIRECTIVES='
+        ('CADDY_SERVER_WATCH_DIRECTIVES={0}' -f (Get-FrankenPhpWatchDirectives))
     )
     $service = $null
 

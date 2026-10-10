@@ -2,13 +2,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Languages, Moon, Palette, Sun, UserRound } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
-import { SHELL_LANGUAGES, ThemeId } from '../../../shell/shellTypes';
+import { SHELL_LANGUAGES, THEME_IDS, ThemeId } from '../../../shell/shellTypes';
 import { CM_LANGUAGES } from '../cm-locales';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPasswordChangeCard } from '../components/workspace/CmPasswordChangeCard';
 
-const THEME_IDS: ThemeId[] = ['nexus', 'pycore', 'iris'];
 const AUTO_THEME = 'auto';
 
 /**
@@ -63,6 +63,7 @@ export const CmSettingsPage: React.FC = () => {
             </select>
           </label>
         </section>
+        <CmPasswordChangeCard />
         <section className="cm-section-card">
           <h2><UserRound aria-hidden="true" /> {t('settings.accountTitle')}</h2>
           <p className="cm-section-card__lead">{t('settings.accountLead')}</p>

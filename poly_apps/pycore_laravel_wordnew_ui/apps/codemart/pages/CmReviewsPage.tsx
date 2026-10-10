@@ -5,6 +5,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmLineComment, CmReviewerApplicationStart, CmReviewSubmission } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
@@ -13,7 +14,6 @@ import { CmSubmissionFiles } from '../components/workspace/CmSubmissionFiles';
 import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
 
-const REVIEW_COMMENT_MIN_LENGTH = 20;
 const REVIEW_RECOMMENDATIONS = ['approved', 'needs_revision', 'rejected'] as const;
 const RATING_VALUES = [1, 2, 3, 4, 5] as const;
 const DEFAULT_RATING = 3;
@@ -53,13 +53,14 @@ const CmRatingSelect: React.FC<{ label: string; value: number | ''; onChange: (v
 
 const CmCommentField: React.FC<{ label: string; value: string; onChange: (value: string) => void; placeholder: string }> = ({ label, value, onChange, placeholder }) => {
   const { t } = useTranslation('cm');
+  const { reviewCommentMinLength } = useCmPolicy();
   const length = value.trim().length;
   return (
     <label className="cm-stacked-field">
       <span>{label}</span>
-      <textarea rows={3} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-invalid={length > 0 && length < REVIEW_COMMENT_MIN_LENGTH} />
-      <small className={length > 0 && length < REVIEW_COMMENT_MIN_LENGTH ? 'cm-field-error' : 'cm-field-hint'}>
-        {t('reviews.commentCounter', { count: length, min: REVIEW_COMMENT_MIN_LENGTH })}
+      <textarea rows={3} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-invalid={length > 0 && length < reviewCommentMinLength} />
+      <small className={length > 0 && length < reviewCommentMinLength ? 'cm-field-error' : 'cm-field-hint'}>
+        {t('reviews.commentCounter', { count: length, min: reviewCommentMinLength })}
       </small>
     </label>
   );
@@ -67,6 +68,7 @@ const CmCommentField: React.FC<{ label: string; value: string; onChange: (value:
 
 const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<void> }> = ({ onPassed }) => {
   const { t } = useTranslation('cm');
+  const { reviewCommentMinLength, reviewerRetryDays } = useCmPolicy();
   const notice = useCmNotice();
   const [application, setApplication] = useState<CmReviewerApplicationStart | null>(null);
   const [drafts, setDrafts] = useState<CmTestDraft[]>([]);
@@ -81,7 +83,7 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
       setApplication(response.data);
       setDrafts(response.data.test_cases.map(() => emptyDraft()));
     } else {
-      notice.error(cmErrorMessage(t, response, 'reviews.applyFailed'));
+      notice.error(cmErrorMessage(t, response, 'reviews.applyFailed', { days: reviewerRetryDays }));
     }
   };
 
@@ -89,7 +91,7 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
     setDrafts((current) => current.map((draft, position) => (position === index ? { ...draft, ...patch } : draft)));
   };
 
-  const draftsValid = drafts.length > 0 && drafts.every((draft) => draft.comments.trim().length >= REVIEW_COMMENT_MIN_LENGTH);
+  const draftsValid = drafts.length > 0 && drafts.every((draft) => draft.comments.trim().length >= reviewCommentMinLength);
 
   const submitTest = async (): Promise<void> => {
     if (!application || busy || !draftsValid) return;
@@ -109,7 +111,7 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
         setApplication(null);
         await onPassed(t('reviews.testPassed'));
       } else {
-        notice.error(t('reviews.testFailed', { score: response.data.similarity_score }));
+        notice.error(t('reviews.testFailed', { score: response.data.similarity_score, days: reviewerRetryDays }));
         setApplication(null);
       }
     } else {
@@ -152,7 +154,7 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
             <button type="button" className="cm-workspace-button is-primary" disabled={busy || !draftsValid} onClick={() => void submitTest()}>
               {busy ? t('common.saving') : t('reviews.submitTest')}
             </button>
-            {!draftsValid && <small className="cm-field-hint">{t('reviews.testIncomplete')}</small>}
+            {!draftsValid && <small className="cm-field-hint">{t('reviews.testIncomplete', { min: reviewCommentMinLength })}</small>}
           </div>
         </div>
       )}
@@ -164,6 +166,7 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
 const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChanged: (message: string) => Promise<void> }> = ({ submission, onChanged }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
+  const { reviewCommentMinLength } = useCmPolicy();
   const [quality, setQuality] = useState(DEFAULT_RATING);
   const [readability, setReadability] = useState(DEFAULT_RATING);
   const [efficiency, setEfficiency] = useState(DEFAULT_RATING);
@@ -172,7 +175,7 @@ const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChange
   const [comments, setComments] = useState('');
   const [lineComments, setLineComments] = useState<CmLineCommentDraft[]>([]);
   const [busy, setBusy] = useState(false);
-  const valid = comments.trim().length >= REVIEW_COMMENT_MIN_LENGTH;
+  const valid = comments.trim().length >= reviewCommentMinLength;
 
   const updateLine = (index: number, patch: Partial<CmLineCommentDraft>): void => {
     setLineComments((current) => current.map((line, position) => (position === index ? { ...line, ...patch } : line)));

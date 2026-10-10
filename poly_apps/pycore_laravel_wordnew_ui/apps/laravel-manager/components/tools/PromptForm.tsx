@@ -13,7 +13,7 @@ import {
   Star,
   Code
 } from 'lucide-react';
-import { useToolModel } from '@/apps/laravel-manager/hooks';
+import { useToolModel, useClipboard } from '@/apps/laravel-manager/hooks';
 import { AI_TOOLS } from '@/apps/laravel-manager/config/tools.config';
 import ToolWrapper from '@/shared/ui/ToolWrapper';
 import { commonClasses } from '@/shared/styles/theme';
@@ -62,6 +62,7 @@ const CATEGORY_LABEL_KEYS: Record<string, string> = {
 };
 
 const PromptForm: React.FC = () => {
+  const { copy } = useClipboard();
   const { t } = useTranslation();
   const config = AI_TOOLS.promptManager;
   const { isFavorite, toggleFavorite } = useToolModel(config);
@@ -218,7 +219,7 @@ const PromptForm: React.FC = () => {
   };
 
   const handleCopy = async (content: string) => {
-    await navigator.clipboard.writeText(content);
+    if (!(await copy(content))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

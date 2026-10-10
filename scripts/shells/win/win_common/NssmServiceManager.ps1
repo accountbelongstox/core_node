@@ -218,6 +218,68 @@ function Register-NssmService {
     return $true
 }
 
+# Exclusion state of a TCP port: administered (netsh reservation, marked '*', survives reboot) |
+# dynamic (a winnat boot-time block: binding fails with EACCES) | none.
+function Get-TcpPortExclusionState {
+    param([Parameter(Mandatory = $true)][int]$Port)
+    $rangeLines = @(netsh int ipv4 show excludedportrange protocol=tcp)
+    $rangeLine = ''
+    $rangeMatch = $null
+    $state = 'none'
+    foreach ($rangeLine in $rangeLines) {
+        $rangeMatch = [regex]::Match([string]$rangeLine, '^\s*(\d+)\s+(\d+)\s*(\*)?')
+        if ($rangeMatch.Success -and ([int]$rangeMatch.Groups[1].Value -le $Port) -and ($Port -le [int]$rangeMatch.Groups[2].Value)) {
+            if ($rangeMatch.Groups[3].Success) { return 'administered' }
+            $state = 'dynamic'
+        }
+    }
+    return $state
+}
+
+# Idempotent persistent TCP port exclusion: keeps a service port out of the Windows dynamic
+# range, where winnat (Hyper-V/WSL2/Docker NAT) reserves random 100-port blocks at every boot
+# and binding then fails with EACCES. A port inside a boot-time block is freed by restarting
+# winnat around the add. Needs elevation. Returns $true when the port is reserved.
+function Ensure-TcpPortReserved {
+    param([Parameter(Mandatory = $true)][int]$Port)
+    $winnatCycle = $false
+    $exclusionState = Get-TcpPortExclusionState -Port $Port
+    if ($exclusionState -eq 'administered') { return $true }
+    if (-not (Test-AdminPrivileges)) {
+        Write-Host "[NssmServiceManager] Port $Port has no reservation; run elevated once to reserve it." -ForegroundColor Yellow
+        return $false
+    }
+    $winnatCycle = ($exclusionState -eq 'dynamic')
+    if ($winnatCycle) {
+        Write-Host "[NssmServiceManager] Port $Port is inside a winnat dynamic block -> restarting winnat to reserve it." -ForegroundColor Yellow
+        net stop winnat 2>&1 | Out-Null
+    }
+    netsh int ipv4 add excludedportrange protocol=tcp startport=$Port numberofports=1 store=persistent 2>&1 | Out-Null
+    if ($winnatCycle) {
+        net start winnat 2>&1 | Out-Null
+    }
+    if ((Get-TcpPortExclusionState -Port $Port) -eq 'administered') {
+        Write-Host "[NssmServiceManager] Port $Port reserved (persistent excludedportrange)." -ForegroundColor Green
+        return $true
+    }
+    Write-Host "[NssmServiceManager] Port $Port could not be reserved; check: netsh int ipv4 show excludedportrange protocol=tcp" -ForegroundColor Red
+    return $false
+}
+
+# True when something listens on the TCP port within the given number of seconds.
+function Wait-TcpPortListening {
+    param(
+        [Parameter(Mandatory = $true)][int]$Port,
+        [int]$TimeoutSeconds = 0
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ($true) {
+        if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { return $true }
+        if ((Get-Date) -ge $deadline) { return $false }
+        Start-Sleep -Seconds 1
+    }
+}
+
 # SCM run state of any Windows service (NSSM, WinSW or native): running | paused | stopped | absent.
 # A service that is starting counts as running so callers never start it twice.
 function Get-ServiceRunState {

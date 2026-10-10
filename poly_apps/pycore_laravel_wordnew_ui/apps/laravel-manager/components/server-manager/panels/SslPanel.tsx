@@ -40,14 +40,17 @@ const SslPanel: React.FC<SslPanelProps> = ({
 }) => {
   const t = TRANSLATIONS[lang].server;
   const certificateManager = certbotStatus.data?.manager || 'certbot';
+  const certStatusLabel = (status: string): string => (
+    status === 'ok' ? t.ssl.ok : status === 'warning' ? t.ssl.warning : status === 'critical' ? t.ssl.critical : status
+  );
 
   return (
     <div className="space-y-4">
       {/* Certbot Status */}
       {certbotStatus.data && (
         <div className={`${commonClasses.card} p-4 ${certbotStatus.data.installed ? 'bg-green-50 dark:bg-green-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               {certbotStatus.data.installed ? (
                 <CheckCircle className="w-5 h-5 text-green-500" />
               ) : (
@@ -117,12 +120,12 @@ const SslPanel: React.FC<SslPanelProps> = ({
         <div className="grid grid-cols-1 gap-4">
           {sslCertificates.data.map(cert => (
             <div key={cert.domain} className={`${commonClasses.card} p-4`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex flex-wrap items-center gap-3 min-w-0">
                   {getStatusIcon(cert.status)}
-                  <h3 className="font-semibold text-lg">{cert.domain}</h3>
+                  <h3 className="font-semibold text-lg break-all">{cert.domain}</h3>
                   <StatusBadge
-                    status={cert.status}
+                    status={certStatusLabel(cert.status)}
                     tone={cert.status === 'ok' ? 'success' : cert.status === 'warning' ? 'warning' : 'error'}
                     withDot={false}
                   />
@@ -148,7 +151,7 @@ const SslPanel: React.FC<SslPanelProps> = ({
                 {cert.certificate_path && (
                   <div>
                     <span className="text-slate-500 dark:text-slate-400">{t.ssl.certificate_path}:</span>
-                    <p className="font-mono text-xs mt-1">{cert.certificate_path}</p>
+                    <p className="font-mono text-xs mt-1 break-all">{cert.certificate_path}</p>
                   </div>
                 )}
               </div>
@@ -162,7 +165,7 @@ const SslPanel: React.FC<SslPanelProps> = ({
           ))}
         </div>
       )}
-      {sslCertificates.data && sslCertificates.data.length === 0 && (
+      {sslCertificates.status === 'success' && sslCertificates.data && sslCertificates.data.length === 0 && (
         <div className={`${commonClasses.card} p-12 text-center`}>
           <Shield className="w-12 h-12 mx-auto mb-4 text-slate-400" />
           <p className="text-slate-500 dark:text-slate-400">{t.ssl.no_certificates}</p>

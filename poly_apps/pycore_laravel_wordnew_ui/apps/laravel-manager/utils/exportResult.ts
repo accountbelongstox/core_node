@@ -6,6 +6,8 @@
  * and safe to call from the browser.
  */
 
+import { offerBlobFile } from '../../../core/browser/FileDownload';
+
 /**
  * Trigger a client-side file download for the given text content.
  *
@@ -13,20 +15,7 @@
  * element, then revokes the URL to release memory.
  */
 export function downloadAsFile(content: string, filename: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = 'none';
-
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-
-  // Revoke asynchronously so the download has time to start.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  offerBlobFile(filename, new Blob([content], { type: mime }));
 }
 
 /**

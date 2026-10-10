@@ -571,9 +571,18 @@ public partial class MonitorPage : UserControl
 
     private void BtnRosbotKeyActive_Click(object sender, RoutedEventArgs e)
     {
-        if (LstRosbotKeys.SelectedIndex < 0) return;
-        RosbotKeyService.ActiveIndex = LstRosbotKeys.SelectedIndex;
+        if (!RosbotKeyService.SetActive(LstRosbotKeys.SelectedIndex)) return;
         ReloadRosbotKeys();
+        AskRosbotRestartForKey();
+    }
+
+    /// <summary>A running ROSBOT uses another key: ask once whether to restart ROSBOT (D3 kept); no prompt when ROSBOT is not running.</summary>
+    private void AskRosbotRestartForKey()
+    {
+        if (!RosbotKeyService.RestartNeeded) return;
+        var answer = MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorRosbotKeyRestartAsk), T(I18nKeys.MonitorRosbotKeyTab),
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer == MessageBoxResult.Yes) RosbotKeyService.RestartRosbotWithActiveKey();
     }
 
     private void LstRosbotKeys_MouseDoubleClick(object sender, MouseButtonEventArgs e) => BtnRosbotKeyActive_Click(sender, e);
@@ -587,6 +596,7 @@ public partial class MonitorPage : UserControl
         if (answer != MessageBoxResult.Yes) return;
         RosbotKeyService.Remove(index);
         ReloadRosbotKeys();
+        AskRosbotRestartForKey();
     }
 
     private void BtnRosbotKeyApply_Click(object sender, RoutedEventArgs e)

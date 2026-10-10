@@ -21,6 +21,7 @@ import { OVERLAY_CONTAINER, OVERLAY_BACKDROP, OVERLAY_Z } from '@/shared/styles/
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '@/core/logstore/logStore';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
+import { playSharedAudio } from '@/apps/laravel-manager/utils/audioPlayback';
 import { VocabularyWordsModel } from './words/VocabularyWordsModel';
 
 interface Props {
@@ -48,15 +49,16 @@ const imageSrc = (item: any): string | null => {
   return item.url || item.src || item.path || null;
 };
 
-const playAudio = (url?: string | null) => {
+const playAudio = (url: string | null | undefined, onError: () => void) => {
   if (!url) return;
-  try { void new Audio(url).play(); } catch { /* ignore */ }
+  playSharedAudio(url).catch(onError);
 };
 
 const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSaved }) => {
   const toast = useToast();
   const { t } = useTranslation();
   const isCreate = !word;
+  const notifyAudioError = () => toast.error(t('vocabulary.audio_play_failed'));
 
   // --- editable form state ------------------------------------------------- #
   const [content, setContent] = useState('');
@@ -204,7 +206,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
                   {isValid ? t('uiVocab.wordsModel.valid') : t('uiVocab.wordsModel.invalid')}
                 </button>
                 {word?.audio_url && (
-                  <button onClick={() => playAudio(word.audio_url)}
+                  <button onClick={() => playAudio(word.audio_url, notifyAudioError)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10">
                     <Volume2 className="w-4 h-4" /> {t('uiVocab.wordDetailModal.play')}
                   </button>
@@ -216,7 +218,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             <div>
               <label className={labelCls}>{t('uiVocab.wordDetailModal.translations_label')}</label>
               <textarea className={`${inputCls} font-mono`} rows={3} value={translations}
-                onChange={(e) => setTranslations(e.target.value)} placeholder="苹果&#10;果实" />
+                onChange={(e) => setTranslations(e.target.value)} placeholder={t('uiVocab.wordDetailModal.translations_placeholder')} />
             </div>
 
             {/* phonetics */}
@@ -299,7 +301,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
                       <ul className="space-y-1.5 max-h-44 overflow-auto">
                         {sentences.map((s, i) => (
                           <li key={s.id ?? i} className="text-xs text-slate-600 dark:text-slate-300 flex items-start gap-2">
-                            {s.audio && <button onClick={() => playAudio(s.audio)} className="text-indigo-500 shrink-0 mt-0.5"><Volume2 className="w-3.5 h-3.5" /></button>}
+                            {s.audio && <button onClick={() => playAudio(s.audio, notifyAudioError)} className="text-indigo-500 shrink-0 mt-0.5"><Volume2 className="w-3.5 h-3.5" /></button>}
                             <span className="break-words">{s.text}{s.explanation ? <span className="text-slate-400"> — {s.explanation}</span> : null}</span>
                           </li>
                         ))}

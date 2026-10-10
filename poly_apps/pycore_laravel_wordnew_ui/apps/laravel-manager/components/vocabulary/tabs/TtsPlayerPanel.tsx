@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -7,6 +7,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
+import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { EmptyState } from '../../common';
 import {
@@ -43,6 +44,9 @@ const TtsPlayerPanel: React.FC<TtsPlayerPanelProps> = ({
   setDuration,
 }) => {
   const { t } = useTranslation();
+  useEffect(() => {
+    setIsPlaying(false);
+  }, []);
   return (
     <div className={`${commonClasses.card} p-3 md:p-4 flex flex-col overflow-hidden min-w-0`}>
       <h3 className="font-semibold mb-2 md:mb-4">{t('vocabulary.audio_player')}</h3>
@@ -52,8 +56,11 @@ const TtsPlayerPanel: React.FC<TtsPlayerPanelProps> = ({
           {/* Audio Element */}
           <audio
             ref={audioRef}
+            src={mediaUrl(tts.data.audio_url)}
             onTimeUpdate={handleTimeUpdate}
             onEnded={() => setIsPlaying(false)}
+            onPause={() => setIsPlaying(false)}
+            onError={() => setIsPlaying(false)}
             onLoadedMetadata={() => {
               if (audioRef.current) {
                 setDuration(audioRef.current.duration);

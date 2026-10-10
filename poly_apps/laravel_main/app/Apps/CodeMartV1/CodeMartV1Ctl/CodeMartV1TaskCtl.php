@@ -3,6 +3,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
 use App\Http\Controllers\Controller;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
@@ -46,11 +47,7 @@ class CodeMartV1TaskCtl extends Controller
 
     private function pageParams(Request $request): array
     {
-        $page = max(1, (int) $request->get('page', 1));
-        $pageSize = (int) $request->get('pageSize', CodeMartV1Constants::DEFAULT_PAGE_SIZE);
-        $pageSize = max(1, min(CodeMartV1Constants::MAX_PAGE_SIZE, $pageSize));
-
-        return [$page, $pageSize];
+        return CodeMartV1Pagination::params($request);
     }
 
     private function pageEnvelope($items, int $total, int $page, int $pageSize): array

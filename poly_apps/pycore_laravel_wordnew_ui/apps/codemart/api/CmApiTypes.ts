@@ -106,6 +106,9 @@ export type CmBootstrapPolicy = {
   default_page_size: number;
   max_page_size: number;
   withdrawal_min_amount?: number;
+  project_min_budget?: number;
+  review_comment_min_length?: number;
+  reviewer_retry_days?: number;
   [key: string]: unknown;
 } & Partial<Record<CmPolicyListKey, string[]>>;
 

@@ -1134,6 +1134,14 @@
       "path": "ui/terminal/permission-mode",
       "method": "POST"
     },
+    "terminalQuickCommandRun": {
+      "path": "ui/terminal/quick_command/run",
+      "method": "POST"
+    },
+    "terminalQuickCommandStatus": {
+      "path": "ui/terminal/quick_command/status",
+      "method": "POST"
+    },
     "terminalRemove": {
       "path": "ui/terminal/remove",
       "method": "POST"
@@ -1170,8 +1178,20 @@
       "path": "ui/terminal/logs/search",
       "method": "POST"
     },
+    "terminalMeshSearch": {
+      "path": "ui/terminal/mesh/search",
+      "method": "POST"
+    },
     "terminalView": {
       "path": "ui/terminal/view",
+      "method": "POST"
+    },
+    "terminalAgentClose": {
+      "path": "ui/terminal/agent/close",
+      "method": "POST"
+    },
+    "terminalAgentCreate": {
+      "path": "ui/terminal/agent/create",
       "method": "POST"
     },
     "terminalLauncherKill": {

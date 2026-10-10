@@ -104,6 +104,8 @@ const renderWordDetailsJson = (wd: any): React.ReactNode => {
   );
 };
 
+export const sentenceCacheKey = (content: string, language: string): string => `${language}|${content}`;
+
 /** Full per-word detail panel shown under an expanded dictionary-word row. */
 const WordDetail: React.FC<WordDetailProps> = ({
   row: r,
@@ -128,7 +130,7 @@ const WordDetail: React.FC<WordDetailProps> = ({
 
   /** Example-sentences block for a word's detail panel (presentational only). */
   const renderWordSentences = (content: string, language?: string): React.ReactNode => {
-    const state = sentenceCache[content];
+    const state = sentenceCache[sentenceCacheKey(content, language || drillLanguage())];
     return (
       <div>
         <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">{t('uiVocab.wordDetail.example_sentences')}</div>

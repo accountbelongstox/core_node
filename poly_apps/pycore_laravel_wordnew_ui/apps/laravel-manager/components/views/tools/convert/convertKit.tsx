@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeftRight, Check, Copy, Info, Trash2, Upload } from
 import { ChipGroup, type ChipOption } from '@/shared/ui/ChipGroup';
 import { Switch } from '@/shared/ui/Switch';
 import { copyToClipboard } from '@/apps/laravel-manager/utils/exportResult';
+import { offerBlobFile } from '@/core/browser/FileDownload';
 import { useToolRun } from '../toolRunner';
 import type { ToolUsageEntry } from '../toolUsageStore';
 import { ConvertError } from './convertCodecs';
@@ -68,15 +69,7 @@ export const formatBytes = (bytes: number): string => {
 };
 
 export const downloadBlob = (blob: Blob, filename: string): void => {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = 'none';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  offerBlobFile(filename, blob);
 };
 
 /** Records one history entry per explicit call. */

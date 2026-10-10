@@ -90,7 +90,10 @@ export const ApiEndpointSwitcher: React.FC = () => {
   // The menu is anchored to the button's rect at open time, so a resize / rotation closes it.
   useEffect(() => {
     if (!isOpen) return;
-    const close = () => setIsOpen(false);
+    const openedWidth = window.innerWidth;
+    const close = () => {
+      if (window.innerWidth !== openedWidth) setIsOpen(false);
+    };
     window.addEventListener('resize', close);
     return () => window.removeEventListener('resize', close);
   }, [isOpen]);

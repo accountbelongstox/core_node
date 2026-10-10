@@ -94,6 +94,8 @@ dbSync: {
       pause: "暂停",
       resume: "继续",
       cancel: "取消",
+      confirmStart: "确定从 {{old}} 向 {{new}} 开始同步吗？接收服务器上的数据将被覆盖（会保留备份）。",
+      confirmCancel: "确定取消正在运行的同步会话吗？",
       receiverBlocked: "本机正在接收数据；传入会话结束前不能新建出站会话。",
       manifestDraftBlocked: "已有一个本机清单会话正在等待接收端。请先为其绑定地址，或在上方输入另一个接收端。",
       session: "同步会话",
@@ -224,8 +226,8 @@ dbSync: {
       }
     },
 header: {
-      system_online: "系统在线",
-      system_offline: "离线模式",
+      signed_in: "已登录",
+      signed_out: "未登录",
       code_last_updated: "代码更新",
       code_last_updated_unavailable: "代码时间不可用",
       code_updated_just_now: "刚刚",
@@ -435,6 +437,7 @@ vocabulary: {
       delete_library_confirm: "确定删除词库 \"{name}\"？该上传创建的单词将被删除；内置词典数据不受影响。",
       delete_library_success: "词库 \"{name}\" 已删除",
       delete_library_failed: "删除词库失败",
+      libraries_load_failed: "加载词库失败",
       login_required: "请先登录——此操作需要身份验证。",
       cancel: "取消",
       translate_failed: "翻译失败",

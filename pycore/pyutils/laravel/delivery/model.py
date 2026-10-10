@@ -13,6 +13,12 @@ server:
                 handler (single or batch), optional ``inventory`` of local
                 items ``{key, hash, record}``, ordered post-payload steps,
                 parallelism, backoff bounds and receipt policy.
+  * fanout    - a kind with ``fanout`` goes to every online Laravel server
+                (the public domains and each mesh-forwarded ``/laravel-api``),
+                not only the selected one: one row per server, each drained
+                asynchronously on its own route. A server offline at enqueue
+                time is not queued for; it catches up from its peers through
+                MeshSync (``laravel_main`` ``app/Services/MeshSync``).
   * row       - one idempotent delivery keyed by ``<namespace>|<logical id>``;
                 ``item_key`` names the inventory item it delivers, an
                 optional ``identity`` names the payload/endpoint pair so rows
@@ -152,6 +158,7 @@ class DeliveryKind:
     retry_initial_seconds: float = 5.0
     retry_max_seconds: float = 300.0
     receipts: str = RECEIPTS_NONE
+    fanout: bool = False
 
 
 def _now() -> float:
@@ -207,15 +214,30 @@ def active_namespace() -> str:
     return laravel_endpoint_manager.selected_namespace()
 
 
-def target_namespaces() -> List[str]:
-    """Servers a new item goes to: the UI-selected server only."""
-    return [laravel_endpoint_manager.selected_namespace()]
+def fanout_namespaces() -> List[str]:
+    """Every known Laravel server, the selected one first (one namespace per
+    server id, whichever of its routes - public domain or mesh - is used)."""
+    servers = [str(server.get("namespace") or "") for server in laravel_endpoint_manager.known_servers()]
+    return list(dict.fromkeys(name for name in [active_namespace(), *servers] if name))
 
 
-def deliverable_namespaces(kind: str) -> List[str]:
-    """Servers whose rows of ``kind`` may be attempted now: the selected
-    server only, and only while one of its routes may be up. Rows of any
-    other server (pinned ones included) stay parked until that server is
-    selected again; its Laravel leases re-dispatch the work meanwhile."""
-    selected = active_namespace()
-    return [selected] if laravel_endpoint_manager.namespace_reachable(selected) is not False else []
+def target_namespaces(fanout: bool = False) -> List[str]:
+    """Servers a new item goes to: the UI-selected server; a fan-out kind
+    also goes to every other server that is online now."""
+    selected = laravel_endpoint_manager.selected_namespace()
+    if not fanout:
+        return [selected]
+    return [
+        name for name in fanout_namespaces()
+        if name == selected or laravel_endpoint_manager.namespace_reachable(name) is True
+    ]
+
+
+def deliverable_namespaces(kind: str, fanout: bool = False) -> List[str]:
+    """Servers whose rows of ``kind`` may be attempted now, each only while
+    one of its routes may be up. A regular kind delivers to the selected
+    server only: rows of any other server (pinned ones included) stay parked
+    until that server is selected again; its Laravel leases re-dispatch the
+    work meanwhile. A fan-out kind delivers to every known server."""
+    candidates = fanout_namespaces() if fanout else [active_namespace()]
+    return [name for name in candidates if laravel_endpoint_manager.namespace_reachable(name) is not False]

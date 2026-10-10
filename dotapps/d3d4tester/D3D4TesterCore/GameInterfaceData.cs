@@ -63,7 +63,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private int _rosbotTotalRestartCount = 0;
     private int _windowWidth = 0;
     private int _windowHeight = 0;
-    private bool _oauthScriptConnected = false;
 
     private bool _pathValidBn;
     private bool _pathValidD3;
@@ -201,7 +200,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 RosbotTotalRestartCount = _rosbotTotalRestartCount,
                 WindowWidth = _windowWidth,
                 WindowHeight = _windowHeight,
-                OauthScriptConnected = _oauthScriptConnected,
                 PathValidBn = _pathValidBn,
                 PathValidD3 = _pathValidD3,
                 PathValidRos = _pathValidRos,
@@ -517,15 +515,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
         {
             _windowWidth = width;
             _windowHeight = height;
-        }
-    }
-
-    /// <summary>Set OAuth script connected for status bar.</summary>
-    public void SetOauthScriptConnected(bool connected)
-    {
-        lock (_lock)
-        {
-            _oauthScriptConnected = connected;
         }
     }
 

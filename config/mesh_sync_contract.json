@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "name": "MeshSync",
+  "api_prefix": "/api/mesh-sync",
+  "auth": {
+    "machine_middleware": "client.key",
+    "read_middleware": "client.key_or_dashboard",
+    "throttle_per_minute": 1200
+  },
+  "routes": {
+    "info": { "method": "GET", "path": "info" },
+    "records": { "method": "POST", "path": "records" },
+    "changes": { "method": "GET", "path": "changes" },
+    "search": { "method": "GET", "path": "search" },
+    "peers": { "method": "GET", "path": "peers" }
+  },
+  "streams": {
+    "terminal_sent": "terminal.sent",
+    "terminal_draft": "terminal.draft"
+  },
+  "stream_pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+  "peer_sources": ["contract", "announced", "gossip"],
+  "limits": {
+    "ingest_records": 200,
+    "record_payload_bytes": 262144,
+    "key_length": 255,
+    "search_text_chars": 20000,
+    "changes_page": 500,
+    "pages_per_peer_round": 20,
+    "search_results": 60,
+    "query_chars": 200,
+    "peers_per_round": 32,
+    "peer_connect_timeout_seconds": 5,
+    "peer_timeout_seconds": 20,
+    "replicate_interval_seconds": 15,
+    "peer_retry_max_seconds": 600,
+    "peer_forget_days": 30
+  }
+}

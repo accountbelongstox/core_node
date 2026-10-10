@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ACTIVATE,
+    UI_TERMINAL_AGENT_CLOSE,
+    UI_TERMINAL_AGENT_CREATE,
     UI_TERMINAL_BACKUPS_DELETE,
     UI_TERMINAL_BACKUPS_LIST,
     UI_TERMINAL_BACKUPS_OPEN,
@@ -25,6 +27,8 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_LAUNCHER_LAUNCH,
     UI_TERMINAL_LAUNCHER_RESTART,
     UI_TERMINAL_PERMISSION_MODE,
+    UI_TERMINAL_QUICK_COMMAND_RUN,
+    UI_TERMINAL_QUICK_COMMAND_STATUS,
     UI_TERMINAL_REMOVE,
     UI_TERMINAL_RENAME,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
@@ -34,6 +38,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_TEXT,
     UI_TERMINAL_LOGS_SEARCH,
+    UI_TERMINAL_MESH_SEARCH,
     UI_TERMINAL_VIEW,
     UI_TERMINAL_VIEWER_DEMAND,
     UI_TERMINAL_IMAGE_UPLOAD,
@@ -43,6 +48,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyctl.terminal.terminal_backup_history_service import terminal_backup_history_service
 from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
 from pycore.pyctl.terminal.launcher_control_service import launcher_control_service
+from pycore.pyctl.terminal.terminal_quick_command_runner import terminal_quick_command_runner
 from pycore.pyctl.terminal.terminal_quick_commands import list_quick_commands
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_rpc import (
@@ -158,8 +164,6 @@ def register_terminal_routes(server) -> None:
         text = str(params.get("text") or "")
         clear_first = bool_param(params, "clear_first")
         interrupt_first = bool_param(params, "interrupt_first")
-        shell_prompt = bool_param(params, "shell_prompt")
-        restart_first = bool_param(params, "restart_first")
         return run_terminal_action(
             "input",
             request_id,
@@ -169,8 +173,6 @@ def register_terminal_routes(server) -> None:
                 text,
                 clear_first=clear_first,
                 interrupt_first=interrupt_first,
-                shell_prompt=shell_prompt,
-                restart_first=restart_first,
             ),
         )
 
@@ -219,11 +221,53 @@ def register_terminal_routes(server) -> None:
             lambda: launcher_control_service.restart_all(mode),
         )
 
+    def agent_create_handler(params, request_id, _context):
+        kind = str(params.get("kind") or "").strip().lower()
+        return run_terminal_action(
+            "agent_create",
+            request_id,
+            lambda: terminal_service.create_virtual(kind),
+        )
+
+    def agent_close_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+
+        def close():
+            result = terminal_service.close_virtual(window_id)
+            if result.get("success"):
+                result["removed_schedule_count"] = terminal_scheduler.drop_terminals(
+                    result["removed_terminal_numbers"],
+                )
+            return result
+
+        return run_terminal_action("agent_close", request_id, close)
+
     def commands_handler(_params, request_id, _context):
         return run_terminal_action(
             "commands",
             request_id,
             list_quick_commands,
+            log_result=False,
+            quiet=True,
+        )
+
+    def quick_command_run_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        command_id = str(params.get("command_id") or "")
+        shell_os = str(params.get("platform") or "").strip().lower()
+        return run_terminal_action(
+            "quick_command_run",
+            request_id,
+            lambda: terminal_quick_command_runner.start(window_id, terminal_number, command_id, shell_os),
+        )
+
+    def quick_command_status_handler(params, request_id, _context):
+        terminal_number = integer_param(params, "terminal_number")
+        return run_terminal_action(
+            "quick_command_status",
+            request_id,
+            lambda: terminal_quick_command_runner.status(terminal_number),
             log_result=False,
             quiet=True,
         )
@@ -498,6 +542,16 @@ def register_terminal_routes(server) -> None:
             quiet=True,
         )
 
+    def mesh_search_handler(params, request_id, _context):
+        query = str(params.get("query") or "")
+        return run_terminal_action(
+            "mesh_search",
+            request_id,
+            lambda: terminal_service.search_mesh(query),
+            log_result=False,
+            quiet=True,
+        )
+
     def screenshot_text_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
         digest = str(params.get("digest") or "")
@@ -570,7 +624,11 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_LAUNCHER_LAUNCH, handler=launcher_launch_handler)
     server.post(path=UI_TERMINAL_LAUNCHER_KILL, handler=launcher_kill_handler)
     server.post(path=UI_TERMINAL_LAUNCHER_RESTART, handler=launcher_restart_handler)
+    server.post(path=UI_TERMINAL_AGENT_CREATE, handler=agent_create_handler)
+    server.post(path=UI_TERMINAL_AGENT_CLOSE, handler=agent_close_handler)
     server.post(path=UI_TERMINAL_PERMISSION_MODE, handler=permission_mode_handler)
+    server.post(path=UI_TERMINAL_QUICK_COMMAND_RUN, handler=quick_command_run_handler)
+    server.post(path=UI_TERMINAL_QUICK_COMMAND_STATUS, handler=quick_command_status_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
@@ -589,4 +647,5 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_SCREENSHOT_TEXT, handler=screenshot_text_handler)
     server.post(path=UI_TERMINAL_TEXT, handler=text_handler)
     server.post(path=UI_TERMINAL_LOGS_SEARCH, handler=logs_search_handler)
+    server.post(path=UI_TERMINAL_MESH_SEARCH, handler=mesh_search_handler)
     server.get(path=UI_TERMINAL_DESKTOP_SCREENSHOT, handler=desktop_screenshot_handler)

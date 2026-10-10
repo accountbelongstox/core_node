@@ -26,6 +26,7 @@ import { commonClasses } from '@/shared/styles/theme';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_BACKDROP, OVERLAY_CONTAINER, OVERLAY_Z } from '@/shared/styles/overlay';
 import { ConfirmModal, useToast } from '../../admin';
+import { useConfirmAction } from '@/apps/laravel-manager/hooks';
 import { AlertBox, LoadingBlock, StatusBadge } from '../../common';
 import { NEXUS_DASH_FRONTEND_URL } from '@/core/contracts/ServiceContract';
 
@@ -56,6 +57,7 @@ const emptyForm: SiteFormState = {
 const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
   const t = TRANSLATIONS[lang].server.frankenphp;
   const toast = useToast();
+  const { requestConfirm, confirmDialog } = useConfirmAction();
   const [status, setStatus] = useState<AsyncState<FrankenPhpStatusOverview>>({
     data: null,
     loading: false,
@@ -121,6 +123,7 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
   }, [refresh]);
 
   const runServiceAction = async (action: ServiceAction) => {
+    if (busyAction !== null) return;
     setBusyAction(action);
     try {
       const response = action === 'reload'
@@ -133,14 +136,30 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
         await api.serverManagerV1.waitForFrankenPhpReload(response);
       }
       toast.success(t.operation_succeeded.replace('{action}', t[action]));
-      if (action !== 'stop') {
-        await refresh();
+      if (action === 'stop') {
+        setStatus(previous => (previous.data ? { ...previous, data: { ...previous.data, running: false } } : previous));
       }
+      await refresh();
     } catch (error: any) {
       toast.error(`${t.operation_failed}: ${error.message}`);
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const handleServiceAction = (action: ServiceAction) => {
+    if (busyAction !== null) return;
+    if (action === 'stop' || action === 'restart') {
+      requestConfirm({
+        title: t[action],
+        message: action === 'stop' ? t.confirm_stop : t.confirm_restart,
+        variant: 'danger',
+        confirmText: t[action],
+        action: () => runServiceAction(action)
+      });
+      return;
+    }
+    void runServiceAction(action);
   };
 
   const testConfiguration = async () => {
@@ -257,7 +276,8 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      {confirmDialog}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{t.sites}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">{t.subtitle}</p>
@@ -305,13 +325,13 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
               <button onClick={() => void runServiceAction('reload')} disabled={busyAction !== null} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm flex items-center gap-2">
                 <RefreshCw className={`w-4 h-4 ${busyAction === 'reload' ? 'animate-spin' : ''}`} />{t.reload}
               </button>
-              <button onClick={() => void runServiceAction('start')} disabled={busyAction !== null || status.data.running} className="p-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-lg" title={t.start}>
+              <button onClick={() => handleServiceAction('start')} disabled={busyAction !== null || status.data.running} className="p-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-lg" title={t.start}>
                 <Power className="w-4 h-4" />
               </button>
-              <button onClick={() => void runServiceAction('restart')} disabled={busyAction !== null || !status.data.running} className="p-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-lg" title={t.restart}>
+              <button onClick={() => handleServiceAction('restart')} disabled={busyAction !== null || !status.data.running} className="p-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-lg" title={t.restart}>
                 <RotateCw className={`w-4 h-4 ${busyAction === 'restart' ? 'animate-spin' : ''}`} />
               </button>
-              <button onClick={() => void runServiceAction('stop')} disabled={busyAction !== null || !status.data.running} className="p-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white rounded-lg" title={t.stop}>
+              <button onClick={() => handleServiceAction('stop')} disabled={busyAction !== null || !status.data.running} className="p-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white rounded-lg" title={t.stop}>
                 <PowerOff className="w-4 h-4" />
               </button>
             </div>
@@ -333,8 +353,8 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
             <div key={site.site_name} className={`${commonClasses.card} p-4`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-slate-900 dark:text-white truncate">{site.site_name}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold text-slate-900 dark:text-white break-all">{site.site_name}</h3>
                     <StatusBadge status={site.enabled ? t.enabled : t.disabled} tone={site.enabled ? 'success' : 'idle'} withDot={false} />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 break-all">{site.hosts.join(', ') || site.domain}</p>

@@ -2,6 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1ApiInfo;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+
 class CodeMartV1ApiInfo
 {
     public static function getSupportedHeaders(): array
@@ -104,7 +106,7 @@ class CodeMartV1ApiInfo
                 'authentication' => true,
                 'parameters' => [
                     'page' => 'integer|default:1',
-                    'pageSize' => 'integer|default:20',
+                    'page_size' => 'integer|default:20|alias:pageSize',
                     'status' => 'string|in:draft,open,in_progress,paused,completed,cancelled,archived',
                     'complexity' => 'string|in:simple,medium,complex,very_complex',
                     'search' => 'string|nullable',
@@ -120,7 +122,7 @@ class CodeMartV1ApiInfo
                     'title' => 'string|required|max:255',
                     'description' => 'string|required',
                     'complexity' => 'string|required|in:simple,medium,complex,very_complex',
-                    'budget' => 'numeric|required|min:100',
+                    'budget' => 'numeric|required|min:' . CodeMartV1Constants::PROJECT_MIN_BUDGET,
                     'budget_type' => 'string|required|in:fixed,hourly',
                     'currency' => 'string|required|size:3',
                     'start_date' => 'date|nullable',
@@ -153,7 +155,7 @@ class CodeMartV1ApiInfo
                     'description' => 'string|sometimes',
                     'status' => 'string|sometimes|in:draft,open,in_progress,paused,completed,cancelled,archived',
                     'complexity' => 'string|sometimes|in:simple,medium,complex,very_complex',
-                    'budget' => 'numeric|sometimes|min:100',
+                    'budget' => 'numeric|sometimes|min:' . CodeMartV1Constants::PROJECT_MIN_BUDGET,
                 ],
                 'response' => 'Updated project object',
                 'feature' => 'Update Project',
@@ -212,7 +214,7 @@ class CodeMartV1ApiInfo
                 'authentication' => true,
                 'parameters' => [
                     'page' => 'integer|default:1',
-                    'pageSize' => 'integer|default:20',
+                    'page_size' => 'integer|default:20|alias:pageSize',
                     'milestone_id' => 'integer|nullable',
                     'status' => 'string|in:pending,open,assigned,in_progress,review,completed,blocked,cancelled',
                     'priority' => 'string|in:low,medium,high,urgent',
@@ -321,7 +323,7 @@ class CodeMartV1ApiInfo
                 'authentication' => true,
                 'parameters' => [
                     'page' => 'integer|default:1',
-                    'pageSize' => 'integer|default:20',
+                    'page_size' => 'integer|default:20|alias:pageSize',
                 ],
                 'response' => 'Paginated wallet transactions',
                 'feature' => 'Get Wallet Transactions',
@@ -332,7 +334,7 @@ class CodeMartV1ApiInfo
                 'authentication' => true,
                 'parameters' => [
                     'page' => 'integer|default:1',
-                    'pageSize' => 'integer|default:20',
+                    'page_size' => 'integer|default:20|alias:pageSize',
                     'status' => 'string|in:pending,completed,failed,cancelled,disputed',
                     'type' => 'string|in:milestone,hourly,refund,bonus',
                 ],
@@ -598,7 +600,7 @@ class CodeMartV1ApiInfo
                 'authentication' => true,
                 'parameters' => [
                     'page' => 'integer|default:1',
-                    'pageSize' => 'integer|default:20',
+                    'page_size' => 'integer|default:20|alias:pageSize',
                     'skills' => 'array|nullable',
                     'min_budget' => 'numeric|default:0',
                     'max_budget' => 'numeric|default:999999',

@@ -631,7 +631,9 @@ server: {
         site_deleted: "FrankenPHP 站点已删除，并保留了可恢复备份",
         site_enabled: "FrankenPHP 站点已启用",
         site_disabled: "FrankenPHP 站点已禁用",
-        delete_confirm: "确定删除 FrankenPHP 站点 {site} 吗？其配置会移入可恢复备份目录。"
+        delete_confirm: "确定删除 FrankenPHP 站点 {site} 吗？其配置会移入可恢复备份目录。",
+        confirm_stop: "确定停止 FrankenPHP 吗？它承载的所有站点（可能包括本管理页）都会下线。",
+        confirm_restart: "确定重启 FrankenPHP 吗？连接会短暂中断。"
       },
       nginx: {
         sites: "Nginx 站点",
@@ -651,6 +653,7 @@ server: {
         view_config: "查看配置",
         test_config: "测试配置",
         reload: "重载 Nginx",
+        action_reload: "重载",
         refresh: "刷新",
         create: "创建站点",
         update: "更新站点",
@@ -823,7 +826,13 @@ server: {
         enabled_suffix: "（已启用）",
         proxy_enabled: "已启用",
         proxy_configured: "已配置",
-        proxy_not_configured: "未配置"
+        proxy_not_configured: "未配置",
+        state_running: "运行中",
+        state_stopped: "已停止",
+        state_failed: "失败",
+        state_inactive: "未运行",
+        state_active: "已激活",
+        state_unknown: "未知"
       },
       messages: {
         confirm_renew_certs: "确定要续期所有证书吗？",
@@ -884,7 +893,11 @@ server: {
         cert_done: "已完成：{domain}",
         cert_failed: "失败：{domain}",
         cert_waiting: "等待 certbot…",
-        missing_app_type: "缺少应用类型——请重新加载应用列表"
+        missing_app_type: "缺少应用类型——请重新加载应用列表",
+        confirm_execute_script: "确定要执行脚本「{script}」吗？",
+        confirm_execute_script_sudo: "确定要以 sudo 权限执行脚本「{script}」吗？这可能会修改服务器。",
+        confirm_app_action: "确定要对应用「{app}」执行「{action}」吗？",
+        action_failed: "操作 {action} 失败 — {error}"
       },
       octane: {
         restart_button: "重启 Octane",

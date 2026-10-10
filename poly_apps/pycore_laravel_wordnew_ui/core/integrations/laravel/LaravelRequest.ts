@@ -4,7 +4,7 @@ import { apiManager } from './ApiManager';
 import { buildApiUrl } from './LaravelEndpoints';
 import { coordinateRequest } from '../../network/RequestCoordinator';
 import i18n from '../../i18n/UiI18n';
-import { requestGlobalLogin } from './transport/LoginRequestBridge';
+import { AUTH_LOGIN_SOURCE_TRANSPORT, requestGlobalLogin } from './transport/LoginRequestBridge';
 import { clientKeyFailureCode, clientKeyFailureMessage } from './ClientKeyFailure';
 import { serverSchemaGate } from './ServerSchemaGate';
 
@@ -55,7 +55,7 @@ export async function readSessionResponse<T>(response: Response, path: string, b
       const clientKeyCode = clientKeyFailureCode((error as { payload?: unknown }).payload);
       // A rejected client key is not fixed by a login: its own message is thrown instead.
       if (clientKeyCode) throw Object.assign(new Error(clientKeyFailureMessage(clientKeyCode)), error as object, { code: clientKeyCode });
-      requestGlobalLogin(baseUrl ? { baseUrl } : {});
+      requestGlobalLogin(baseUrl ? { baseUrl, source: AUTH_LOGIN_SOURCE_TRANSPORT } : { source: AUTH_LOGIN_SOURCE_TRANSPORT });
     }
     if (response.status !== FORBIDDEN_STATUS) throw error;
     throw Object.assign(new Error(i18n.t(ADMIN_REQUIRED_MESSAGE_KEY)), error as object);

@@ -112,7 +112,7 @@ const SentenceRow = ({
             className="flex-1 text-left min-w-0"
             title={isMovie ? formatTime(s.start_sec) : undefined}
           >
-            <p className="text-sm leading-snug text-slate-800 dark:text-slate-100 break-words">
+            <p className={`text-sm leading-snug text-slate-800 dark:text-slate-100 break-words ${isExpanded ? '' : 'line-clamp-2'}`} title={isExpanded ? undefined : s.text}>
               {s.text}
             </p>
             {isMovie && s.start_sec !== undefined && (
@@ -176,12 +176,14 @@ const MbSourceDetail: React.FC<MbSourceDetailProps> = ({ source }) => {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const sentenceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const detailSeqRef = useRef(0);
 
   const isMovie = source !== null && source.kind === 'movies';
 
   // Load detail for the selected source.
   const loadDetail = useCallback(
     async (key: string, movie: boolean) => {
+      const seq = ++detailSeqRef.current;
       setDetailLoading(true);
       setDetailError(null);
       setSegments([]);
@@ -192,6 +194,7 @@ const MbSourceDetail: React.FC<MbSourceDetailProps> = ({ source }) => {
       if (movie) {
         const grain: MediaGrain = 'sentence';
         const res = await api.mediaQuery.getSubtitle(key, grain);
+        if (seq !== detailSeqRef.current) return;
         if (res.success && res.data) {
           setSegments(Array.isArray(res.data.segments) ? res.data.segments : []);
           setSentences(Array.isArray(res.data.sentences) ? res.data.sentences : []);
@@ -200,6 +203,7 @@ const MbSourceDetail: React.FC<MbSourceDetailProps> = ({ source }) => {
         }
       } else {
         const res = await api.mediaQuery.getBook(key);
+        if (seq !== detailSeqRef.current) return;
         if (res.success && res.data) {
           setSentences(Array.isArray(res.data.sentences) ? res.data.sentences : []);
         } else {
@@ -223,6 +227,7 @@ const MbSourceDetail: React.FC<MbSourceDetailProps> = ({ source }) => {
     setVideoFormat('full');
     setPendingSeek(null);
     if (source === null) {
+      detailSeqRef.current += 1;
       setDetailLoading(false);
       return;
     }
@@ -464,7 +469,7 @@ const MbSourceDetail: React.FC<MbSourceDetailProps> = ({ source }) => {
                   rowComponent={SentenceRow}
                   rowCount={sentences.length}
                   rowHeight={(index, p) =>
-                    p.sentences[index] && p.expandedSeq === p.sentences[index].seq ? 300 : 64
+                    p.sentences[index] && p.expandedSeq === p.sentences[index].seq ? 360 : 84
                   }
                   rowProps={rowProps}
                   style={{ height: '100%' }}

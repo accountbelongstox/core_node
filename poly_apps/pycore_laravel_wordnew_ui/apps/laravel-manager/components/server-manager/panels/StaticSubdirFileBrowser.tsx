@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
 import { Modal } from '../../admin';
 import i18n, { useTranslation } from '@/apps/laravel-manager/i18n';
@@ -32,6 +32,7 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
   const [sort, setSort] = useState<SortField>('name');
   const [order, setOrder] = useState<SortOrder>('asc');
   const [page, setPage] = useState(1);
+  const loadSeqRef = useRef(0);
 
   useEffect(() => {
     const id = setTimeout(() => setQuery(searchInput.trim()), 350);
@@ -40,6 +41,7 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
 
   const loadFiles = useCallback(async () => {
     if (!open || !relativePath) return;
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -51,21 +53,24 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
         page,
         per_page: 100,
       });
+      if (seq !== loadSeqRef.current) return;
       if (res.success && res.data) {
         setData(res.data as StaticResourceFileList);
       } else {
         throw new Error(res.error || i18n.t('uiServer.static_file_browser.load_failed'));
       }
     } catch (e: any) {
+      if (seq !== loadSeqRef.current) return;
       setError(e.message);
       setData(null);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [open, relativePath, query, sort, order, page]);
 
   useEffect(() => {
     if (open) {
+      setData(null);
       setPage(1);
       setSearchInput('');
       setQuery('');

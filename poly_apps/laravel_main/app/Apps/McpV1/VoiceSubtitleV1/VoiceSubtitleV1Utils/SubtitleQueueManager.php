@@ -58,6 +58,19 @@ class SubtitleQueueManager
         return $this->queue;
     }
 
+    public function indexOfId(string $id): ?int
+    {
+        $this->refreshQueueFromDisk();
+
+        foreach ($this->queue as $position => $item) {
+            if (isset($item['id']) && (string) $item['id'] === $id) {
+                return (int) $position;
+            }
+        }
+
+        return null;
+    }
+
     public function getQueueLength(): int
     {
         $this->refreshQueueFromDisk();

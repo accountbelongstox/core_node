@@ -6,6 +6,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmProject } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CM_PROTECTED_ROUTE, cmProjectPath } from '../components/public-home/cmPublicRoutes';
@@ -17,8 +18,6 @@ import { useCmPagedList } from '../components/workspace/useCmPagedList';
 const DEFAULT_COMPLEXITY = 'medium';
 const DEFAULT_BUDGET_TYPE = 'fixed';
 const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
-const DEFAULT_CURRENCY = 'CNY';
-const MIN_BUDGET = 100;
 const TITLE_MAX_LENGTH = 255;
 const ALL_STATUSES = '';
 
@@ -155,10 +154,10 @@ const CmFieldLabel: React.FC<{ label: string; required?: boolean; hint?: string 
 export const CmProjectCreatePage: React.FC = () => {
   const { t } = useTranslation('cm');
   const navigate = useNavigate();
-  const { bootstrap, hasCapability, refresh, policyList } = useCmBootstrap();
+  const { hasCapability, refresh, policyList } = useCmBootstrap();
   const notice = useCmNotice();
   const canCreate = hasCapability('project.create');
-  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
+  const { currency, projectMinBudget } = useCmPolicy();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [complexity, setComplexity] = useState<string>(DEFAULT_COMPLEXITY);
@@ -174,7 +173,7 @@ export const CmProjectCreatePage: React.FC = () => {
   if (!title.trim()) errors.title = t('projectCreate.errors.titleRequired');
   else if (title.length > TITLE_MAX_LENGTH) errors.title = t('projectCreate.errors.titleTooLong', { max: TITLE_MAX_LENGTH });
   if (!description.trim()) errors.description = t('projectCreate.errors.descriptionRequired');
-  if (!budget || Number(budget) < MIN_BUDGET) errors.budget = t('projectCreate.errors.budgetMin', { amount: MIN_BUDGET, currency });
+  if (!budget || Number(budget) < projectMinBudget) errors.budget = t('projectCreate.errors.budgetMin', { amount: projectMinBudget, currency });
   if (startDate && endDate && endDate <= startDate) errors.endDate = t('projectCreate.errors.endAfterStart');
   const showError = (field: CmCreateField): string | undefined => (submitted ? errors[field] : undefined);
 
@@ -232,7 +231,7 @@ export const CmProjectCreatePage: React.FC = () => {
         </label>
         <label>
           <CmFieldLabel label={t('projectCreate.budget')} required />
-          <input type="number" min={MIN_BUDGET} step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder={t('projectCreate.budgetPlaceholder', { amount: MIN_BUDGET, currency })} aria-invalid={Boolean(showError('budget'))} />
+          <input type="number" min={projectMinBudget} step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder={t('projectCreate.budgetPlaceholder', { amount: projectMinBudget, currency })} aria-invalid={Boolean(showError('budget'))} />
           {showError('budget') && <small className="cm-field-error">{showError('budget')}</small>}
         </label>
         <label>

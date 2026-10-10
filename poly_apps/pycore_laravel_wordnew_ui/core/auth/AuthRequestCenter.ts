@@ -4,6 +4,7 @@ export const AUTH_LOGIN_REQUEST_EVENT = 'app-auth:login-request';
 export const AUTH_LOGIN_DISMISS_EVENT = 'app-auth:login-dismiss';
 export const AUTH_LOGIN_SUCCESS_EVENT = 'app-auth:login-success';
 export const AUTH_SESSION_CHANGED_EVENT = 'UnifiedUser-session-changed';
+export const AUTH_LOGIN_SOURCE_TRANSPORT = 'transport';
 const AUTH_LOGIN_REQUEST_COOLDOWN_MS = 1000;
 
 const lastAuthLoginRequestAt = new Map<string, number>();

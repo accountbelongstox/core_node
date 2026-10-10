@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
 import { AlertBox, EmptyState, InlineSpinner, LoadingBlock } from '../../common';
+import { ConfirmModal } from '../../admin';
 import { StatCard, StatusBadge } from './shared';
 import AssistRequestModal from './AssistRequestModal';
 
@@ -61,6 +62,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [modalRecord, setModalRecord] = useState<{ record_type: string; source_key: string } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   // The poll closure must always see the CURRENT status filter.
   const statusFilterRef = useRef<StatusFilter>(statusFilter);
@@ -68,12 +70,14 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
 
   const fetchSnapshot = (): Promise<AssistRequestsSnapshot | null> => {
     const filter = statusFilterRef.current;
+    const isCurrent = () => filter === statusFilterRef.current;
     const params: { per_page: number; status?: string } = { per_page: 100 };
     if (filter !== 'all') params.status = filter;
 
     return api.serverManager
       .listAssistRequests(params)
       .then((res) => {
+        if (!isCurrent()) return null;
         if (!res.success || !res.data) {
           setError(res.error || t('uiTask.assist_requests.load_failed'));
           setLoading(false);
@@ -88,6 +92,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
         };
       })
       .catch((err: any) => {
+        if (!isCurrent()) return null;
         setError(err?.message || t('uiTask.assist_requests.load_failed'));
         setLoading(false);
         return null;
@@ -152,6 +157,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
   };
 
   const handleDelete = async (id: number) => {
+    setPendingDeleteId(null);
     setDeletingId(id);
     setNotice(null);
     try {
@@ -348,7 +354,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
                           {t('uiTask.assist_requests.more')}
                         </button>
                         <button
-                          onClick={() => handleDelete(row.id)}
+                          onClick={() => setPendingDeleteId(row.id)}
                           disabled={deletingId === row.id}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
                           title={t('uiTask.assist_requests.delete_title')}
@@ -378,6 +384,15 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
           )}
         </>
       )}
+
+      <ConfirmModal
+        isOpen={pendingDeleteId !== null}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => { if (pendingDeleteId !== null) void handleDelete(pendingDeleteId); }}
+        message={t('uiTask.confirm_action.delete_assist_request', { id: pendingDeleteId ?? '' })}
+        confirmText={t('uiTask.assist_requests.delete_title')}
+        variant="danger"
+      />
 
       {modalOpen && (
         <AssistRequestModal

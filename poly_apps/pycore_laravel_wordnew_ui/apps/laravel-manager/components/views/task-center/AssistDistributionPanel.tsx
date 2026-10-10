@@ -5,7 +5,9 @@ import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { useApiResource } from '@/apps/laravel-manager/hooks';
 import type { DevHistoryAssistTask } from '@/apps/laravel-manager/api';
+import { AlertBox } from '../../common';
 import { useTaskCenterState } from './TaskCenterState';
+import { StatusBadge } from './shared';
 
 interface Props {
   lang: Language;
@@ -32,8 +34,9 @@ const AssistDistributionPanel: React.FC<Props> = () => {
   const { t } = useTranslation();
   const { autoRefresh, refreshIntervalSec, refreshToken } = useTaskCenterState();
   const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
-  const { data, loading, refresh } = useApiResource<AssistDistData>(
+  const { data, loading, error, refresh } = useApiResource<AssistDistData>(
     () => api.devHistory.getAssist(),
     {
       pollMs: autoRefresh ? Math.max(3, refreshIntervalSec) * 1000 : undefined,
@@ -46,9 +49,18 @@ const AssistDistributionPanel: React.FC<Props> = () => {
 
   const scan = async () => {
     setScanning(true);
-    await api.devHistory.assistScan();
-    await refresh();
-    setScanning(false);
+    setScanError(null);
+    try {
+      const res = await api.devHistory.assistScan();
+      if (res && res.success === false) {
+        setScanError(res.error || t('uiTask.assist_dist.scan_failed'));
+      }
+      await refresh();
+    } catch (err: any) {
+      setScanError(err?.message || t('uiTask.assist_dist.scan_failed'));
+    } finally {
+      setScanning(false);
+    }
   };
 
   const cards: Array<[string, string]> = [
@@ -72,6 +84,8 @@ const AssistDistributionPanel: React.FC<Props> = () => {
           <Play className="w-3.5 h-3.5" /> {scanning ? t('uiTask.assist_dist.scanning') : t('uiTask.assist_dist.scan_enqueue')}
         </button>
       </div>
+
+      {(scanError || error) && <AlertBox variant="error">{scanError || error}</AlertBox>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map(([k, label]) => (
@@ -102,7 +116,7 @@ const AssistDistributionPanel: React.FC<Props> = () => {
             ) : (
               recent.map((r) => (
                 <tr key={r.task_id}>
-                  <td className={`px-3 py-2 font-medium ${STATUS_COLOR[r.status] || ''}`}>{r.status}</td>
+                  <td className="px-3 py-2"><StatusBadge status={r.status} kind="queue" /></td>
                   <td className="px-3 py-2">{r.source_lang}</td>
                   <td className="px-3 py-2 truncate max-w-md text-slate-600 dark:text-slate-300">{r.text}</td>
                   <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{r.created_at}</td>

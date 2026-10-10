@@ -37,8 +37,6 @@ public static partial class I18nKeys
     public const string StatusServerUnknown = "ui.rosbot.server_unknown";
     public const string StatusMapUnknown = "ui.rosbot.map_unknown";
     public const string StatusStageUnknown = "ui.rosbot.stage_unknown";
-    public const string StatusOauthConnected = "ui.rosbot.oauth_script_connected";
-    public const string StatusOauthDisconnected = "ui.rosbot.oauth_script_disconnected";
     public const string StatusWindowSizeFormat = "ui.status_bar.size_format";
     /// <summary>Format for ROS restart count, e.g. [R{count}] or 重{count}. 1:1 Python rosbot.restart_count_format.</summary>
     public const string StatusRestartCountFormat = "ui.rosbot.restart_count_format";
@@ -71,11 +69,7 @@ public static partial class I18nKeys
     public const string RosbotControlPanel = "ui.rosbot.control_panel";
     public const string RosbotStartRosbot = "ui.rosbot.start_rosbot";
     public const string RosbotStopRosbot = "ui.rosbot.stop_rosbot";
-    public const string RosbotEnsureBattlenetOnly = "ui.rosbot.ensure_battlenet_only";
-    public const string RosbotEnsureBattlenetOnlyOn = "ui.rosbot.ensure_battlenet_only_on";
     public const string RosbotUpdateRosbot = "ui.rosbot.update_rosbot";
-    public const string RosbotOpenTampermonkeyScript = "ui.rosbot.open_tampermonkey_script";
-    public const string RosbotSetAccountPassword = "ui.rosbot.set_account_password";
     public const string RosbotRosbotLog = "ui.rosbot.rosbot_log";
     /// <summary>1:1 Python rosbot.warning (messagebox title for file not found).</summary>
     public const string RosbotWarning = "ui.rosbot.warning";

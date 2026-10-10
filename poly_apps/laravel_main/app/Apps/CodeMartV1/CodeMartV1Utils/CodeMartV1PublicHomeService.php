@@ -223,7 +223,7 @@ class CodeMartV1PublicHomeService
     /**
      * Published mobile-app packages, configured by the operator through the
      * `codemartv1_app_downloads` setting (JSON list of {platform, version,
-     * url}). Empty means "not published yet"; the browser never probes
+     * url, min_os}); min_os is the minimum OS version number. Empty means "not published yet"; the browser never probes
      * artifact URLs itself.
      */
     public function appDownloads(): array
@@ -241,6 +241,7 @@ class CodeMartV1PublicHomeService
             $platform = (string) ($entry['platform'] ?? '');
             $version = trim((string) ($entry['version'] ?? ''));
             $url = trim((string) ($entry['url'] ?? ''));
+            $minOs = trim((string) ($entry['min_os'] ?? ''));
             if (!in_array($platform, ['android', 'ios'], true) || $url === '') {
                 continue;
             }
@@ -251,6 +252,7 @@ class CodeMartV1PublicHomeService
                 'platform' => $platform,
                 'version' => $version,
                 'url' => $url,
+                'min_os' => $minOs !== '' ? $minOs : CodeMartV1Constants::APP_DEFAULT_MIN_OS[$platform],
             ];
         }
 

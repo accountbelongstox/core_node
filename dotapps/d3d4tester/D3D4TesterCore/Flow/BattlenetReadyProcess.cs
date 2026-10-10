@@ -154,7 +154,6 @@ public static class BattlenetReadyProcess
                     {
                         lastLoginActionUtc = now;
                         ColorPrinter.Blue($"{LogTag} CN login screen -> agree + NetEase, then web login");
-                        BattlenetFlowHooks.ResetOauthDone?.Invoke();
                         BattlenetOperationFactory.GetOperation(C.RegionCn).PerformCnLoginFlow(0);
                     }
                     RunWebLoginPoll();
@@ -226,21 +225,17 @@ public static class BattlenetReadyProcess
         ctx.Wait(C.AfterStartSec);
     }
 
-    private static void RunWebLoginPoll()
-    {
-        if (BrowserLoginAutomation.RunOnePoll() == BrowserLoginAutomation.PollResult.Success)
-            BattlenetFlowHooks.NotifyOauthDone?.Invoke();
-    }
+    private static void RunWebLoginPoll() => BrowserLoginAutomation.RunOnePoll();
 
-    /// <summary>Asia login with the saved credentials; the credentials dialog is scheduled once when none are saved.</summary>
+    /// <summary>Asia login with the saved credentials; the Battle.net accounts are shown once when none are saved.</summary>
     private static bool TryAsiaLogin(bool activate)
     {
-        if (BattlenetFlowHooks.IsCredentialsDialogPending()) return false;
+        if (BattlenetFlowHooks.IsCredentialsPromptPending()) return false;
         var creds = BattlenetFlowHooks.GetAsiaCredentials?.Invoke();
         if (creds == null)
         {
-            BattlenetFlowHooks.ScheduleCredentialsDialog?.Invoke();
-            ColorPrinter.Gray($"{LogTag} Asia login: no saved credentials, dialog scheduled");
+            BattlenetFlowHooks.ScheduleCredentialsPrompt?.Invoke();
+            ColorPrinter.Gray($"{LogTag} Asia login: no saved credentials, Battle.net accounts shown");
             return false;
         }
         var op = BattlenetOperationFactory.GetOperation(C.RegionAsia);

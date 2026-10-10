@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus, RefreshCw, HardDrive, Search, X, ListTodo, Edit2, Eye, Trash2
 } from 'lucide-react';
@@ -22,6 +22,9 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const selectedCategoryRef = useRef<string | null>(null);
+  selectedCategoryRef.current = selectedCategory;
+  const tasksSeqRef = useRef(0);
   const [tasks, setTasks] = useState<AsyncState<DispatchTask[]>>({
     data: [],
     loading: false,
@@ -122,9 +125,11 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
   };
 
   const loadTasks = async (categoryId: string) => {
+    const seq = ++tasksSeqRef.current;
     setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.mcpV1.getTaskQueue(categoryId);
+      if (seq !== tasksSeqRef.current) return;
       if (response.success && response.data) {
         // Ensure data is an array - handle multiple response formats
         const tasksData = Array.isArray(response.data)
@@ -142,6 +147,7 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       console.error('Failed to load tasks:', error);
+      if (seq !== tasksSeqRef.current) return;
       setTasks({
         data: [],
         loading: false,
@@ -152,9 +158,11 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
   };
 
   const searchTasksInCategory = async (categoryId: string, query: string) => {
+    const seq = ++tasksSeqRef.current;
     setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.mcpV1.searchTasks(categoryId, query);
+      if (seq !== tasksSeqRef.current) return;
       if (response.success && response.data) {
         const tasksData = Array.isArray(response.data)
           ? response.data
@@ -171,6 +179,7 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       console.error('Task search failed:', error);
+      if (seq !== tasksSeqRef.current) return;
       setTasks({
         data: [],
         loading: false,
@@ -202,6 +211,7 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     setQueueStats(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.mcpV1.getQueueStats(categoryId);
+      if (selectedCategoryRef.current !== categoryId) return;
       if (response.success && response.data) {
         setQueueStats({
           data: response.data,
@@ -303,6 +313,7 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     setPromptMapping(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.mcpV1.getPromptMappings();
+      if (selectedCategoryRef.current !== categoryId) return;
       if (response.success && response.data) {
         // Backend (GET /task-dispatch/mappings) returns
         // { mappings: { [categoryId]: {...} }, total }. BaseAPI unwraps the
@@ -337,6 +348,7 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
         }
       }
     } catch (error) {
+      if (selectedCategoryRef.current !== categoryId) return;
       setPromptMapping({
         data: null,
         loading: false,
@@ -364,9 +376,9 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
   };
 
   return (
-    <div className="flex h-full gap-4">
+    <div className="flex flex-col md:flex-row h-full gap-4">
       {/* Categories Sidebar */}
-      <div className={`w-64 ${commonClasses.card} p-4 overflow-y-auto`}>
+      <div className={`w-full md:w-64 md:shrink-0 max-h-48 md:max-h-none ${commonClasses.card} p-4 overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{t.tasks.categories}</h3>
           <button
@@ -462,7 +474,7 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                     e.stopPropagation();
                     handleViewCategoryFiles(category.id);
                   }}
-                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 md:opacity-0 md:group-hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
                   title={t.tasks.view_files_title}
                 >
                   <HardDrive className="w-3 h-3" />
@@ -478,12 +490,12 @@ const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
       </div>
 
       {/* Tasks Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
         {selectedCategory && (
           <>
             {/* Stats Cards */}
             {queueStats.data && (
-              <div className="grid grid-cols-5 gap-3 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
                 {[
                   { label: t.common.total, value: queueStats.data.total_tasks, accent: 'border-slate-300 dark:border-slate-600', text: 'text-slate-800 dark:text-slate-100' },
                   { label: t.common.pending, value: queueStats.data.pending_tasks, accent: 'border-amber-400', text: 'text-amber-600 dark:text-amber-400' },

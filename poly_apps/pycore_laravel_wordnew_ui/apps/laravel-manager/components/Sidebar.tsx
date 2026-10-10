@@ -33,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
   const visibleNavItems = NAV_ITEMS;
 
   return (
-    <aside className="fixed left-0 top-0 w-14 md:w-16 h-screen flex flex-col items-center py-3 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">
+    <aside className="fixed left-0 top-0 w-14 md:w-16 h-dvh flex flex-col items-center py-3 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">
       {/* Brand Logo / Rocket */}
       <div className="mb-4 p-2 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 dark:border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] dark:shadow-[0_0_15px_rgba(99,102,241,0.3)]">
         <Rocket size={20} />
@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
               )}
 
               {/* Tooltip */}
-              <span className="absolute left-full ml-3 px-2 py-1 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-black/10 dark:border-white/10 pointer-events-none z-50 shadow-xl">
+              <span className="absolute left-full ml-3 px-2 py-1 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-white rounded opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity whitespace-nowrap border border-black/10 dark:border-white/10 pointer-events-none z-50 shadow-xl">
                 {label}
               </span>
             </button>
@@ -75,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
 
       {/* Bottom Profile/Status */}
       <div className="mt-2">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-400 to-cyan-500 border-2 border-white dark:border-slate-900 shadow-lg cursor-pointer hover:scale-105 transition-transform" />
+        <div aria-hidden className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-400 to-violet-500 border-2 border-white dark:border-slate-900 shadow-lg" />
       </div>
     </aside>
   );

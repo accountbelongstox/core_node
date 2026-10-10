@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
 import {
   Sparkles,
@@ -97,6 +97,11 @@ const AITools: React.FC = () => {
   const { t } = useTranslation();
   const [currentView, setCurrentView] = useState<ToolView>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [currentView]);
 
   const renderContent = () => {
     switch (currentView) {
@@ -252,8 +257,8 @@ const AITools: React.FC = () => {
 
       {/* ── Workspace ────────────────────────────────────────────────── */}
       <main className="relative z-10 flex-1 flex flex-col min-w-0">
-        <nav className="flex justify-center border-b border-slate-200/80 dark:border-white/5 px-4 py-2 bg-white/40 dark:bg-white/[0.015]">
-          <div className="flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-lg bg-slate-900/[0.04] dark:bg-white/[0.04] p-1">
+        <nav className="flex border-b border-slate-200/80 dark:border-white/5 px-4 py-2 bg-white/40 dark:bg-white/[0.015]">
+          <div className="mx-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-slate-900/[0.04] dark:bg-white/[0.04] p-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
@@ -261,7 +266,9 @@ const AITools: React.FC = () => {
               return (
                 <button
                   key={item.id}
+                  ref={isActive ? activeTabRef : undefined}
                   onClick={() => setCurrentView(item.id)}
+                  title={navLabel(item)}
                   className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                     isActive
                       ? `${a.ambient} ${a.text} ring-1 ${a.ring}`

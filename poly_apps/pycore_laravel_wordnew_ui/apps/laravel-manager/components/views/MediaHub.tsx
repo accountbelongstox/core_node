@@ -75,14 +75,14 @@ const MediaHub: React.FC<{ lang?: Language; onRequireLogin?: () => void }> = ({ 
     <div className="flex flex-col h-full">
       {/* Single top bar: segment control + shared search + refresh. */}
       <div className="flex flex-wrap items-center gap-2 mb-3 shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
           {segments.map((sg) => {
             const isActive = segment === sg.id;
             return (
               <button
                 key={sg.id}
                 onClick={() => handleSegment(sg.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-300 ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-300 ${
                   isActive
                     ? 'bg-gradient-to-br from-indigo-500/10 to-transparent dark:from-white/20 dark:to-white/5 text-indigo-600 dark:text-white border-indigo-500/20 dark:border-white/20 shadow-lg'
                     : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'

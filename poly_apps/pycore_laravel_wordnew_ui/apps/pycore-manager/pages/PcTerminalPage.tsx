@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
 import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
@@ -90,7 +89,8 @@ import { pickIdleAgentTerminal, useTerminalDispatchSetting } from '@/apps/pycore
 import { PcTerminalDispatchToggle } from '@/apps/pycore-manager/components/PcTerminalDispatchToggle';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
-import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
+import { PcTerminalQuickCommands, type QuickCommandChoice } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
+import { useQuickCommandRun } from '@/apps/pycore-manager/components/PcTerminalQuickCommandRun';
 import { PcTerminalCardCommands } from '@/apps/pycore-manager/components/PcTerminalCardCommands';
 import { PcTerminalChoicePicker } from '@/apps/pycore-manager/components/PcTerminalChoicePicker';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
@@ -98,7 +98,8 @@ import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/Pyco
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { PcTerminalLauncherBar } from '@/apps/pycore-manager/components/terminal/PcTerminalLauncherBar';
-import { PcTerminalSentSearch } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
+import { PcTerminalAgentCreate } from '@/apps/pycore-manager/components/terminal/PcTerminalAgentCreate';
+import { PcTerminalSentSearch, type PcSentSearchHit } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
@@ -262,6 +263,18 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
+  terminal_virtual_unsupported: 'terminal.agents.errors.unsupported',
+  quick_command_unknown: 'terminal.commands.quick.errors.unknown',
+  quick_command_platform_invalid: 'terminal.commands.quick.errors.platformInvalid',
+  quick_command_platform_unavailable: 'terminal.commands.quick.errors.platformUnavailable',
+  quick_command_busy: 'terminal.commands.quick.errors.busy',
+  quick_command_idle_timeout: 'terminal.commands.quick.errors.idleTimeout',
+  quick_command_run_failed: 'terminal.commands.quick.errors.runFailed',
+  terminal_virtual_kind_invalid: 'terminal.agents.errors.kind',
+  terminal_virtual_not_found: 'terminal.agents.errors.notFound',
+  terminal_virtual_busy: 'terminal.agents.errors.busy',
+  agent_cli_missing: 'terminal.agents.errors.cliMissing',
+  agent_cli_key_missing: 'terminal.agents.errors.keyMissing',
 };
 
 interface ActionNotice {
@@ -596,8 +609,12 @@ function usePcNodeIdentity(nodeUrl: string | null): PcNodeIdentity {
   return identity;
 }
 
-/** searchSlot: the node-tab row element the sent-message search renders into; nodeUrl: the shown node, null is this machine. */
-const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: string | null }> = ({ searchSlot, nodeUrl }) => {
+/** nodeUrl: the shown node, null is this machine; sentPick: a sent message picked in the all-machine search, applied once this node's terminals are loaded. */
+const PcTerminalNodeView: React.FC<{
+  nodeUrl: string | null;
+  sentPick: PcSentSearchHit | null;
+  onSentPickApplied: () => void;
+}> = ({ nodeUrl, sentPick, onSentPickApplied }) => {
   const nodeIdentity = usePcNodeIdentity(nodeUrl);
   const { t, i18n } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
@@ -1019,7 +1036,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
   const selectedActionable = Boolean(
     selectedWindow?.online
     && selectedWindow.controllable !== false
-    && snapshot?.supported
+    && (snapshot?.supported || selectedWindow.virtual)
     && !actionWindowId,
   );
   const previewWindow = useMemo(() => (
@@ -1340,6 +1357,39 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
     }
   }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
 
+  const closeVirtualAgent = useCallback(async (windowInfo: TerminalWindowInfo) => {
+    if (removingTerminals) return;
+    if (!window.confirm(t('terminal.agents.confirmClose', { number: windowInfo.terminal_number }))) return;
+    setRemovingTerminals(true);
+    setActionNotice(null);
+    try {
+      const result = await terminalApi.closeTerminalAgent(windowInfo.id);
+      if (result.removed_terminal_numbers?.length) forgetTerminalLocalState(result.removed_terminal_numbers);
+      if (!mountedRef.current) return;
+      setActionNotice(result.success
+        ? { kind: 'success', translationKey: 'terminal.agents.closed' }
+        : { kind: 'error', translationKey: errorTranslationKey(result.error_code) });
+    } catch (error) {
+      if (mountedRef.current) setActionNotice({ kind: 'error', translationKey: errorTranslationKey(terminalRequestErrorCode(error)) });
+    } finally {
+      if (mountedRef.current) setRemovingTerminals(false);
+      void refresh();
+    }
+  }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
+
+  const renderVirtualCloseButton = (windowInfo: TerminalWindowInfo, iconClassName: string, buttonClassName: string) => (
+    <button
+      type="button"
+      onClick={() => void closeVirtualAgent(windowInfo)}
+      disabled={removingTerminals}
+      title={t('terminal.agents.close')}
+      aria-label={`${t('terminal.agents.close')}: #${windowInfo.terminal_number}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 ${buttonClassName}`}
+    >
+      <X className={iconClassName} />
+    </button>
+  );
+
   const renderRemoveOfflineBar = () => (
     <div className="col-span-full flex items-center justify-between gap-2">
       <span className="text-[11px] font-semibold text-slate-500">
@@ -1639,7 +1689,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
     if (selectedWindow) setDraftFor(selectedWindow.terminal_number, text);
   }, [setDraftFor, selectedWindow]);
 
-  // A sent message picked in the search: open its terminal with that message in the composer.
+  // A message or draft picked in the search: open its terminal with that text in the composer.
   const pickSentMessage = useCallback((hit: TerminalLogSearchHit) => {
     if (!terminalExists(hit.terminal_number)) {
       setActionNotice({ kind: 'error', translationKey: 'terminal.sentSearch.missing' });
@@ -1648,10 +1698,6 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
     openTerminal(hit.terminal_number);
     setDraftFor(hit.terminal_number, hit.content);
   }, [openTerminal, setDraftFor, terminalExists]);
-  const sentSearchNameFor = useCallback((terminalNumber: number) => {
-    const windowInfo = snapshotRef.current?.windows.find((entry) => entry.terminal_number === terminalNumber);
-    return windowInfo ? terminalName(windowInfo, t('terminal.untitled')) : t('terminal.untitled');
-  }, [t]);
 
   // The composer on screen (the enlarged preview's or the side panel's): scrolled into view and focused, caret at the end.
   const focusComposer = useCallback(() => {
@@ -1664,6 +1710,25 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
       composer.setSelectionRange(composer.value.length, composer.value.length);
     });
   }, []);
+
+  // Applied once this node's terminals are loaded. A hit of a machine that is offline now cannot open
+  // its terminal: its text goes into the composer of the terminal selected here.
+  useEffect(() => {
+    if (!sentPick || !snapshot) return;
+    if (sentPick.offline) {
+      onSentPickApplied();
+      if (!selectedWindow) {
+        setActionNotice({ kind: 'error', translationKey: 'terminal.sentSearch.noTerminal' });
+        return;
+      }
+      updateSelectedDraft(sentPick.content);
+      focusComposer();
+      return;
+    }
+    if (sentPick.node.url !== nodeUrl) return;
+    onSentPickApplied();
+    pickSentMessage(sentPick);
+  }, [focusComposer, nodeUrl, onSentPickApplied, pickSentMessage, selectedWindow, sentPick, snapshot, updateSelectedDraft]);
 
   const reuseLogContent = useCallback((text: string) => {
     updateSelectedDraft(text);
@@ -1831,46 +1896,19 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
     sendDraft();
   }, [focusComposer, sendDraft, updateSelectedDraft]);
 
-  // Commands send at once; the panel's one-shot options (clear first / Ctrl+C first) apply.
-  const runQuickCommand = useCallback(async (command: string) => {
-    if (!selectedWindow || !selectedWindow.online) return false;
-    const options = takeSendOnce();
-    const result = await runAction(
-      selectedWindow.id,
-      () => terminalApi.inputTerminalText(
-        selectedWindow.id,
-        selectedWindow.terminal_number,
-        command,
-        options.clear,
-        options.force,
-        true,
-      ),
-      options.force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
-    );
-    if (result?.success) frames.thaw(selectedWindow.terminal_number);
-    return Boolean(result?.success);
-  }, [runAction, selectedWindow, takeSendOnce]);
-
-  // Card title commands run on that card's terminal; restart presses Ctrl+C several times before the command.
-  const runCardCommand = useCallback(async (windowInfo: TerminalWindowInfo, command: string, restart: boolean) => {
-    if (!windowInfo.online) return false;
+  // Quick commands are library entries, never text: the dialog asks y/n, then pycore presses Ctrl+C, waits for the prompt and types.
+  const quickRun = useQuickCommandRun({
+    errorTranslationKey,
+    onFinished: (request, success) => {
+      if (success) frames.thaw(request.terminalNumber);
+      void refresh(false);
+    },
+  });
+  const askQuickCommand = useCallback((windowInfo: TerminalWindowInfo, choice: QuickCommandChoice) => {
+    if (!windowInfo.online) return;
     selectTerminal(windowInfo.terminal_number);
-    const result = await runAction(
-      windowInfo.id,
-      () => terminalApi.inputTerminalText(
-        windowInfo.id,
-        windowInfo.terminal_number,
-        command,
-        false,
-        false,
-        true,
-        restart,
-      ),
-      restart ? 'terminal.commands.restartSent' : 'terminal.commands.sent',
-    );
-    if (result?.success) frames.thaw(windowInfo.terminal_number);
-    return Boolean(result?.success);
-  }, [runAction, selectTerminal]);
+    quickRun.ask({ ...choice, windowId: windowInfo.id, terminalNumber: windowInfo.terminal_number });
+  }, [quickRun.ask, selectTerminal]);
 
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
@@ -2176,8 +2214,8 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
         <PcTerminalQuickCommands
           shellOs={selectedWindow?.shell_os}
           disabled={!selectedActionable}
-          busy={actionWindowId === selectedWindow?.id}
-          onRun={runQuickCommand}
+          busy={actionWindowId === selectedWindow?.id || quickRun.activeTerminalNumber === selectedWindow?.terminal_number}
+          onRun={(choice) => { if (selectedWindow) askQuickCommand(selectedWindow, choice); }}
         />
         <PcTerminalChoicePicker
           disabled={!selectedActionable}
@@ -2528,7 +2566,8 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
               windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
             }`} />
           </button>
-          {windowInfo.online && (
+          {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-4 w-4', 'h-8 w-8')}
+          {windowInfo.online && !windowInfo.virtual && (
             <button
               type="button"
               onClick={() => {
@@ -2557,13 +2596,13 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
               <Trash2 className="h-4 w-4" />
             </button>
           )}
-          {windowInfo.online && (
+          {windowInfo.online && !windowInfo.virtual && (
             <div className="basis-full">
               <PcTerminalCardCommands
                 shellOs={windowInfo.shell_os}
                 disabled={!snapshot?.supported || windowInfo.controllable === false}
-                busy={busy}
-                onRun={(command, restart) => runCardCommand(windowInfo, command, restart)}
+                busy={busy || quickRun.activeTerminalNumber === windowInfo.terminal_number}
+                onRun={(choice) => askQuickCommand(windowInfo, choice)}
               />
             </div>
           )}
@@ -2608,10 +2647,6 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
 
   return (
     <PcTerminalNavActionsProvider value={navActions}>
-    {searchSlot && createPortal(
-      <PcTerminalSentSearch nameFor={sentSearchNameFor} formatDate={formatLogDate} onPick={pickSentMessage} />,
-      searchSlot,
-    )}
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
@@ -2650,6 +2685,12 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
                 })}
               </div>
               <PcTerminalLauncherBar
+                errorTranslationKey={errorTranslationKey}
+                onNotice={setActionNotice}
+                onDone={() => void refresh()}
+              />
+              <PcTerminalAgentCreate
+                kinds={snapshot?.agent_kinds ?? []}
                 errorTranslationKey={errorTranslationKey}
                 onNotice={setActionNotice}
                 onDone={() => void refresh()}
@@ -2766,7 +2807,8 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
                           windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
                         }`} />
                       </button>
-                      {windowInfo.online && (
+                      {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-2.5 w-2.5', 'h-4 w-4')}
+                      {windowInfo.online && !windowInfo.virtual && (
                         <button
                           type="button"
                           onClick={() => {
@@ -3098,6 +3140,8 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
         </div>
       )}
 
+      {quickRun.dialog}
+
       {logDialogOpen && selectedWindow && (
         <PcTerminalLogDialog
           windowInfo={selectedWindow}
@@ -3114,13 +3158,19 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
 };
 
 // Node tabs on top: this machine first, then every other online pycore; the view below is the same for all.
+// The sent-message search covers every machine: a hit on another machine switches to its tab first.
 const PcTerminalPage: React.FC = () => {
   const [nodeUrl, setNodeUrl] = useState<string | null>(readPcUiSessionTerminalNodeUrl);
+  const [sentPick, setSentPick] = useState<PcSentSearchHit | null>(null);
   const selectNode = useCallback((url: string | null) => {
     setNodeUrl(url);
     updatePcUiSessionTerminalNodeUrl(url);
   }, []);
-  const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
+  const pickSentHit = useCallback((hit: PcSentSearchHit) => {
+    setSentPick(hit);
+    if (!hit.offline) selectNode(hit.node.url);
+  }, [selectNode]);
+  const clearSentPick = useCallback(() => setSentPick(null), []);
 
   return (
     <>
@@ -3128,12 +3178,19 @@ const PcTerminalPage: React.FC = () => {
         <div className="min-w-0 max-w-[50%] shrink-0">
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
-        <div ref={setSearchSlot} className="min-w-0 flex-1" />
+        <div className="min-w-0 flex-1">
+          <PcTerminalSentSearch
+            activeNodeUrl={nodeUrl}
+            readLocalDrafts={readCachedDrafts}
+            formatDate={formatLogDate}
+            onPick={pickSentHit}
+          />
+        </div>
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>
-          <PcTerminalNodeView searchSlot={searchSlot} nodeUrl={nodeUrl} />
+          <PcTerminalNodeView nodeUrl={nodeUrl} sentPick={sentPick} onSentPickApplied={clearSentPick} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
     </>

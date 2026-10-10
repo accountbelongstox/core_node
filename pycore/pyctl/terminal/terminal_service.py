@@ -16,6 +16,7 @@ from pycore.pyfoundations.system_launcher import open_file_with_notepad
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_capture_store import terminal_capture_store
 from pycore.pyctl.terminal.terminal_image_store import ERROR_IMAGE_MISSING, terminal_image_store
+from pycore.pyctl.terminal.terminal_mesh_sync import terminal_mesh_sync
 from pycore.pyctl.terminal.terminal_permission_mode import (
     CYCLE_KEY,
     SWITCH_TARGET_MODES,
@@ -36,6 +37,11 @@ from pycore.pyctl.terminal.terminal_voice_dictation import (
     TerminalVoiceDictation,
     resolve_recordings,
 )
+from pycore.pyctl.terminal.terminal_virtual_agents import (
+    VirtualAgentTerminals,
+    is_virtual_window,
+    virtual_agent_terminals,
+)
 from pycore.pyctl.terminal.terminal_window_views import assign_short_titles
 from pycore.pyctl.terminal.terminal_snapshot_collector import (
     TerminalSnapshotCollector,
@@ -44,6 +50,7 @@ from pycore.pyctl.terminal.terminal_state_repository import (
     TerminalStateRepository,
     terminal_state_repository,
 )
+from pycore.pyutils.agent_cli.headless_agent_cli import agent_kinds
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
@@ -94,6 +101,9 @@ MODE_SWITCH_SETTLE_SECONDS = 0.5
 MODE_SWITCH_POLL_ATTEMPTS = 6
 MODE_SWITCH_FOCUS_LABEL = "TerminalPermissionMode"
 TERMINAL_TEXT_MIN_WORD_CHARS = relay_contract.limit("terminal_text_min_word_chars")
+ERROR_VIRTUAL_UNSUPPORTED = "terminal_virtual_unsupported"
+# Keys that stop the running turn of a virtual agent window (the CLI process is killed).
+VIRTUAL_CANCEL_KEYS = frozenset(("ctrl_c", "escape"))
 
 
 class TerminalService:
@@ -102,10 +112,12 @@ class TerminalService:
         backend: TerminalWindowBackend,
         state_repository: TerminalStateRepository,
         screenshot_cache: TerminalScreenshotCache,
+        virtual_agents: VirtualAgentTerminals,
     ) -> None:
         self._backend = backend
         self._state_repository = state_repository
         self._screenshot_cache = screenshot_cache
+        self._virtual = virtual_agents
         self._frame_texts: Dict[str, Dict[str, Any]] = {}
         self._frame_texts_lock = threading.Lock()
         self._desktop_frame: Optional[Dict[str, Any]] = None
@@ -120,6 +132,7 @@ class TerminalService:
             self._publish_snapshot,
             self.finalize_snapshot,
         )
+        self._virtual.set_change_listener(self.refresh_snapshot)
 
     def register_snapshot_decorator(self, decorate) -> None:
         self._collector.register_decorator(decorate)
@@ -155,8 +168,10 @@ class TerminalService:
         platform_name = str(snapshot["platform"]).lower()
         windows = self._state_repository.reconcile_windows(
             platform_name,
-            list(snapshot.get("windows") or []),
+            self._live_windows(snapshot),
         )
+        self._virtual.bind(windows)
+        snapshot["agent_kinds"] = agent_kinds()
         assign_short_titles(windows)
         snapshot["windows"] = windows
         snapshot["count"] = len(windows)
@@ -175,6 +190,47 @@ class TerminalService:
             state_revision=snapshot["state_revision"],
         )
         return snapshot
+
+    def _live_windows(self, snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Desktop windows of the backend plus the virtual agent windows (which need no desktop)."""
+        return [
+            *list(snapshot.get("windows") or []),
+            *self._virtual.windows(str(snapshot["platform"]).lower()),
+        ]
+
+    def create_virtual(self, kind: str) -> Dict[str, Any]:
+        """New virtual agent window of kind; its conversation starts with the first message."""
+        created = self._virtual.create(kind)
+        if created.get("success"):
+            self._collector.collect()
+        return created
+
+    def close_virtual(self, window_id: str) -> Dict[str, Any]:
+        """Stop the window's running turn, forget its conversation and remove its stored terminal state."""
+        closed = self._virtual.close(window_id)
+        if not closed.get("success"):
+            return closed
+        terminal_number = int(closed.get("terminal_number") or 0)
+        if terminal_number <= 0:
+            self._collector.collect()
+            return {**closed, "removed_terminal_numbers": []}
+        removed = self.remove_offline(terminal_number)
+        return {**closed, "removed_terminal_numbers": removed.get("removed_terminal_numbers") or []}
+
+    def _send_virtual(
+        self,
+        window_id: str,
+        terminal_number: int,
+        content: str,
+        source: str,
+        interrupt_first: bool,
+    ) -> Dict[str, Any]:
+        """A message to a virtual window starts one background turn of its CLI; sent = the turn started."""
+        pending_log = self._state_repository.begin_submission(terminal_number, content, source)
+        if pending_log is None:
+            return self._failure("terminal_state_not_found")
+        action = self._virtual.send(window_id, content, interrupt_first)
+        return self._complete_input(terminal_number, str(pending_log.get("id") or ""), action)
 
     def _publish_snapshot(self, snapshot: Dict[str, Any]) -> None:
         THREAD_BUS.trigger_event(
@@ -225,13 +281,13 @@ class TerminalService:
         )
         for window_id in lease["force_window_ids"]:
             window = self._collector.online_window(window_id)
-            if window is not None:
+            if window is not None and not window.get("virtual"):
                 self._screenshot_cache.capture_now(
                     TerminalService.window_capture_region(window)
                 )
         if lease["focus_window_id"]:
             window = self._collector.online_window(lease["focus_window_id"])
-            if window is not None:
+            if window is not None and not window.get("virtual"):
                 self._screenshot_cache.refresh_focus(
                     TerminalService.window_capture_region(window)
                 )
@@ -268,6 +324,8 @@ class TerminalService:
         """OCR text of the window frame ``digest``; cached per window until the frame changes."""
         if not window_id or not digest:
             return self._failure("terminal_window_id_required")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         with self._frame_texts_lock:
             cached = self._frame_texts.get(window_id)
         if cached is not None and cached["digest"] == digest:
@@ -309,6 +367,8 @@ class TerminalService:
     def activate(self, window_id: str) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         return self._backend.activate(window_id)
 
     @serialized_method
@@ -320,6 +380,8 @@ class TerminalService:
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         if not (
             0.0 <= horizontal_ratio <= 1.0
             and 0.0 <= vertical_ratio <= 1.0
@@ -393,6 +455,8 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if direction not in TERMINAL_HISTORY_DIRECTIONS:
             return self._failure("terminal_history_direction_invalid")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         activation = self._backend.activate(window_id)
         if not activation.get("success"):
             return activation
@@ -408,6 +472,10 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if key not in TERMINAL_KEY_ACTIONS:
             return self._failure("terminal_key_invalid")
+        if is_virtual_window(window_id):
+            if key in VIRTUAL_CANCEL_KEYS:
+                return self._virtual.cancel(window_id)
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         activation = self._backend.activate(window_id)
         if not activation.get("success"):
             return activation
@@ -427,6 +495,8 @@ class TerminalService:
             return self._failure("terminal_number_required")
         if target not in SWITCH_TARGET_MODES:
             return self._failure("terminal_permission_mode_invalid")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         with focus_guard.preserved(MODE_SWITCH_FOCUS_LABEL):
             return self._cycle_permission_mode(window_id, terminal_number, target)
 
@@ -502,6 +572,8 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if mode not in TERMINAL_SCROLL_MODES:
             return self._failure("terminal_scroll_mode_invalid")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         activation = self._backend.activate(window_id)
         if not activation.get("success"):
             return activation
@@ -532,6 +604,8 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if not 1 <= option <= CHOICE_MAX_OPTIONS:
             return self._failure("terminal_choice_invalid")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         activation = self._backend.activate(window_id)
         if not activation.get("success"):
             return activation
@@ -569,7 +643,7 @@ class TerminalService:
         live = self._backend.snapshot()
         removed = self._state_repository.remove_offline_terminal(
             str(live["platform"]).lower(),
-            list(live.get("windows") or []),
+            self._live_windows(live),
             terminal_number,
         )
         if not removed.get("success"):
@@ -599,12 +673,17 @@ class TerminalService:
         )
 
     def search_logs(self, query: str) -> Dict[str, Any]:
-        """Sent messages of every terminal containing query, newest first."""
+        """Sent messages and unsent drafts of every terminal containing query, newest first."""
         return {
             "success": True,
             "query": query,
             "results": self._state_repository.search_logs(query, TERMINAL_LOG_SEARCH_RESULTS),
         }
+
+    def search_mesh(self, query: str) -> Dict[str, Any]:
+        """Sent messages and drafts of every machine replicated through MeshSync (also machines that
+        are offline now), read from the selected Laravel server, newest first."""
+        return terminal_mesh_sync.search(query, TERMINAL_LOG_SEARCH_RESULTS)
 
     def read_text(
         self,
@@ -640,12 +719,17 @@ class TerminalService:
         interrupt_first: bool = False,
         activate_window: bool = True,
         shell_prompt: bool = False,
-        restart_first: bool = False,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
+        if is_virtual_window(window_id):
+            if not text.strip():
+                if interrupt_first:
+                    return self._virtual.cancel(window_id)
+                return {"success": True, "error_code": None}
+            return self._send_virtual(window_id, terminal_number, text, source, interrupt_first)
         content = text if text else EMPTY_INPUT_TEXT
 
         pending_log = self._state_repository.begin_submission(
@@ -674,7 +758,7 @@ class TerminalService:
             activation = self._backend.activate(window_id) if activate_window else {"success": True}
             action = (
                 self._backend.paste_and_submit(
-                    window_id, len(text), clear_first, interrupt_first, shell_prompt, restart_first,
+                    window_id, len(text), clear_first, interrupt_first, shell_prompt,
                 )
                 if activation.get("success")
                 else activation
@@ -715,6 +799,8 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
         if not TerminalVoiceDictation.available():
             return self._failure(ERROR_UNAVAILABLE)
         paths = resolve_recordings(recordings, terminal_image_store.voice_directory)
@@ -816,6 +902,11 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
+        if is_virtual_window(window_id):
+            transcript = self._virtual.transcript(window_id)
+            if transcript is None:
+                return self._failure("terminal_window_not_found")
+            return {"success": True, "error_code": None, "text": transcript}
         clipboard_backup = clipboard_manager.snapshot()
         sentinel = f"{CAPTURE_SENTINEL_PREFIX}{secrets.token_hex(8)}"
         use_primary = self._backend.paste_uses_primary_selection()
@@ -954,6 +1045,8 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
+        if is_virtual_window(window_id):
+            return self._failure(ERROR_VIRTUAL_UNSUPPORTED)
 
         pending_log = self._state_repository.begin_submission(
             terminal_number,
@@ -1031,12 +1124,12 @@ class TerminalService:
         regions = [
             TerminalService.window_capture_region(window)
             for window in windows
-            if bool(window.get("online"))
+            if bool(window.get("online")) and not window.get("virtual")
         ]
         screenshots = self._screenshot_cache.refresh_demanded(regions)
         for window in windows:
             window.pop("screenshot", None)
-            if bool(window.get("online")):
+            if bool(window.get("online")) and not window.get("virtual"):
                 resource = screenshots.get(str(window.get("id") or ""))
                 if resource is not None:
                     window["screenshot_resource"] = resource
@@ -1091,4 +1184,5 @@ terminal_service = TerminalService(
     terminal_backend,
     terminal_state_repository,
     terminal_screenshot_cache,
+    virtual_agent_terminals,
 )

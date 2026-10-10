@@ -129,6 +129,7 @@ class TerminalBackupService:
             window
             for window in windows
             if window.get("online") and window.get("id") and int(window.get("terminal_number") or 0) > 0
+            and not window.get("virtual")
         ]
 
     @staticmethod

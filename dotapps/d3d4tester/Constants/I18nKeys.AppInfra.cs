@@ -14,7 +14,6 @@ public static partial class I18nKeys
     public const string StatusD3InGame = "ui.rosbot.d3_in_game";
     public const string StatusFound = "ui.rosbot.found";
     public const string StatusNotRunning = "ui.rosbot.not_running";
-    public const string StatusOauthScriptLabel = "ui.rosbot.oauth_script_status";
 
     public const string D4DebugWindowTitle = "ui.d4_panel.debug_window.title";
     public const string D4DebugWindowHeading = "ui.d4_panel.debug_window.heading";

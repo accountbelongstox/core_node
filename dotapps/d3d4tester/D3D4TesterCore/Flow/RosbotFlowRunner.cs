@@ -119,6 +119,31 @@ public static class RosbotFlowRunner
         Worker.Stop();
     }
 
+    /// <summary>
+    /// The user typed ROSBOT's pause key (F6), so ROSBOT paused itself: halt the flow without sending a key. Resume presses the key
+    /// again only when ROSBOT was botting before the key.
+    /// </summary>
+    public static void PauseByUserKey(bool rosbotWasBotting)
+    {
+        var state = RosbotFlowState.Instance;
+        lock (StateLock)
+        {
+            if (state.Paused) return;
+            state.SetPaused(true);
+        }
+        lock (PauseLock) _rosbotPausedByFlow = rosbotWasBotting;
+        ColorPrinter.Yellow($"{LogTag} paused by the user's ROSBOT pause key (F6)");
+        Worker.Stop();
+    }
+
+    /// <summary>The user typed ROSBOT's pause key (F6) to resume ROSBOT: continue the flow without sending a key.</summary>
+    public static void ResumeByUserKey()
+    {
+        lock (PauseLock) _rosbotPausedByFlow = false;
+        ColorPrinter.Blue($"{LogTag} resumed by the user's ROSBOT pause key (F6)");
+        Resume();
+    }
+
     /// <summary>Resume: press ROSBOT's pause key again for a ROSBOT the pause stopped, restart the F3 window; monitoring continues from F1.</summary>
     public static void Resume()
     {

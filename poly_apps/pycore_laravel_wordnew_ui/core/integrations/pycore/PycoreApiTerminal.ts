@@ -63,7 +63,7 @@ export interface TerminalTextResult {
   refresh_skip_code?: string | null;
 }
 
-export type TerminalLogSource = 'input' | 'enter' | 'schedule';
+export type TerminalLogSource = 'input' | 'enter' | 'schedule' | 'quick';
 
 export interface TerminalLogEntry {
   id: string;
@@ -77,9 +77,22 @@ export interface TerminalLogEntry {
   error_code?: string | null;
 }
 
-/** A sent message found by the history search, with its full text. */
-export interface TerminalLogSearchHit extends TerminalLogEntry {
+export type TerminalSearchHitKind = 'sent' | 'draft';
+
+/** Machine a MeshSync search hit was written on. */
+export interface TerminalSearchMachine {
+  machine_id: string;
+  machine_name: string;
+  platform: string;
+}
+
+/** A sent message or unsent draft found by the history search, with its full text. */
+export interface TerminalLogSearchHit extends Omit<TerminalLogEntry, 'status'> {
+  status: TerminalLogEntry['status'] | 'draft';
+  kind: TerminalSearchHitKind;
   content: string;
+  /** MeshSync hits only: the machine it was written on. */
+  machine?: TerminalSearchMachine;
 }
 
 export interface TerminalLogSearchResult {
@@ -129,8 +142,32 @@ export interface TerminalQuickCommand {
   /** Command line per shell OS: a host can show terminals of the other OS (e.g. WSL on Windows). */
   commands?: Partial<Record<TerminalShellOs, string | null>>;
   /** Stable, OS-neutral id: preset/system names are mapped from it, scripts use their name. */
-  id?: string;
-  script?: string;
+  id: string;
+  /** Library address (kind:id): the only value pycore accepts to run the command. */
+  key: string;
+}
+
+/** Interrupt policy pycore applies before every quick command (config/terminal_quick_commands.json). */
+export interface TerminalQuickCommandInterruptPolicy {
+  ctrl_c_count: number;
+  interval_ms: number;
+  max_wait_ms: number;
+}
+
+export type TerminalQuickCommandState = 'idle' | 'running' | 'done' | 'failed';
+export type TerminalQuickCommandPhase = 'interrupting' | 'waiting' | 'typing' | 'done';
+
+/** Run state of the latest quick command of one terminal; the run itself continues in pycore. */
+export interface TerminalQuickCommandRun {
+  success: boolean;
+  error_code?: string | null;
+  state: TerminalQuickCommandState;
+  terminal_number: number;
+  phase?: TerminalQuickCommandPhase;
+  run_id?: string;
+  key?: string;
+  line?: string;
+  ctrl_c_sent?: number;
 }
 
 export interface TerminalQuickCommands {
@@ -138,7 +175,10 @@ export interface TerminalQuickCommands {
   error_code?: string | null;
   platform: string;
   script_dir: string;
-  preset?: TerminalQuickCommand[];
+  interrupt: TerminalQuickCommandInterruptPolicy;
+  /** Keys of the commands kept in the collapsed row. */
+  pinned: string[];
+  preset: TerminalQuickCommand[];
   system: TerminalQuickCommand[];
   custom: TerminalQuickCommand[];
 }
@@ -162,7 +202,35 @@ export type TerminalControlMode =
   | 'xwayland'
   | 'gnome_bridge'
   | 'portal'
+  | 'virtual'
   | 'none';
+
+/** AI CLIs a virtual agent window can run (headless turns resumed by conversation id; no desktop needed). */
+export type TerminalAgentKind = 'claudeteam' | 'codexyolo' | 'deepseek' | 'agyyolo';
+
+export interface TerminalAgentKindInfo {
+  kind: TerminalAgentKind;
+  binary: string;
+  /** The CLI is installed on the pycore machine. */
+  available: boolean;
+}
+
+/** State of a virtual agent window; its transcript arrives as the window text. */
+export interface TerminalVirtualAgent {
+  kind: TerminalAgentKind;
+  conversation_id: string;
+  status: 'idle' | 'running';
+  turn_count: number;
+  created_at: string;
+}
+
+export interface TerminalAgentResult {
+  success: boolean;
+  error_code?: string | null;
+  window_id?: string;
+  kind?: TerminalAgentKind;
+  removed_terminal_numbers?: number[];
+}
 
 /** AI agent recognized in the terminal by the scan text rules or the window title. */
 export interface TerminalAiAgent {
@@ -208,6 +276,8 @@ export interface TerminalWindowInfo {
   agent_scanned?: boolean;
   agent_activity?: TerminalAgentActivity | null;
   permission_mode?: TerminalPermissionMode | null;
+  /** Present on a virtual agent window (no desktop window behind it). */
+  virtual?: TerminalVirtualAgent | null;
   state_updated_at?: string;
   last_seen_at?: string;
 }
@@ -283,6 +353,8 @@ export interface TerminalSnapshot {
   online_count: number;
   stored_count: number;
   windows: TerminalWindowInfo[];
+  /** Kinds of virtual agent windows this machine can create. */
+  agent_kinds?: TerminalAgentKindInfo[];
   refreshed_at: number;
 }
 
@@ -553,9 +625,12 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { window_id: windowId, terminal_number: terminalNumber, revision, refresh },
       timeoutMs,
     ) as Promise<TerminalTextResult>,
-    /** Sent messages of every terminal containing `query`, newest first (contract-limited count). */
-    searchTerminalLogs: (query: string) =>
-      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalLogsSearch, { query }) as Promise<TerminalLogSearchResult>,
+    /** Sent messages and drafts of every terminal of this node containing `query`, newest first (contract-limited count). */
+    searchTerminalLogs: (query: string, timeoutMs?: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalLogsSearch, { query }, timeoutMs) as Promise<TerminalLogSearchResult>,
+    /** Sent messages and drafts of every machine replicated through MeshSync (offline ones too), via this node's Laravel server. */
+    searchTerminalMesh: (query: string, timeoutMs?: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalMeshSearch, { query }, timeoutMs) as Promise<TerminalLogSearchResult>,
     activateTerminal: (windowId: string) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
         window_id: windowId,
@@ -648,15 +723,11 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       text: string,
       clearFirst = false,
       interruptFirst = false,
-      shellPrompt = false,
-      restartFirst = false,
     ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
       terminal_number: terminalNumber,
       clear_first: clearFirst ? '1' : '0',
       interrupt_first: interruptFirst ? '1' : '0',
-      shell_prompt: shellPrompt ? '1' : '0',
-      restart_first: restartFirst ? '1' : '0',
     }) as Promise<TerminalActionResult>,
     /** Types recordings through the agent's own hold-to-talk dictation, appends text and submits. */
     dictateTerminalVoice: (
@@ -677,6 +748,18 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       PYCORE_HTTP_ROUTES.terminalCommands,
       {},
     ) as Promise<TerminalQuickCommands>,
+    /** Starts a library command: pycore presses Ctrl+C, waits for the shell prompt and types it; follow it with the status. */
+    runTerminalQuickCommand: (windowId: string, terminalNumber: number, commandKey: string, platform: TerminalShellOs) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalQuickCommandRun, {
+        window_id: windowId,
+        terminal_number: terminalNumber,
+        command_id: commandKey,
+        platform,
+      }) as Promise<TerminalQuickCommandRun>,
+    terminalQuickCommandStatus: (terminalNumber: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalQuickCommandStatus, {
+        terminal_number: terminalNumber,
+      }) as Promise<TerminalQuickCommandRun>,
     uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
       const form = new FormData();
       form.append('file', file, file.name);
@@ -718,6 +801,15 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { mode },
       TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
     ) as Promise<TerminalLauncherResult>,
+    createTerminalAgent: (kind: TerminalAgentKind) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalAgentCreate,
+      { kind },
+    ) as Promise<TerminalAgentResult>,
+    /** Stops the running turn, forgets the conversation and removes the window's stored state. */
+    closeTerminalAgent: (windowId: string) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalAgentClose,
+      { window_id: windowId },
+    ) as Promise<TerminalAgentResult>,
     runTerminalDesktopIntegration: (
       action: TerminalDesktopIntegrationAction,
       timeoutMs = TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,

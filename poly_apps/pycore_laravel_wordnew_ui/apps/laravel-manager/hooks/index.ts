@@ -6,4 +6,6 @@ export { useLocalStorageList } from './useLocalStorageList';
 export { useFileDrop } from './useFileDrop';
 export { useToolOperation } from './useToolOperation';
 export { useClipboard } from './useClipboard';
+export { useConfirmAction } from './useConfirmAction';
+export type { ConfirmActionOptions } from './useConfirmAction';
 export type { UseApiRequestOptions, UseApiRequestReturn } from './useApiRequest';

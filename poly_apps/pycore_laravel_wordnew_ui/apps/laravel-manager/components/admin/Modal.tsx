@@ -95,20 +95,20 @@ export function Modal({
         className={`
           relative w-full ${sizeClass} bg-white dark:bg-slate-800 rounded-lg shadow-2xl
           animate-in zoom-in-95 duration-200
-          max-h-[90vh] flex flex-col
+          max-h-[90dvh] flex flex-col text-gray-900 dark:text-slate-100
           ${className}
         `}
       >
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10">
             {title && (
-              <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
             )}
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
                 title={t('common.close')}
                 aria-label={t('common.close')}
               >
@@ -125,7 +125,7 @@ export function Modal({
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t bg-gray-50 rounded-b-lg">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-900/40 rounded-b-lg">
             {footer}
           </div>
         )}
@@ -184,7 +184,7 @@ export function ConfirmModal({
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
           >
             {cancelText === undefined ? t('common.cancel') : cancelText}
           </button>
@@ -202,7 +202,7 @@ export function ConfirmModal({
         </div>
       }
     >
-      <p className="text-gray-700">{message}</p>
+      <p className="text-gray-700 dark:text-slate-200">{message}</p>
     </Modal>
   );
 }

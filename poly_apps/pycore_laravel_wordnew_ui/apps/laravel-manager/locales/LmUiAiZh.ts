@@ -228,6 +228,7 @@ export const lmZhUiAi = {
       refresh: "刷新",
       clear_all: "全部清空",
       clear_all_title: "删除共享历史中的所有图像",
+      clear_all_confirm: "确定删除服务器共享历史中的全部 {{count}} 张图像？此操作无法撤销。",
       unavailable: "图像历史不可用。",
       unreachable: "无法连接图像历史后端。",
       loading: "正在加载历史…",
@@ -491,7 +492,8 @@ export const lmZhUiAi = {
         item_removed: "条目已从队列中移除",
         remove_failed: "移除条目失败",
         queue_cleared: "队列已清空",
-        clear_failed: "清空队列失败"
+        clear_failed: "清空队列失败",
+        load_failed: "加载队列失败"
       }
     }
   }

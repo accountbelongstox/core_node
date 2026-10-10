@@ -217,6 +217,12 @@ class CodeMartV1Constants
     public const DEFAULT_CURRENCY = 'CNY';
     public const SUPPORTED_CURRENCIES = ['CNY', 'USD', 'EUR'];
 
+    // Project Budget
+    public const PROJECT_MIN_BUDGET = 100;
+
+    // Mobile app minimum OS versions, used when a published package carries none
+    public const APP_DEFAULT_MIN_OS = ['android' => '8.0', 'ios' => '15'];
+
     // Platform Commission Rate
     public const PLATFORM_COMMISSION_RATE = 0.15; // 15%
 
@@ -1032,6 +1038,9 @@ class CodeMartV1Constants
                     self::REVIEW_DIMENSION_SECURITY,
                 ],
                 'rating_range' => [self::MIN_RATING, self::MAX_RATING],
+                'project_min_budget' => self::PROJECT_MIN_BUDGET,
+                'review_comment_min_length' => self::REVIEWER_COMMENT_MIN_LENGTH,
+                'reviewer_retry_days' => self::REVIEWER_RETRY_DAYS,
                 'payment_methods' => self::getAllPaymentMethods(),
                 'deposit_payment_methods' => self::DEPOSIT_PAYMENT_METHODS,
                 'withdrawal_methods' => self::WITHDRAWAL_METHODS,

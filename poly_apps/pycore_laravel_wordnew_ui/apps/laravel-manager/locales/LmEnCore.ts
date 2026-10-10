@@ -94,6 +94,8 @@ dbSync: {
       pause: "Pause",
       resume: "Resume",
       cancel: "Cancel",
+      confirmStart: "Start synchronization from {{old}} to {{new}}? Data on the receiving server will be overwritten (a backup is kept).",
+      confirmCancel: "Cancel the running synchronization session?",
       receiverBlocked: "This node is receiving data. New outbound sessions are disabled until the incoming session finishes.",
       manifestDraftBlocked: "A local manifest session is already waiting for a receiver. Bind its address or enter another receiver above.",
       session: "Synchronization session",
@@ -224,8 +226,8 @@ dbSync: {
       }
     },
 header: {
-      system_online: "System Online",
-      system_offline: "Offline Mode",
+      signed_in: "Signed in",
+      signed_out: "Signed out",
       code_last_updated: "Code updated",
       code_last_updated_unavailable: "Code time unavailable",
       code_updated_just_now: "just now",
@@ -435,6 +437,7 @@ vocabulary: {
       delete_library_confirm: "Delete library \"{name}\"? Words created by this upload are removed; built-in dictionary data is not affected.",
       delete_library_success: "Library \"{name}\" deleted",
       delete_library_failed: "Failed to delete library",
+      libraries_load_failed: "Failed to load libraries",
       login_required: "Please log in first — this action requires authentication.",
       cancel: "Cancel",
       translate_failed: "Translation failed",
