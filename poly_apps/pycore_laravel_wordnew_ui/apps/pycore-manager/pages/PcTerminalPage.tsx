@@ -127,6 +127,7 @@ import type {
   TerminalActionResult,
   TerminalDesktopIntegrationAction,
   TerminalKeyAction,
+  TerminalLogDeleteTarget,
   TerminalLogSearchHit,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
@@ -2000,6 +2001,44 @@ const PcTerminalNodeView: React.FC<{
     sendDraft();
   }, [focusComposer, sendDraft, updateSelectedDraft]);
 
+  // History deletion removes the entries from pycore (store, merged copies, MeshSync) and from the
+  // loaded snapshot at once; the following full snapshot replaces the log list.
+  const deleteLogs = useCallback(async (terminalNumber: number, target: TerminalLogDeleteTarget): Promise<string[]> => {
+    const confirmKey = target.all ? 'terminal.logs.deleteAllConfirm' : 'terminal.logs.deleteConfirm';
+    if (!window.confirm(t(confirmKey, {
+      count: target.logIds?.length ?? 0,
+      source: target.source ? t(`terminal.logSource.${target.source}`) : '',
+    }))) return [];
+    setActionNotice(null);
+    try {
+      const result = await terminalApi.deleteTerminalLogs(terminalNumber, target);
+      if (!result.success) {
+        setActionNotice({ kind: 'error', translationKey: errorTranslationKey(result.error_code) });
+        return [];
+      }
+      const deletedIds = new Set(result.deleted_log_ids ?? []);
+      setSnapshot((current) => current && {
+        ...current,
+        windows: current.windows.map((windowInfo) => (
+          windowInfo.terminal_number === terminalNumber
+            ? {
+              ...windowInfo,
+              logs: windowInfo.logs.filter((entry) => !deletedIds.has(entry.id)),
+              log_count: result.log_count ?? Math.max(0, windowInfo.log_count - deletedIds.size),
+            }
+            : windowInfo
+        )),
+      });
+      setActionNotice({ kind: 'success', translationKey: 'terminal.logs.deleted', translationValues: { count: deletedIds.size } });
+      return [...deletedIds];
+    } catch (error) {
+      setActionNotice({ kind: 'error', translationKey: errorTranslationKey(terminalRequestErrorCode(error)) });
+      return [];
+    } finally {
+      void refresh();
+    }
+  }, [errorTranslationKey, refresh, t, terminalApi]);
+
   // Quick commands are library entries, never text: pycore presses Ctrl+C (once on an idle prompt), waits for the prompt and types.
   const quickRun = useQuickCommandRun({
     errorTranslationKey,
@@ -3360,4 +3399,4 @@ const PcTerminalPage: React.FC = () => {
   );
 };
 
-export default PcTerminalPage;
+expo

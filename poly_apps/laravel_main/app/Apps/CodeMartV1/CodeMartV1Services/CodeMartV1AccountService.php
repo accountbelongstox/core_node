@@ -77,11 +77,12 @@ class CodeMartV1AccountService
         }
 
         $token = Str::random(64);
+        $ttlHours = CodeMartV1PolicyService::int('email_change_ttl_hours');
         CodeMartV1EmailChangeModel::replacePendingForUser(
             (int) $user->id,
             $newEmail,
             hash('sha256', $token),
-            now()->addHours(CodeMartV1Constants::EMAIL_CHANGE_TTL_HOURS)
+            now()->addHours($ttlHours)
         );
 
         if (!$this->emailService->sendEmailChangeEmail($newEmail, $token)) {
@@ -95,7 +96,7 @@ class CodeMartV1AccountService
             'email_change_requested'
         );
 
-        return ['pending_email' => $newEmail, 'expires_in_hours' => CodeMartV1Constants::EMAIL_CHANGE_TTL_HOURS];
+        return ['pending_email' => $newEmail, 'expires_in_hours' => $ttlHours];
     }
 
     public function confirmEmailChange(CodeMartV1UserModel $user, string $token): array

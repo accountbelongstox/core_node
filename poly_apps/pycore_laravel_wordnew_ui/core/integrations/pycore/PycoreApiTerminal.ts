@@ -124,6 +124,20 @@ export interface TerminalRemoveResult {
   removed_schedule_count?: number;
 }
 
+export interface TerminalLogDeleteTarget {
+  logIds?: string[];
+  all?: boolean;
+  source?: TerminalLogSource;
+}
+
+export interface TerminalLogDeleteResult {
+  success: boolean;
+  error_code?: string | null;
+  terminal_number?: number;
+  deleted_log_ids?: string[];
+  log_count?: number;
+}
+
 export interface TerminalRenameResult {
   success: boolean;
   error_code?: string | null;
@@ -688,6 +702,16 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       PYCORE_HTTP_ROUTES.terminalRemove,
       { terminal_number: terminalNumber },
     ) as Promise<TerminalRemoveResult>,
+    /** Deletes history entries (the ids, or with `all` every entry, optionally of one source) everywhere pycore keeps them. */
+    deleteTerminalLogs: (terminalNumber: number, target: TerminalLogDeleteTarget) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalLogsDelete,
+      {
+        terminal_number: terminalNumber,
+        log_ids: target.logIds?.length ? target.logIds : undefined,
+        all: target.all ? '1' : undefined,
+        source: target.source || undefined,
+      },
+    ) as Promise<TerminalLogDeleteResult>,
     pressTerminalKey: (windowId: string, key: TerminalKeyAction) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalKey, {
         window_id: windowId,

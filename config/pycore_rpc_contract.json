@@ -1150,6 +1150,10 @@
       "path": "ui/terminal/remove",
       "method": "POST"
     },
+    "terminalLogsDelete": {
+      "path": "ui/terminal/logs/delete",
+      "method": "POST"
+    },
     "terminalRename": {
       "path": "ui/terminal/rename",
       "method": "POST"

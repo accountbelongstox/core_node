@@ -402,32 +402,6 @@ export const cmEn = {
         body: 'Score submissions and recommend a decision.',
       },
       wallet: {
-    paymentCreate: {
-      toggle: 'Send a payment',
-      lead: 'Pay another CodeMart user directly. A wallet payment moves the money at once; other methods are recorded as pending until a payment gateway settles them.',
-      payee: 'Recipient user ID',
-      payeeInvalid: 'Enter the numeric user ID of the recipient.',
-      project: 'Project ID',
-      description: 'Note',
-      submit: 'Send payment',
-      sentWallet: 'Payment #{{id}} was sent from your wallet.',
-      sentPending: 'Payment #{{id}} was recorded and is pending until it is settled.',
-      replayed: 'Payment #{{id}} had already been created; no second payment was made.',
-      gatewayHint: 'This method is not settled automatically: the payment stays pending.',
-      failed: 'The payment could not be created.',
-    },
-    paymentDetail: {
-      open: 'Details',
-      title: 'Payment #{{id}}',
-      payer: 'Paid by',
-      payee: 'Paid to',
-      loadFailed: 'The payment could not be loaded.',
-    },
-    depositStatus: {
-      check: 'Check status',
-      result: 'Deposit #{{id}} is {{status}}.',
-      failed: 'The deposit status could not be loaded.',
-    },
         title: 'Wallet',
         body: 'Balance, deposits, payments, invoices, refunds, and withdrawals.',
       },
@@ -778,6 +752,32 @@ export const cmEn = {
     acceptFailed: 'The project could not be taken.',
   },
   wallet: {
+    paymentCreate: {
+      toggle: 'Send a payment',
+      lead: 'Pay another CodeMart user directly. A wallet payment moves the money at once; other methods are recorded as pending until a payment gateway settles them.',
+      payee: 'Recipient user ID',
+      payeeInvalid: 'Enter the numeric user ID of the recipient.',
+      project: 'Project ID',
+      description: 'Note',
+      submit: 'Send payment',
+      sentWallet: 'Payment #{{id}} was sent from your wallet.',
+      sentPending: 'Payment #{{id}} was recorded and is pending until it is settled.',
+      replayed: 'Payment #{{id}} had already been created; no second payment was made.',
+      gatewayHint: 'This method is not settled automatically: the payment stays pending.',
+      failed: 'The payment could not be created.',
+    },
+    paymentDetail: {
+      open: 'Details',
+      title: 'Payment #{{id}}',
+      payer: 'Paid by',
+      payee: 'Paid to',
+      loadFailed: 'The payment could not be loaded.',
+    },
+    depositStatus: {
+      check: 'Check status',
+      result: 'Deposit #{{id}} is {{status}}.',
+      failed: 'The deposit status could not be loaded.',
+    },
     topUp: {
       title: 'Add funds',
       lead: 'Top up your wallet by bank transfer to fund project escrow. After you send the transfer with the reference shown, an administrator confirms it and the amount appears in your balance.',
@@ -1309,6 +1309,11 @@ export const cmEn = {
       keys: {
         android: 'Android',
         ios: 'iOS',
+        bank_name: 'Bank name',
+        account_name: 'Account holder',
+        account_number: 'Account number',
+        branch: 'Branch',
+        swift_code: 'SWIFT code',
       },
       options: {
         allowed_image_types: {
@@ -1420,6 +1425,10 @@ export const cmEn = {
           label: 'Withdrawal methods',
           hint: 'Methods a user can choose when requesting a withdrawal.',
         },
+        deposit_bank_transfer: {
+          label: 'Bank transfer details',
+          hint: 'Account shown to users who pay a deposit or top up the wallet by bank transfer. Leave a field blank to hide it.',
+        },
         project_min_budget: {
           label: 'Minimum project budget',
           hint: 'Lowest budget a client can set on a project.',
@@ -1463,6 +1472,18 @@ export const cmEn = {
         password_min_length: {
           label: 'Password minimum length',
           hint: 'Minimum length of a new account password at registration.',
+        },
+        otp_expiry_minutes: {
+          label: 'Phone code validity (minutes)',
+          hint: 'How long a phone verification code stays valid.',
+        },
+        otp_max_attempts: {
+          label: 'Phone code attempts',
+          hint: 'Wrong entries allowed before a new code must be requested.',
+        },
+        email_change_ttl_hours: {
+          label: 'Email change link validity (hours)',
+          hint: 'How long the confirmation link for a new email address stays valid.',
         },
         max_attachment_size_kb: {
           label: 'Attachment size limit (KB)',
@@ -2491,6 +2512,12 @@ export const cmEn = {
     title: 'Project estimate',
     lead: 'A quick budget, duration, and team range calculated from the CodeMart pricing policy.',
     complexity: 'Project complexity',
+    currencyLabel: 'Currency',
+    currencyNames: {
+      CNY: 'Chinese yuan (CNY)',
+      USD: 'US dollar (USD)',
+      EUR: 'Euro (EUR)',
+    },
     complexities: {
       simple: 'Simple',
       medium: 'Medium',

@@ -78,12 +78,12 @@
 
 .EXAMPLE
     .\pyservice.ps1 install
-    Idempotent prerequisites, then install + enable + start the `pycore` Windows
-    service (re-running repairs a drifted service and starts it when stopped).
+    Idempotent prerequisites, then register + start the logon task
+    PyCore_RPC_Server (re-running repairs a drifted task and starts it when stopped).
 
 .EXAMPLE
     .\pyservice.ps1 status
-    Show the `pycore` Windows service state, start type, command and log path.
+    Show the logon task PyCore_RPC_Server and the RPC listener.
 
 .EXAMPLE
     .\pyservice.ps1 -Only
@@ -110,8 +110,8 @@
 # --------------------------------------------------------------------------- #
 # Subcommands: run (default) | config | install | start | stop | restart |      #
 # status | uninstall | help. install/start/stop/restart/status/uninstall manage  #
-# the Windows service `pycore` (NSSM; same meaning as pyservice.sh's systemd     #
-# unit `pycore`: headless, no tray). `config` is cross-platform.                 #
+# the logon task PyCore_RPC_Server (user session; never a Windows service).     #
+# `config` is cross-platform.                                                    #
 #
 # Headless config CLI:  .\pyservice.ps1 config ...  -> python -m pycore.pyservice_cli
 #   HTTP-first, file-fallback: while the service runs, edits go through its HTTP
@@ -206,8 +206,6 @@ $powerShellPath = $null
 $uiDir = Join-Path $PSScriptRoot 'poly_apps\pycore_laravel_wordnew_ui'
 $uiStartPath = Join-Path (Join-Path $uiDir 'scripts') 'start.ps1'
 $uiStartArguments = @()
-$uiServiceArguments = @()
-$uiServiceReady = $false
 $uiForegroundEnvironment = @{ AS_SERVICE = 'no' }
 $helpRequested = $false
 $pycoreServiceName = 'pycore'
@@ -599,15 +597,6 @@ function Invoke-PycoreLoginTaskControl {
     return 0
 }
 
-# Dashboard frontend service (port $UiPort, Vite dev server with hot reload), idempotent through
-# the UI start.ps1 -Service: listening = no-op; stuck/stopped = port reserved + restart; absent = register.
-function Invoke-PycoreUiService {
-    $uiServiceArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uiStartPath, '-Service', '-NoBackend', '-NonInteractive', '-Port', "$UiPort")
-    if ($UiBuild) { $uiServiceArguments = @($uiServiceArguments; '-Dist') }
-    & (Get-Process -Id $PID).Path @uiServiceArguments | Out-Host
-    return ($LASTEXITCODE -eq 0)
-}
-
 function Show-PycoreServiceStatus {
     $task = Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue
     $taskInfo = $null
@@ -665,10 +654,6 @@ function Install-PycoreService {
         Write-Host ("[!] Logon task {0} registration failed." -f $pycoreLoginTaskName) -ForegroundColor Red
         return 1
     }
-    if (-not (Invoke-PycoreUiService)) {
-        Write-Host ("[!] Dashboard frontend service is not listening on port {0}." -f $UiPort) -ForegroundColor Red
-        return 1
-    }
     return [int](@(Invoke-PycoreLoginTaskControl -Action 'start')[-1])
 }
 
@@ -703,10 +688,6 @@ function Invoke-PycoreServiceControl {
             Write-Host ("[!] Logon task {0} is not registered. Register it with: .\pyservice.ps1 install" -f $pycoreLoginTaskName) -ForegroundColor Red
             return 1
         }
-    }
-    if (-not (Invoke-PycoreUiService)) {
-        Write-Host ("[!] Dashboard frontend service is not listening on port {0}." -f $UiPort) -ForegroundColor Red
-        return 1
     }
     return [int](@(Invoke-PycoreLoginTaskControl -Action $Action)[-1])
 }
@@ -751,7 +732,7 @@ if ($helpRequested) {
 
 # --------------------------------------------------------------------------- #
 # Subcommand dispatch (the optional leading positional $Command).             #
-# install|uninstall|start|stop|restart|status manage the Windows service pycore. #
+# install|uninstall|start|stop|restart|status manage the logon task.           #
 # --------------------------------------------------------------------------- #
 switch ($Command.ToLowerInvariant()) {
     { $_ -in @('help', '-h', '--help') } {
@@ -887,18 +868,13 @@ try {
         $env:PYCORE_API_BASE = "http://localhost:$Port"
         $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
         $powerShellPath = (Get-Process -Id $PID).Path
-        Write-Host ("[..] Ensuring the dashboard service through {0} -Service ..." -f $uiStartPath) -ForegroundColor Yellow
-        $uiServiceReady = Invoke-PycoreUiService
-        if ($uiServiceReady) {
-            Write-Host ("[OK] Dashboard service serves {0}" -f $env:PYCORE_UI_URL) -ForegroundColor Green
-        } else {
-            # No service (not elevated, or it failed): serve the dashboard from this session instead.
-            $uiStartArguments = @('-NoBackend', '-NonInteractive', '-Port', "$UiPort")
-            if ($UiBuild) { $uiStartArguments = @($uiStartArguments; '-Dist') }
-            $uiProc = Start-ChildScriptWithEnv -PwshExePath $powerShellPath -ScriptPath $uiStartPath -ScriptArgs $uiStartArguments `
-                -WorkingDirectory $uiDir -EnvironmentVars $uiForegroundEnvironment -Hidden
-            Write-Host ("[i] Dashboard service unavailable; foreground dashboard dispatched: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkYellow
-        }
+        # Same user session as the worker, never a Windows service; start.ps1 reuses a healthy
+        # dashboard already on the port. Non-blocking: the worker never waits for the UI.
+        $uiStartArguments = @('-NoBackend', '-NonInteractive', '-Port', "$UiPort")
+        if ($UiBuild) { $uiStartArguments = @($uiStartArguments; '-Dist') }
+        $uiProc = Start-ChildScriptWithEnv -PwshExePath $powerShellPath -ScriptPath $uiStartPath -ScriptArgs $uiStartArguments `
+            -WorkingDirectory $uiDir -EnvironmentVars $uiForegroundEnvironment -Hidden
+        Write-Host ("[i] Dashboard dispatched in this session: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkYellow
     } elseif ($ServiceMode -eq '2') {
         Write-Host '[i] Relay UI intermediary mode: local dashboard launch is disabled.' -ForegroundColor DarkYellow
     } else {

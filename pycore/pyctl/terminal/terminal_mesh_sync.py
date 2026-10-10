@@ -3,8 +3,8 @@
 (``terminal.draft``) of this machine's terminals goes to every Laravel server through the MeshSync
 publisher, so the global terminal search still finds them while this machine is offline.
 
-Keys carry the signing machine id: ``<machine>:<terminal>:<log id>`` and ``<machine>:<terminal>``; an
-emptied draft is published as deleted. A one-time backfill publishes the history stored before.
+Keys carry the signing machine id: ``<machine>:<terminal>:<log id>`` and ``<machine>:<terminal>``; a
+deleted log and an emptied draft are published as deleted. A one-time backfill publishes the history stored before.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from typing import Any, Dict
 from pycore.pyctl.terminal.terminal_state_repository import (
     CHANGE_DRAFT,
     CHANGE_LOG,
+    CHANGE_LOG_DELETED,
     SEARCH_HIT_DRAFT,
     SEARCH_HIT_SENT,
     terminal_state_repository,
@@ -57,6 +58,8 @@ class TerminalMeshSync:
     def _publish_change(self, change: Dict[str, Any]) -> None:
         if change["change"] == CHANGE_LOG:
             self._publish_log(int(change["terminal_number"]), str(change["log_id"]), change["values"], str(change["content"]))
+        elif change["change"] == CHANGE_LOG_DELETED:
+            self._delete_log(int(change["terminal_number"]), str(change["log_id"]))
         elif change["change"] == CHANGE_DRAFT:
             self._publish_draft(int(change["terminal_number"]), str(change["title"]), str(change["date"]), str(change["text"]))
 
@@ -77,6 +80,14 @@ class TerminalMeshSync:
                 "content": content,
             },
             content,
+        )
+
+    def _delete_log(self, terminal_number: int, log_id: str) -> None:
+        mesh_sync_publisher.publish(
+            STREAM_SENT,
+            f"{get_pycore_machine_id()}:{terminal_number}:{log_id}",
+            None,
+            deleted=True,
         )
 
     def _publish_draft(self, terminal_number: int, title: str, date: str, text: str) -> None:

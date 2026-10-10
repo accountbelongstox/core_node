@@ -368,7 +368,7 @@ const CmPolicyExam: React.FC<CmPolicyFieldProps> = ({ name, value, onChange }) =
 const CURRENCY_SELECT_KEYS = ['default_currency', 'ai_estimate_currency'];
 const CURRENCY_LIST_KEYS = ['supported_currencies'];
 const TEAM_KEYS = ['estimate_team'];
-const TEXT_MAP_KEYS = ['app_default_min_os'];
+const TEXT_MAP_KEYS = ['app_default_min_os', 'deposit_bank_transfer'];
 
 /** One editable policy value, rendered from the server schema entry. */
 export const CmPolicyField: React.FC<CmPolicyFieldProps> = (props) => {

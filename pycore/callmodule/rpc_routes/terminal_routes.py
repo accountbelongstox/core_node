@@ -39,6 +39,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_SCREENSHOT_TEXT,
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_TEXT,
+    UI_TERMINAL_LOGS_DELETE,
     UI_TERMINAL_LOGS_SEARCH,
     UI_TERMINAL_MESH_SEARCH,
     UI_TERMINAL_VIEW,
@@ -534,6 +535,17 @@ def register_terminal_routes(server) -> None:
 
         return run_terminal_action("remove", request_id, remove)
 
+    def logs_delete_handler(params, request_id, _context):
+        terminal_number = integer_param(params, "terminal_number")
+        log_ids = string_list_param(params, "log_ids")
+        delete_all = bool_param(params, "all")
+        source = str(params.get("source") or "")
+        return run_terminal_action(
+            "logs_delete",
+            request_id,
+            lambda: terminal_service.delete_logs(terminal_number, log_ids, delete_all, source),
+        )
+
     def viewer_demand_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
         visible_window_ids = string_list_param(params, "visible_window_ids")
@@ -668,6 +680,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_QUICK_COMMAND_STATUS, handler=quick_command_status_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)
+    server.post(path=UI_TERMINAL_LOGS_DELETE, handler=logs_delete_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)
     server.post(path=UI_TERMINAL_VIEWER_DEMAND, handler=viewer_demand_handler)

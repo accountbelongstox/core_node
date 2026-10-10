@@ -186,6 +186,16 @@ class TerminalStateStore:
             (target_number, source_number),
         )
 
+    def delete_logs(self, terminal_numbers: Iterable[int], log_ids: Iterable[int]) -> None:
+        numbers = sorted(set(terminal_numbers))
+        identifiers = sorted(set(log_ids))
+        if not numbers or not identifiers:
+            return
+        self._connection.executemany(
+            f"DELETE FROM {LOG_TABLE} WHERE terminal_number = ? AND log_id = ?",
+            [(number, identifier) for number in numbers for identifier in identifiers],
+        )
+
     def delete_terminals(self, terminal_numbers: Iterable[int]) -> None:
         numbers = sorted(set(terminal_numbers))
         if not numbers:
