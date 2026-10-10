@@ -459,6 +459,8 @@ public partial class RosbotBridgePanel : UserControl
             FollowText(s, p),
             s?.RunningCommand?.Action ?? "",
             s is { Combat: true } ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeCombatTarget), s.CombatTarget) : "",
+            s is { AssistEnabled: true, StandbyEnabled: false } && s.HoldState != RosbotBridgeState.HoldStateHolding
+                ? p.GetUiText(I18nKeys.RosbotBridgeAssistWaiting) : "",
             s is not { AssistEnabled: true, PluginCast: true } ? ""
                 : !s.RosCastAvailable ? p.GetUiText(I18nKeys.RosbotBridgeCastUnavailable)
                 : s.LastCast.Length > 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeCastState), s.LastCast) : "");
@@ -486,7 +488,7 @@ public partial class RosbotBridgePanel : UserControl
         }
     }
 
-    /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state). Game actions take control first (always with combat assist on).</summary>
+    /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state). Game actions take control first (always with combat assist on); switching combat assist on takes control too (the plugin holds ROSBOT, so ROSBOT's own task stops).</summary>
     private async void Send(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null)
     {
         var p = D3D4TesterI18n.Provider;
@@ -495,7 +497,8 @@ public partial class RosbotBridgePanel : UserControl
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
             return;
         }
-        if (GameActions.Contains(action) && (RosbotBridgePluginService.AssistEnabled || ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault)))
+        bool assistOn = action == RosbotPluginConstants.BridgeActionAssist && value == RosbotPluginConstants.BridgeAssistOn;
+        if (assistOn || GameActions.Contains(action) && (RosbotBridgePluginService.AssistEnabled || ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault)))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
             await RosbotBridgePluginService.TakeControlAsync();

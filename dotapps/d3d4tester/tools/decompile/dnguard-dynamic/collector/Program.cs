@@ -23,6 +23,8 @@ internal static class Program
         IReadOnlyCollection<int>? selectedTokens = null;
         bool delayedInvocation;
         bool eventInvocation;
+        bool warmupInvocation;
+        IReadOnlyList<int>? warmupTokens = null;
         string initializationEvent = string.Empty;
         int tokenOffset;
         DynamicMethodAcquisitionReport report;
@@ -44,6 +46,22 @@ internal static class Program
         JavaScriptSerializer serializer;
         try
         {
+            if (args.Length >= 4 && args[0] == "--prepare-many-event")
+            {
+                methodTokens = args.Skip(3).Select(value => int.Parse(value.Replace("0x", string.Empty),
+                    NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToArray();
+                foreach (DynamicMethodPreparationReport item in new DynamicMethodPreparer().PrepareMany(args[1], methodTokens,
+                    initialized: () =>
+                    {
+                        using var gate = new System.Threading.EventWaitHandle(false,
+                            System.Threading.EventResetMode.AutoReset, args[2]);
+                        Console.WriteLine($"Preparation ready: process={System.Diagnostics.Process.GetCurrentProcess().Id}, selected={methodTokens.Count}.");
+                        if (!gate.WaitOne(TimeSpan.FromMinutes(1)))
+                            throw new TimeoutException("The recorder initialization event was not signaled.");
+                    }))
+                    Console.WriteLine($"HVM PREPARED token=0x{item.MethodToken:X8} method={item.MethodName}");
+                return 0;
+            }
             if (args.Length == 3 && args[0] == "--catalog")
             {
                 serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
@@ -55,12 +73,17 @@ internal static class Program
             }
             if (args.Length >= 4 && (args[0] == "--invoke-static-many"
                 || args[0] == "--invoke-static-many-delayed"
-                || args[0] == "--invoke-static-many-event"))
+                || args[0] == "--invoke-static-many-event"
+                || args[0] == "--invoke-static-many-event-warmup"))
             {
                 targetPath = Path.GetFullPath(args[1]);
                 delayedInvocation = args[0] == "--invoke-static-many-delayed";
-                eventInvocation = args[0] == "--invoke-static-many-event";
-                tokenOffset = delayedInvocation || eventInvocation ? 3 : 2;
+                warmupInvocation = args[0] == "--invoke-static-many-event-warmup";
+                eventInvocation = args[0] == "--invoke-static-many-event" || warmupInvocation;
+                tokenOffset = warmupInvocation ? 4 : delayedInvocation || eventInvocation ? 3 : 2;
+                if (warmupInvocation)
+                    warmupTokens = args[3].Split(',').Select(value => int.Parse(value.Replace("0x", string.Empty),
+                        NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToArray();
                 if (eventInvocation)
                     initializationEvent = args[2];
                 if (delayedInvocation)
@@ -82,7 +105,8 @@ internal static class Program
                             throw new TimeoutException("The recorder initialization event was not signaled.");
                         if (compilationDelay > TimeSpan.Zero)
                             System.Threading.Thread.Sleep(compilationDelay);
-                    });
+                    }, warmupTokens: warmupTokens,
+                    warmupCompleted: item => Console.WriteLine($"HVM WARMUP token=0x{item.MethodToken:X8} completed={item.InvocationCompleted}"));
                 foreach (DynamicMethodInvocationReport item in invocationReports)
                 {
                     Console.WriteLine($"HVM INVOKED token=0x{item.MethodToken:X8} completed={item.InvocationCompleted} timedOut={item.TimedOut} method={item.MethodName}");

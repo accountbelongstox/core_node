@@ -23,11 +23,18 @@ public sealed class DynamicMethodPreparer
 {
     public DynamicMethodPreparationReport Prepare(string targetPath, int methodToken)
     {
+        return PrepareMany(targetPath, new[] { methodToken })[0];
+    }
+
+    public IReadOnlyList<DynamicMethodPreparationReport> PrepareMany(string targetPath,
+        IEnumerable<int> methodTokens, Action? initialized = null)
+    {
         string fullTargetPath = Path.GetFullPath(targetPath);
         Assembly assembly;
         Module module;
         RuntimeMethodHandle methodHandle;
         MethodBase? method;
+        List<DynamicMethodPreparationReport> reports = new();
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             throw new PlatformNotSupportedException("Runtime method preparation requires Windows.");
@@ -37,10 +44,15 @@ public sealed class DynamicMethodPreparer
         assembly = Assembly.LoadFrom(fullTargetPath);
         module = assembly.ManifestModule;
         RuntimeHelpers.RunModuleConstructor(module.ModuleHandle);
-        method = module.ResolveMethod(methodToken);
-        methodHandle = module.ModuleHandle.ResolveMethodHandle(methodToken);
-        RuntimeHelpers.PrepareMethod(methodHandle);
-        return new DynamicMethodPreparationReport(fullTargetPath, methodToken,
-            method?.ToString() ?? $"0x{methodToken:X8}");
+        initialized?.Invoke();
+        foreach (int methodToken in methodTokens.Distinct())
+        {
+            method = module.ResolveMethod(methodToken);
+            methodHandle = module.ModuleHandle.ResolveMethodHandle(methodToken);
+            RuntimeHelpers.PrepareMethod(methodHandle);
+            reports.Add(new DynamicMethodPreparationReport(fullTargetPath, methodToken,
+                method?.ToString() ?? $"0x{methodToken:X8}"));
+        }
+        return reports.AsReadOnly();
     }
 }

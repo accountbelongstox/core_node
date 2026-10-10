@@ -403,7 +403,7 @@ public sealed class CoreNodeBridge : IPlugin
             WriteEntities(json, "monsters", _monsters);
             json.BeginArray("skills");
             foreach (var k in _probe.Skills)
-                json.BeginObject().Prop("power", k.Power).Prop("name", k.Name).Prop("slot", k.Slot).Prop("ready", k.Ready).Prop("on_cooldown", k.OnCooldown)
+                json.BeginObject().Prop("power", k.Power).Prop("name", k.Name).Prop("slot", k.Slot).Prop("ready", k.Ready).Prop("on_cooldown", k.OnCooldown).Prop("cooldown_flag", k.CooldownFlag)
                     .Prop("cooldown_ms", k.CooldownMs).Prop("resource_ok", k.ResourceOk).Prop("charges", k.Charges).Prop("channel", k.Channel).EndObject();
             json.EndArray();
             json.BeginObject("ros_settings")

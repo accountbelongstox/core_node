@@ -109,6 +109,7 @@ public static partial class I18nKeys
     public const string RosbotBridgePluginCastTip = "ui.rosbot_bridge.plugin_cast_tip";
     public const string RosbotBridgeCastState = "ui.rosbot_bridge.cast_state";
     public const string RosbotBridgeCastUnavailable = "ui.rosbot_bridge.cast_unavailable";
+    public const string RosbotBridgeAssistWaiting = "ui.rosbot_bridge.assist_waiting";
     public const string RosbotBridgeAttackTestTip = "ui.rosbot_bridge.attack_test_tip";
     public const string RosbotBridgePowerApi = "ui.rosbot_bridge.power_api";
     public const string RosbotBridgePowerApiTip = "ui.rosbot_bridge.power_api_tip";
