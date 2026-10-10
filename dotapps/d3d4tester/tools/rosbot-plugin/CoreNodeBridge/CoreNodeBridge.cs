@@ -18,7 +18,8 @@ namespace CoreNodeBridge;
 /// Every ScanIntervalMs it scans the world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to
 /// this DLL (atomic replace):
 /// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monster counts, carried
-/// items, the live pickup / stash record and the last command result. Commands and the pickup filter: see BridgeCommands; item
+/// items, the live pickup / stash record, follow / town standby state and the last command result. Commands and the pickup filter:
+/// see BridgeCommands; item
 /// GameBalanceIds and the affixes of watched build items: see ItemWatch.
 /// Everything noteworthy also goes to ROSBOT's log (Context.Log). API reads are guarded: outside the game getters may throw.
 /// </summary>
@@ -43,6 +44,7 @@ public sealed class CoreNodeBridge : IPlugin
     private ItemWatch _watch;
     private FollowMode _follow;
     private TownHold _townHold;
+    private TownStandby _standby;
     private Timer _timer;
     /// <summary>Writes state.json on its own thread so long commands (go_npc, salvage, banner walks) never let it go stale.</summary>
     private Timer _stateTimer;
@@ -83,7 +85,8 @@ public sealed class CoreNodeBridge : IPlugin
         _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
         _townHold = new TownHold(_dir, Log);
         _follow = new FollowMode(Log) { TownHold = _townHold };
-        _commands = new BridgeCommands(_dir, Log, _follow);
+        _standby = new TownStandby(Log) { TownHold = _townHold };
+        _commands = new BridgeCommands(_dir, Log, _follow, _standby);
         _follow.PickupHandler = _commands.PickupNearestMatching;
         _follow.CommandBusy = () => _commands.Busy;
         _commands.ReloadFilter();
@@ -156,9 +159,10 @@ public sealed class CoreNodeBridge : IPlugin
             _commands.ReloadFilter();
             _watch.Reload(_dir);
         }
-        _commands.Poll();
         if (Quiet) return;
+        _commands.Poll();
         _townHold.Tick();
+        _standby.Tick();
         _follow.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
@@ -309,6 +313,9 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("follow_revive", _follow.Revive)
                 .Prop("follow_leader", _follow.Leader)
                 .Prop("follow_distance", _follow.Distance)
+                .Prop("standby_enabled", _standby.Enabled)
+                .Prop("standby_state", _standby.State)
+                .Prop("standby_since_utc", _standby.SinceUtc)
                 .Prop("ui_vendor_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.VendorDialog)), false))
                 .Prop("ui_salvage_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.SalvageDialog)), false))
                 .Prop("ui_inventory_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.InventoryDialog)), false));

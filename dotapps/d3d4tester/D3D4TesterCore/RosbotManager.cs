@@ -28,7 +28,8 @@ public sealed class RosbotManager
     private bool _cacheProcessFound;
     private DateTime _cacheAtUtc = DateTime.MinValue;
     private string? _lastLoggedFindRosbotExe;
-    private Action<string>? _beforeStart;
+    private volatile Action<string>[] _beforeStart = Array.Empty<Action<string>>();
+    private readonly object _beforeStartLock = new();
     private Func<string?>? _keyProvider;
 
     private static readonly RosbotDetectionResult NotFound = new() { Status = RosbotDetection.StatusNotFound };
@@ -366,10 +367,13 @@ public sealed class RosbotManager
 
     public string? GetKey() => _keyProvider?.Invoke() is { Length: > 0 } key ? key : null;
 
-    /// <summary>Set by app at startup: runs with the exe path right before every Start launches ROSBOT (e.g. write RoS-BoT.ini).</summary>
-    public void SetBeforeStartHook(Action<string>? hook) => _beforeStart = hook;
+    /// <summary>Added by app services at startup: each runs with the exe path right before every Start launches ROSBOT (ROSBOT key, plugin install).</summary>
+    public void AddBeforeStartHook(Action<string> hook)
+    {
+        lock (_beforeStartLock) _beforeStart = _beforeStart.Append(hook).ToArray();
+    }
 
-    /// <summary>Start the main ROSBOT exe (before-start hook first; a failing hook never blocks the start). 1:1 Python start.</summary>
+    /// <summary>Start the main ROSBOT exe (before-start hooks first; a failing hook never blocks the start). 1:1 Python start.</summary>
     public bool Start(bool autostart = false)
     {
         string? exePath = FindRosbotExe();
@@ -378,13 +382,16 @@ public sealed class RosbotManager
             ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} No ROSBOT exe found, skip start");
             return false;
         }
-        try
+        foreach (var hook in _beforeStart)
         {
-            _beforeStart?.Invoke(exePath);
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} before-start hook failed: {ex.Message}");
+            try
+            {
+                hook(exePath);
+            }
+            catch (Exception ex)
+            {
+                ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} before-start hook failed: {ex.Message}");
+            }
         }
         return autostart ? StartExecutable(exePath, RosbotConstants.AutostartArgument) : StartExecutable(exePath);
     }

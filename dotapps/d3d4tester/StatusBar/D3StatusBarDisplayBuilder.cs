@@ -234,7 +234,13 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     /// <summary>Monitoring (ROSBOT flow) state text and brush: paused -> warning, on -> success, off -> muted. Shared by the status bar and the Monitor tab.</summary>
     public static (string Text, string BrushKey) MonitoringStatus(GameInterfaceStateSnapshot s, II18nProvider p)
     {
-        if (s.RosbotFlowMasterEnabled && s.RosbotFlowPaused) return (p.GetUiText(I18nKeys.MonitorMonitoringPaused), WarningBrushKey);
+        if (s.RosbotFlowPaused)
+        {
+            string paused = p.GetUiText(I18nKeys.MonitorMonitoringPaused);
+            if (s.RosbotBridgeFresh && s.RosbotBridge is { StandbyEnabled: true } bridge)
+                paused += BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeStandbyStatePrefix + bridge.StandbyState, bridge.StandbyState);
+            return (paused, WarningBrushKey);
+        }
         return s.RosbotFlowMasterEnabled
             ? (p.GetUiText(I18nKeys.MonitorMonitoringOn), SuccessBrushKey)
             : (p.GetUiText(I18nKeys.MonitorMonitoringOff), MutedBrushKey);

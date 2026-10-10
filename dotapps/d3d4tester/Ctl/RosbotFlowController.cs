@@ -42,9 +42,7 @@ public static class RosbotFlowController
             _hooksInstalled = true;
         }
         BattlenetFlowHooks.RegionCacheProvider = () => ConfigOptionsProvider.GetOptions<RosSettingsOptions>().BattlenetRegionCache;
-        BattlenetFlowHooks.GetAsiaCredentials = () => AsiaCredentialsService.GetCredentials(BattlenetConstants.RegionAsia) is { } c ? (c.email, c.password) : null;
         BattlenetFlowHooks.CredentialsPromptPending = () => AsiaCredentialsService.IsPromptPending;
-        BattlenetFlowHooks.ScheduleCredentialsPrompt = () => AsiaCredentialsService.ScheduleCredentialsPrompt(BattlenetConstants.RegionAsia);
         BattlenetFlowHooks.GetLoginCredentials = region => AsiaCredentialsService.GetCredentials(region) is { } c ? (c.email, c.password) : null;
         BattlenetFlowHooks.ScheduleLoginCredentialsPrompt = AsiaCredentialsService.ScheduleCredentialsPrompt;
     }

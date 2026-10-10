@@ -112,7 +112,7 @@ internal sealed class ItemWatch
 
     private static bool TryAttributeId(string name, out int id)
     {
-        id = WorldScanner.Safe(() => (int)Enum.Parse(typeof(AttributeId), name), int.MinValue);
+        id = WorldScanner.AttributeId(name);
         return id != int.MinValue;
     }
 }

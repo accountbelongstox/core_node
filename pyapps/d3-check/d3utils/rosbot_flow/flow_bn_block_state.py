@@ -51,7 +51,6 @@ class BNBlockState:
     wait_until: float = 0.0
     b7_poll_deadline: float = 0.0
     b13_poll_deadline: float = 0.0
-    oauth_wait_until: float = 0.0
     browser_fallback_deadline: float = 0.0
     b11_deadline_tick: int = 0  # B11 timeout by flow tick (current_tick >= this -> timeout)
     battlenet_tick_confirmed: bool = False
@@ -104,12 +103,6 @@ class BNBlockCtx:
 
     def set_b13_poll_deadline(self, t: float) -> None:
         self._b.b13_poll_deadline = t
-
-    def get_oauth_wait_until(self) -> float:
-        return self._b.oauth_wait_until
-
-    def set_oauth_wait_until(self, t: float) -> None:
-        self._b.oauth_wait_until = t
 
     def get_browser_fallback_deadline(self) -> float:
         return self._b.browser_fallback_deadline
@@ -199,14 +192,6 @@ def set_b13_poll_deadline(t: float, for_bn_only: bool) -> None:
     _block(for_bn_only).b13_poll_deadline = t
 
 
-def get_oauth_wait_until(for_bn_only: bool) -> float:
-    return _block(for_bn_only).oauth_wait_until
-
-
-def set_oauth_wait_until(t: float, for_bn_only: bool) -> None:
-    _block(for_bn_only).oauth_wait_until = t
-
-
 def get_bn_flow_ever_confirmed(for_bn_only: bool) -> bool:
     return _block(for_bn_only).bn_flow_ever_confirmed
 
@@ -250,7 +235,6 @@ def reset_bn_block_state(for_bn_only: bool) -> None:
     b.wait_until = 0.0
     b.b7_poll_deadline = 0.0
     b.b13_poll_deadline = 0.0
-    b.oauth_wait_until = 0.0
     b.browser_fallback_deadline = 0.0
     b.b11_deadline_tick = 0
     b.battlenet_tick_confirmed = False

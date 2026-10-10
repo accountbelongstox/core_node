@@ -23,7 +23,6 @@ from pycore.pyfoundations.system_paths import get_system_cache_dir
 # ---------------------------------------------------------------------------
 ROOT_DIR = str(_ROOT_PATH)
 TMP_DIR = get_system_cache_dir() / "pytools" / "tmp"
-TAMPERMONKEY_SCRIPT_PATH = _ROOT_PATH / "scripts" / "d3check_oauth_login_tampermonkey.user.js"
 TEMPLATE_DIR = os.path.join(ROOT_DIR, "images")
 SCALED_TEMPLATES_CACHE_DIR = TMP_DIR / "scaled_templates"
 
@@ -194,7 +193,6 @@ BATTLE_NET_CONFIG_REGION_CN = "CN"
 
 BN_FLOW_WAIT_AFTER_START_SEC = 3.0
 BN_FLOW_POLL_TIMEOUT_SEC = 120.0
-BN_FLOW_OAUTH_WAIT_SEC = 120.0
 BN_FLOW_EXIT_WAIT_SEC = 2.0
 BN_CLICK_MOVE_DURATION_SEC = 0.0
 BN_CLICK_PAUSE_AFTER_MOVE_SEC = 0.0
@@ -225,10 +223,9 @@ DRIVE_REMOTE = 4
 DRIVE_CDROM = 5
 
 # ---------------------------------------------------------------------------
-# OAuth / Tampermonkey
+# Browser login (CN, Python automation)
 # ---------------------------------------------------------------------------
-OAUTH_SCRIPT_PING_TIMEOUT_SEC = 30.0
-# Browser login fallback (CN, when Tampermonkey not connected): wait for browser by title, OCR every 2s, click EULA/Login.
+# Wait for browser by title, OCR every 2s, click EULA/Login.
 BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC = 300.0
 # Titles at different stages (match if window title contains any; constants)
 BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS = ("战网登录", "Loading", "Login", "网易账号登录")

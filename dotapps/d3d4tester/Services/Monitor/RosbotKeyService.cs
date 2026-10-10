@@ -43,7 +43,7 @@ public static class RosbotKeyService
     public static void Install()
     {
         if (Interlocked.Exchange(ref _installed, 1) == 1) return;
-        RosbotManager.Instance.SetBeforeStartHook(OnBeforeStart);
+        RosbotManager.Instance.AddBeforeStartHook(OnBeforeStart);
         RosbotManager.Instance.SetKeyProvider(() => WriteBeforeStart ? ActiveKey : null);
         GameInterfaceData.Instance.RegisterCallback(OnState);
     }

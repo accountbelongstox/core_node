@@ -50,9 +50,7 @@
           "stage_kill_boss": "击杀BOSS",
           "stage_back_town": "回城",
           "stage_in_greater_rift": "大秘中",
-          "stage_in_rift": "小秘中",
-          "oauth_script_connected": "已连接",
-          "oauth_script_disconnected": "未连接"
+          "stage_in_rift": "小秘中"
         },
         "status_bar": {
           "size_format": "{width}x{height}"
@@ -228,7 +226,6 @@
           "control_panel": "控制面板",
           "ensure_battlenet_only": "确保战网",
           "ensure_battlenet_only_on": "确保战网 (开)",
-          "open_tampermonkey_script": "一键打开油猴脚本",
           "set_account_password": "设置账号密码",
           "auto_enable_latest_ros": "自动启用最新ROS",
           "firstborn_blue_gate_reuse": "先民蓝门复用",
@@ -574,9 +571,7 @@
           "stage_kill_boss": "Kill BOSS",
           "stage_back_town": "Back Town",
           "stage_in_greater_rift": "In GR",
-          "stage_in_rift": "In Rift",
-          "oauth_script_connected": "Connected",
-          "oauth_script_disconnected": "Disconnected"
+          "stage_in_rift": "In Rift"
         },
         "status_bar": {
           "size_format": "{width}x{height}"
@@ -752,7 +747,6 @@
           "control_panel": "Control Panel",
           "ensure_battlenet_only": "Ensure Battle.net",
           "ensure_battlenet_only_on": "Ensure Battle.net (on)",
-          "open_tampermonkey_script": "Open Tampermonkey script",
           "set_account_password": "Set account/password",
           "auto_enable_latest_ros": "Auto Enable Latest ROS",
           "firstborn_blue_gate_reuse": "Firstborn Blue Gate Reuse",

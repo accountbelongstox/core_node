@@ -208,14 +208,7 @@ internal sealed class FollowMode
         }
         if (_deadFor.ElapsedMilliseconds < ReviveWaitMs || (_sinceRevive.IsRunning && _sinceRevive.ElapsedMilliseconds < ReviveRetryMs)) return;
         _sinceRevive.Restart();
-        foreach (var path in UiIds.ReviveButtons)
-        {
-            ulong id = UiIds.Of(path);
-            if (!WorldScanner.Safe(() => Context.HasUIElement(id), false)) continue;
-            Context.ClickUIElement(id);
-            _log("follow: revive " + path.Substring(path.LastIndexOf('.') + 1));
-            return;
-        }
+        if (UiIds.ClickFirstShown(UiIds.ReviveButtons) is { } clicked) _log("follow: revive " + UiIds.ShortName(clicked));
     }
 
     /// <summary>The player to follow in this world, null when not here.</summary>

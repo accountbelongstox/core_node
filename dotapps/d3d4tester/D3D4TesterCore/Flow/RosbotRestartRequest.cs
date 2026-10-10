@@ -5,14 +5,12 @@ namespace DotApps.d3d4tester.Core.Flow;
 
 /// <summary>
 /// Restarts outside the F3 timeout: a pending request (error popup, D3 memory limit, trigger action) is consumed by the flow master on
-/// its next tick and runs the same F4 -> B2 restart as a log disconnect (restartBattlenet is passed to the handler). Every F4 -> B2
-/// restart, including F3 timeouts and log disconnects, raises <see cref="Executed"/> synchronously before D3 is closed.
+/// its next tick and runs the same F4 -> B2 restart as an F3 log timeout (restartBattlenet is passed to the handler). Every F4 -> B2
+/// restart, including F3 timeouts, raises <see cref="Executed"/> synchronously before D3 is closed.
 /// </summary>
 public static class RosbotRestartRequest
 {
     public const string ReasonLogTimeout = "log_timeout";
-    public const string ReasonLogDisconnect = "log_disconnect";
-    public const string ReasonLogSystemError = "log_system_error";
 
     private static readonly object Lock = new();
     private static string? _reasonId;

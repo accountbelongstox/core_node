@@ -15,7 +15,6 @@ STATUS_ROW_1 = [
 ]
 # Row 2
 STATUS_ROW_2 = [
-    ("rosbot.oauth_script_status", "oauth", None),
     ("ui.status_bar.window_size", "window_size", None),
 ]
 # Row 3: test mode — one label only (no "label: value"); built in BottomBarStatusBlock._build_test_mode_row, not in STATUS_ROW_*

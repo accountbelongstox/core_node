@@ -1,7 +1,10 @@
 // PY-REF: none (DOT-only)
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
+using Rcdw32.Ws.Plugins;
 
 namespace CoreNodeBridge;
 
@@ -34,6 +37,25 @@ internal static class UiIds
         "Root.NormalLayer.deathmenu_dialog.dialog_main.button_revive_at_checkpoint",
         "Root.NormalLayer.deathmenu_dialog.dialog_main.button_revive_in_town",
     };
+
+    /// <summary>Death menu buttons for going home (town, checkpoint, corpse): town standby.</summary>
+    public static readonly string[] ReviveButtonsTownFirst = ReviveButtons.Reverse().ToArray();
+
+    /// <summary>Click the first shown UI element of the paths (in order); its path, or null when none is shown.</summary>
+    public static string ClickFirstShown(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            ulong id = Of(path);
+            if (!WorldScanner.Safe(() => Context.HasUIElement(id), false)) continue;
+            Context.ClickUIElement(id);
+            return path;
+        }
+        return null;
+    }
+
+    /// <summary>Last segment of a UI path (e.g. button_revive_in_town), for logs.</summary>
+    public static string ShortName(string path) => path.Substring(path.LastIndexOf('.') + 1);
 
     /// <summary>Vendor side tabs tried in order until the salvage page shows (the blacksmith's salvage tab).</summary>
     public static readonly string[] VendorTabs =

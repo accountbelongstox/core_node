@@ -29,6 +29,8 @@ public static class RosbotPluginConstants
     public const string BridgeDllName = "CoreNodeBridge.dll";
     public const string BridgeStateFileName = "state.json";
     public const string BridgeCommandFileName = "command.txt";
+    /// <summary>Plugin drops a command older than this unrun (same as CoreNodeBridge BridgeCommands.CommandMaxAgeSec).</summary>
+    public const int BridgeCommandMaxAgeSec = 60;
     public const string BridgeFilterFileName = "pickup_filter.txt";
     /// <summary>Items / affix attributes the plugin reads (same name as CoreNodeBridge ItemWatch.FileName; the plugin cannot reference the app).</summary>
     public const string BridgeItemWatchFileName = "item_watch.txt";
@@ -50,6 +52,10 @@ public static class RosbotPluginConstants
     /// <summary>Plugin command: wait for and click UI elements in order (value = ids / paths separated by BridgeUiSequenceSeparator).</summary>
     public const string BridgeActionUiSequence = "ui_sequence";
     public const string BridgeUiSequenceSeparator = "|";
+    /// <summary>Plugin command: town standby on / off (TownStandby; value BridgeStandbyOn / BridgeStandbyOff).</summary>
+    public const string BridgeActionStandby = "standby";
+    public const string BridgeStandbyOn = "on";
+    public const string BridgeStandbyOff = "off";
     public const string BridgeFollowOff = "off";
     /// <summary>Follow targets (plugin FollowMode modes): nearest player, the selected player, the party leader, party slot 1-4.</summary>
     public const string BridgeFollowNearest = "nearest";

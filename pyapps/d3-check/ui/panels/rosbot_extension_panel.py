@@ -39,7 +39,7 @@ from timers.one_shot_tasks import (
 )
 from d3utils.path_scanner import pick_best_rosbot_dir_by_region, are_paths_valid_for_skip_scan
 from pycore.pyfoundations.system_launcher import open_file_with_notepad
-from providor.constants.common import TAMPERMONKEY_SCRIPT_PATH, BATTLE_NET_EXE_NAME
+from providor.constants.common import BATTLE_NET_EXE_NAME
 from providor.constants.d3 import DIABLO_III_EXE_NAME, ROSBOT_EXE_PATTERNS, ROSBOT_DIR_NAMESPACE_ASIA, ROSBOT_DIR_NAMESPACE_CN
 from runtime import (
     get_task_manager,
@@ -466,25 +466,14 @@ class RosbotExtensionPanel:
                                    padx=UnifiedStyles.SPACING['xs'],
                                    pady=(UnifiedStyles.SPACING['xs'], 0))
 
-        # Open Tampermonkey script in Notepad for easy copy
-        self.open_tampermonkey_script_btn = tk.Button(button_frame,
-                                                      text=i18n_manager.get_ui_text("rosbot.open_tampermonkey_script"),
-                                                      bg=UnifiedStyles.COLORS['bg_primary'],
-                                                      fg=UnifiedStyles.COLORS['text_primary'],
-                                                      font=UnifiedStyles.FONTS['button'],
-                                                      command=self._open_tampermonkey_script)
-        self.open_tampermonkey_script_btn.grid(row=3, column=0, sticky="ew",
-                                              padx=UnifiedStyles.SPACING['xs'],
-                                              pady=(UnifiedStyles.SPACING['xs'], 0))
-
-        # Set account/password: opens dialog with Asia/CN region dropdown and account/password per region (same style as ensure Battle.net / update / Tampermonkey)
+        # Set account/password: opens dialog with Asia/CN region dropdown and account/password per region (same style as ensure Battle.net / update)
         self.set_account_password_btn = tk.Button(button_frame,
                                                  text=i18n_manager.get_ui_text("rosbot.set_account_password"),
                                                  bg=UnifiedStyles.COLORS['bg_primary'],
                                                  fg=UnifiedStyles.COLORS['text_primary'],
                                                  font=UnifiedStyles.FONTS['button'],
                                                  command=self._open_set_account_password)
-        self.set_account_password_btn.grid(row=4, column=0, sticky="ew",
+        self.set_account_password_btn.grid(row=3, column=0, sticky="ew",
                                           padx=UnifiedStyles.SPACING['xs'],
                                           pady=(UnifiedStyles.SPACING['xs'], 0))
 
@@ -793,14 +782,6 @@ class RosbotExtensionPanel:
             messagebox.showwarning(
                 i18n_manager.get_ui_text("rosbot.warning"),
                 (i18n_manager.get_ui_text("rosbot.log_file_not_found") or "File not found or could not open.") + "\n" + str(LOGS_FILE_PATH),
-            )
-
-    def _open_tampermonkey_script(self):
-        """Open Tampermonkey script file in Notepad for easy copy."""
-        if not open_file_with_notepad(TAMPERMONKEY_SCRIPT_PATH):
-            messagebox.showwarning(
-                i18n_manager.get_ui_text("rosbot.warning"),
-                (i18n_manager.get_ui_text("rosbot.log_file_not_found") or "File not found or could not open.") + "\n" + str(TAMPERMONKEY_SCRIPT_PATH),
             )
 
     def get_login_check_callable(self):

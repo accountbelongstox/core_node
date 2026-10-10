@@ -2,6 +2,7 @@
 using System.Drawing;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Bridge;
 using DotApps.d3d4tester.Core.Flow;
 using DotCore.ScreenCapture;
 using DotCore.Utils;
@@ -12,16 +13,12 @@ namespace DotApps.d3d4tester.Services.Monitor;
 
 /// <summary>
 /// D3 / ROSBOT window actions used by the monitor and trigger actions: shrink D3 to the top-right (RBAssist MIND3WINDOWS), stop keys
-/// to the foreground D3 (F7 / F9), town portal by PostMessage (RBAssist POSTTP), the stuck-escape mouse routine (RBAssist
+/// to the foreground D3 (F7 / F9), town portal (RBAssist POSTTP, through the shared BridgeTownPortal key), the stuck-escape mouse routine (RBAssist
 /// PRESSKEYANDCLICKWINDOWPOS + DRAGCIRCLE) and client-area captures for the pixel probes.
 /// </summary>
 public static class GameWindowActions
 {
-    private const uint WmKeyDown = 0x0100;
-    private const uint WmKeyUp = 0x0101;
-    private const int VkTownPortal = 0x54;
-    private const int TownPortalDownLParam = 0x001E0001;
-    private const uint TownPortalUpLParam = 0xC01E0001;
+    private const string LeaseTownPortal = "trigger town portal";
     private const int StepWaitMs = 50;
     private const int KeyWaitMs = 100;
     private const int CirclePoints = 12;
@@ -60,15 +57,12 @@ public static class GameWindowActions
         return WindowInputHelper.SendSystemKey(vk);
     }
 
-    /// <summary>Post the town portal key to the D3 window without focusing it.</summary>
+    /// <summary>Press the configured town portal key in D3 (the one key path shared with follow mode and town standby).</summary>
     public static bool PostTownPortal()
     {
-        IntPtr hwnd = D3Manager.Instance.FindFirstHwnd();
-        if (hwnd == IntPtr.Zero) return false;
-        bool down = WindowInputHelper.PostMessage(hwnd, WmKeyDown, (IntPtr)VkTownPortal, (IntPtr)TownPortalDownLParam);
-        bool up = WindowInputHelper.PostMessage(hwnd, WmKeyUp, (IntPtr)VkTownPortal, unchecked((IntPtr)(int)TownPortalUpLParam));
-        MonitorLog.Info("Town portal key posted to D3");
-        return down && up;
+        bool sent = BridgeTownPortal.Press(LeaseTownPortal);
+        MonitorLog.Info($"Town portal key '{BridgeTownPortal.Key}' {(sent ? "sent" : "not sent")} to D3");
+        return sent;
     }
 
     /// <summary>
