@@ -4,6 +4,7 @@ import { ChevronRight, LogOut, Monitor, ShieldCheck, X } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { cmCanOpenPage, cmIsApplyEntry } from '../../auth/cmPageAccess';
 import { useCmSignOut } from '../../auth/useCmSignOut';
+import { CmLogo } from '../../components/CmLogo';
 import { CmIcon } from '../../components/CmImage';
 import { CM_ADMIN_ROUTE, cmWorkspacePath } from '../../components/public-home/cmPublicRoutes';
 import { CM_APP_VERSION } from '../../cmFlavor';
@@ -44,6 +45,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onClose, tabPa
       <aside className="cmm-drawer" aria-label={t('mobile.shell.menu')}>
         <header className="cmm-drawer__account">
           <button type="button" className="cmm-icon-btn cmm-drawer__close" onClick={onClose} aria-label={t('mobile.shell.closeMenu')}><X aria-hidden="true" /></button>
+          <span className="cmm-drawer__brand"><CmLogo form="lockup" height={26} decorative /></span>
           {account && (
             <>
               <span className="cmm-avatar">{account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : account.initial}</span>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export interface MobilePillOption<T extends string> {
   value: T;
@@ -14,8 +14,17 @@ interface MobilePillsProps<T extends string> {
 
 /** Horizontally scrolling pill tabs for sections that do not fit a segmented control. */
 export function MobilePills<T extends string>({ options, value, onChange, ariaLabel }: MobilePillsProps<T>): React.ReactElement {
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!active || !listRef.current) return;
+    const list = listRef.current;
+    list.scrollTo({ left: active.offsetLeft - (list.clientWidth - active.offsetWidth) / 2, behavior: 'smooth' });
+  }, [value]);
+
   return (
-    <div className="cmmc-pills" role="tablist" aria-label={ariaLabel}>
+    <div ref={listRef} className="cmmc-pills" role="tablist" aria-label={ariaLabel}>
       {options.map((option) => (
         <button
           key={option.value}

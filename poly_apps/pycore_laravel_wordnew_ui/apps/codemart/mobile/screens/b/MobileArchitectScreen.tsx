@@ -98,6 +98,7 @@ const MobileArchitectScreen: React.FC = () => {
         open={accepting !== null}
         title={t('architect.acceptProject')}
         message={accepting?.title ?? ''}
+        confirmLabel={t('architect.acceptProject')}
         busy={acceptingId !== null}
         onClose={() => setAccepting(null)}
         onConfirm={accept}

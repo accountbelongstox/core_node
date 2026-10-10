@@ -236,6 +236,7 @@
   border-bottom: 1px solid var(--cmm-border);
 }
 
+.cmm-drawer__brand { display: flex; align-items: center; height: 36px; margin-bottom: 8px; color: var(--cmm-text); }
 .cmm-drawer__close { position: absolute; top: calc(var(--cmm-safe-top) + 6px); right: 8px; }
 .cmm-drawer__account strong { margin-top: 10px; font-size: 17px; }
 .cmm-drawer__account small { color: var(--cmm-muted); }
