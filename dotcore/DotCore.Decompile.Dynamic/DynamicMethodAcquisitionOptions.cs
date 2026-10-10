@@ -13,6 +13,10 @@ public sealed class DynamicMethodAcquisitionOptions
 
     public int? MethodToken { get; set; }
 
+    public IReadOnlyCollection<int>? MethodTokens { get; set; }
+
+    public TimeSpan CompilationDelay { get; set; }
+
     public string? OutputPath { get; set; }
 }
 
