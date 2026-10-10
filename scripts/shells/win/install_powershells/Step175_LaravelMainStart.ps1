@@ -259,6 +259,15 @@ if ($codemartInit -eq 'yes' -and (Test-Path -LiteralPath $artisanPath -PathType 
 
 # Mesh VPN node for every plane (the FrankenPHP plane also deploys its tailnet HTTPS sites below).
 Invoke-MeshProviderConverge -SkipSite -NoInteractive | Out-Null
+
+# Dashboard frontend service (Vite dev server, hot reload) on every plane, idempotent:
+# listening = no-op; stuck/stopped = port reserved + restart; absent = register.
+& $powerShellPath -NoProfile -ExecutionPolicy Bypass -File $uiStartScriptPath -Service -NoBackend -NonInteractive
+$commandExit = $LASTEXITCODE
+if ($commandExit -ne 0) {
+    Set-Step175Failure -Reason "dashboard frontend service (port $(Get-ServiceContractPort -Name 'nexus_dash_frontend')) failed (exit $commandExit): $uiStartScriptPath -Service"
+}
+
 # Plane mutual exclusion (Linux DESIGN_TRANSPORT_PLANE.md): only the selected plane's services run.
 if ($webServerPlane -ne 'frankenphp') { Disable-WebPlaneService -Name (Get-FrankenPhpServiceName) }
 if ($webServerPlane -ne 'nginx') {
@@ -266,6 +275,7 @@ if ($webServerPlane -ne 'nginx') {
     Disable-WebPlaneService -Name (Get-PhpCgiServiceName)
 }
 if ($webServerPlane -eq 'none') {
+    if ($step175Failed) { exit 1 }
     Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete (START_WEB_SERVER=none: no web server service)." -Type 'Success'
     return
 }
@@ -274,6 +284,7 @@ if ($webServerPlane -eq 'nginx') {
         Set-Step175Failure -Reason "nginx plane services $(Get-NginxServiceName)/$(Get-PhpCgiServiceName) are not running after convergence"
         exit 1
     }
+    if ($step175Failed) { exit 1 }
     Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'
     return
 }
@@ -309,16 +320,6 @@ if ($null -ne $service) {
 $serviceReady = $null -ne $service -and $service.Status -eq 'Running'
 if (-not $serviceReady) {
     Set-Step175Failure -Reason "service $(Get-FrankenPhpServiceName) is not running after convergence"
-}
-
-# LAN host: the mesh site's UI root proxies to the dashboard frontend, so its
-# service is converged here (running = no-op, stopped = start, absent = register).
-if ($lanOnlyHost) {
-    & $powerShellPath -NoProfile -ExecutionPolicy Bypass -File $uiStartScriptPath -Service -NoBackend -NonInteractive
-    $commandExit = $LASTEXITCODE
-    if ($commandExit -ne 0) {
-        Set-Step175Failure -Reason "dashboard frontend service (port $(Get-ServiceContractPort -Name 'nexus_dash_frontend')) failed (exit $commandExit): $uiStartScriptPath -Service"
-    }
 }
 
 if ($step175Failed) { exit 1 }

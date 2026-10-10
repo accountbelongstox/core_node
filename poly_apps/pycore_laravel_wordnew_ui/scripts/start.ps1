@@ -106,6 +106,9 @@ $PwshServiceExe = $null
 $ServiceArgs = $null
 $ServiceRegistered = $false
 $UiServiceState = $null
+# A running service counts as healthy only when its port listens; the first start runs bun install.
+$UiServiceListenWaitSeconds = 30
+$UiServiceStartWaitSeconds = 180
 $UiServiceLog = Join-Path $LogDir "nexus_dash.service.out.log"
 $UiServiceErrLog = Join-Path $LogDir "nexus_dash.service.err.log"
 $PythonCommand = $null
@@ -157,8 +160,8 @@ if ($Service) {
     $ErrorActionPreference = "Continue"
     $AsServiceEnv = "yes"
     $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
-    if ($UiServiceState -eq "running") {
-        Write-Success "Service $UiServiceName is already running; nothing to do (no restart)."
+    if (($UiServiceState -eq "running") -and (Wait-TcpPortListening -Port $DevPort -TimeoutSeconds $UiServiceListenWaitSeconds)) {
+        Write-Success "Service $UiServiceName is running on port $DevPort; nothing to do (no restart)."
         Set-Location -LiteralPath $OriginalDir
         exit 0
     }
@@ -167,16 +170,22 @@ if ($Service) {
         Set-Location -LiteralPath $OriginalDir
         exit 1
     }
-    if ($UiServiceState -eq "stopped") {
-        Write-Info "Starting existing service $UiServiceName..."
-        Start-Service -Name $UiServiceName -ErrorAction SilentlyContinue
-        $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
+    $null = Ensure-TcpPortReserved -Port $DevPort
+    if ($UiServiceState -ne "absent") {
+        Write-Info "Restarting existing service $UiServiceName (state: $UiServiceState, port $DevPort not listening)..."
+        # nssm restart also leaves NSSM's throttled StartPending/Paused states, where Restart-Service fails.
+        $NssmPath = Ensure-Nssm -RepoRootDir $RepoRoot
+        if ($NssmPath) {
+            & $NssmPath restart $UiServiceName 2>&1 | Out-Null
+        } else {
+            Restart-Service -Name $UiServiceName -Force -ErrorAction SilentlyContinue
+        }
         Set-Location -LiteralPath $OriginalDir
-        if ($UiServiceState -eq "running") {
-            Write-Success "Service $UiServiceName started."
+        if (Wait-TcpPortListening -Port $DevPort -TimeoutSeconds $UiServiceStartWaitSeconds) {
+            Write-Success "Service $UiServiceName is listening on port $DevPort."
             exit 0
         }
-        Write-Err "Service $UiServiceName did not start (state: $UiServiceState). Logs: $UiServiceLog ; $UiServiceErrLog"
+        Write-Err "Service $UiServiceName is not listening on port $DevPort (state: $(Get-ServiceRunState -ServiceName $UiServiceName)). Logs: $UiServiceLog ; $UiServiceErrLog"
         exit 1
     }
 }
@@ -396,6 +405,7 @@ if (-not $IsServiceRun) {
                     exit 0
                 }
             }
+            $null = Ensure-TcpPortReserved -Port $DevPort
             Write-Info "Registering Windows service $UiServiceName (NSSM)..."
             $ServiceRegistered = Register-NssmService -NssmPath $NssmPath -ServiceName $UiServiceName `
                 -DisplayName $UiServiceDisplayName -Description $UiServiceDesc `
@@ -406,9 +416,8 @@ if (-not $IsServiceRun) {
                 -NoRestart:$Service
 
             if ($ServiceRegistered -and $Service) {
-                $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
-                if ($UiServiceState -ne "running") {
-                    Write-Err "Service $UiServiceName registered but not running (state: $UiServiceState). Logs: $UiServiceLog ; $UiServiceErrLog"
+                if (-not (Wait-TcpPortListening -Port $DevPort -TimeoutSeconds $UiServiceStartWaitSeconds)) {
+                    Write-Err "Service $UiServiceName registered but not listening on port $DevPort (state: $(Get-ServiceRunState -ServiceName $UiServiceName)). Logs: $UiServiceLog ; $UiServiceErrLog"
                     Set-Location -LiteralPath $OriginalDir
                     exit 1
                 }
@@ -475,6 +484,9 @@ if (Test-DashboardDevServerHealthy -Port $DevPort) {
     Set-Location -LiteralPath $OriginalDir
     exit 0
 }
+
+# A winnat dynamic block over the port fails the bind with EACCES (the service body runs elevated).
+$null = Ensure-TcpPortReserved -Port $DevPort
 
 # Stale listener on our port (broken CSS or foreign server): free it first.
 $stalePids = @(
