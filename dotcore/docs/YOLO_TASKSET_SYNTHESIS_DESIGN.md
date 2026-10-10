@@ -155,7 +155,10 @@ Override resolution: `AugmentationProfile.Resolve(AugmentationOverride?)` — ea
 // Model (taskset.json, snake_case)
 enum TaskResourceKind { Image, Video }
 class TaskResource { Id; Kind; File; OriginalPath; Label; double PixelScale /*DPI factor*/; bool ValOnly /*variant: val only*/;
-    List<PlacementRegion>? Regions /*background*/; List<ResourceBox>? Boxes /*background objects*/; double EffectivePixelScale; }
+    List<PlacementRegion>? Regions /*background*/; List<ResourceBox>? Boxes /*background objects | variant parts (§12)*/;
+    int SourceWidth, SourceHeight /*variant source frame*/; double EffectivePixelScale; bool HasSourceSize; bool IsCompound; }
+class SegmentSource { SegmentDir; bool Backgrounds; bool RealImages; int FrameStep; }        // §12, shared in place
+static class TargetPlacement { Anywhere = "anywhere"; Source = "source"; }
 class PixelRect { X, Y, Width, Height; bool IsEmpty; PixelRect? ClampTo(int w, int h); }
 class PlacementRegion : PixelRect { int SnapPitchX, SnapPitchY; }          // slot grid from the region origin
 class ResourceBox : PixelRect { string Label; bool Mask; }                 // real positive, or inpainted when Mask / unknown label
@@ -166,17 +169,20 @@ class AugmentationProfile { ScaleMin/Max, StretchMin/Max, RotationMaxDegrees, Le
 class AugmentationOverride { same fields nullable; bool IsEmpty; }
 class SynthesisSettings { §3 fields + NativeWindowWidth/Height (640), DpiSteps, ScaleJitter, InRegionProbability, DistractorProbability,
     MaxDistractorsPerImage, OutputFormat png|jpg, JpegQualityMin, MaxResourcePixels, BackgroundCacheSize, ContaminationCheck,
-    ContaminationThreshold, ContaminationVideoFrames, HoldoutSplit val|test; IsNative; UsesDpiSteps; Clone(); Normalized(); }
-class TaskTarget { Id; Name; Variants; Scenes; AugmentationOverride? Augmentation; int? ImagesPerTarget; }
-class TaskSet { Id; Name; Description; CreatedUtc; UpdatedUtc; Targets; CommonResources; Distractors; HoldoutSources;
+    ContaminationThreshold, ContaminationVideoFrames, HoldoutSplit val|test, RelativeSizing range|source, SegmentBlockFrames;
+    IsNative; UsesDpiSteps; SizesFromSource; Clone(); Normalized(); }
+class TaskTarget { Id; Name; Variants; Scenes; AugmentationOverride? Augmentation; int? ImagesPerTarget; Placement; PlacementJitter; }
+class TaskSet { Id; Name; Description; CreatedUtc; UpdatedUtc; Targets; CommonResources; Distractors; HoldoutSources; SegmentSources;
     InferenceRoiHint? InferenceRoiHint; AugmentationProfile Augmentation; SynthesisSettings Synthesis; ClassNames; }
 enum TaskSetIssueCode { NoTargets, EmptyTargetName, DuplicateTargetName, NoVariants, NoBackgrounds, UnreadableResource, NoCommonResources,
     FewBackgrounds, SingleBackgroundShared /*legacy*/, NoValBackground, BackgroundContainsTarget, ResourceTooLarge, NativeScaleJitterLarge,
-    UnknownBoxLabel, HoldoutUnreadable, InvalidRegion, VariantWithoutAlpha }
+    UnknownBoxLabel, HoldoutUnreadable, InvalidRegion, VariantWithoutAlpha, SegmentUnreadable, PlacementSourceUnknown }
 record TaskSetIssue(Code, Subject, IsError); record TaskSetValidation(Issues, Hits); record SynthesisProgress(Done, Total);
 record SynthesisInferenceInfo(ScaleMode, WindowWidth, WindowHeight, BackgroundMinSide, BackgroundMaxSide, MaxObjectSide, MinObjectSide, TileOverlap, RoiHint);
-record SynthesisResult(DatasetDir, DataYamlPath, Classes, TrainImages, ValImages, NegativeImages, Instances, Warnings, Inference, HoldoutImages, FailedJobs);
-record TaskSetEstimate(Classes, TrainImages, ValImages, NegativeImages, HoldoutImages, ImageWidth, ImageHeight, MaxImageSide, MaxObjectSide, ScaleMode);
+record SynthesisResult(DatasetDir, DataYamlPath, Classes, TrainImages, ValImages, NegativeImages, Instances, Warnings, Inference, HoldoutImages, FailedJobs,
+    RealImages);   // Train / Val include the real segment frames
+record TaskSetEstimate(Classes, TrainImages, ValImages, NegativeImages, HoldoutImages, ImageWidth, ImageHeight, MaxImageSide, MaxObjectSide, ScaleMode,
+    RealTrainImages, RealValImages);
 record ContaminationHit(ResourceId, ResourceFile, Frame, TargetId, TargetName, VariantId, X, Y, Width, Height, Score);
 record PreviewBox(Label, XMin, YMin, XMax, YMax); record PreviewResult(byte[] Png, IReadOnlyList<PreviewBox> Boxes);
 
@@ -189,7 +195,9 @@ sealed partial class TaskSetStore {
     AddMany(set, target?, pool, paths, progress, ct) → ImportFileResult[]          // bulk add, per-file outcome, one save
     PlanFolderTree(set, root) / ImportFolderTree(set, root, dryRun, ...)        // subfolder = target, scenes/, common/, distractors/
     CopyTargets(fromSet, targetIds, toSet)                                        // merge by name
-    AddVariantsFromAnnotations(set, imagesDir, annotationDir, classFilter, cutout, cutOptions, ...)   // annotated boxes → variants
+    AddVariantsFromAnnotations(set, imagesDir, annotationDir, classFilter, cutout, cutOptions, ..., AnnotationVariantOptions?)   // annotated boxes → variants
+    AddSegmentSources(set, dirs) / RemoveSegmentSources / static ResolveSegmentDir / SegmentFramesDir / ScanSegment / AddVariantsFromSegments   // §12
+record AnnotationVariantOptions(FrameStep, MinHashDistance, MaxPerLabel, MinSide, GroupLabels?, GroupRegion?);   // dedupe, compound group crops
     string? RemoveTarget / RemoveResource / RemoveResources → undo token;  bool Restore(set, token);  ListTrash(set);  PurgeTrash(set, keepLatest);  // _trash/
 }
 enum TaskResourcePool { Variants, Scenes, Common, Distractors }
@@ -408,3 +416,14 @@ S11 PNG output / no double JPEG; S12 size-aware feather and blur; S13 pixel caps
 - **Video / live**: `YoloVideoDetector.Run` (lazy, frame step / range, per-frame timing) and `YoloLiveDetector` (provider thread, `TargetFps`, newest frame, `FrameProcessed` with FPS / latency / capture / inference times, `Faulted`, `ResetTracks`), both on `Detect(image, profile)`.
 - **Tracking**: `YoloFrameTracker` (ByteTrack-lite: high / low confidence two-stage matching, constant-velocity prediction, center-shift fallback for small fast objects, `MinHits` 3, `MaxMisses` 15, box smoothing 0.6); the navigator acts only on tracks matched this frame (`Misses == 0`).
 - **Hard examples**: the model tester exports frames as annotations with `Reviewed = false` and a `source`; `YoloDatasetAssembler` skips them unless `IncludeUnreviewedPseudoLabels`, and then only in train.
+
+## 12. Shared segments, source placement, compound variants (2026-10-10)
+
+> 打通段和特定任务集的数据共享，这特定任务集中可以获取到这些段当中的数据作为资源 … 识别仓库、铁匠、珠宝匠、卡内魔盒、凯恩之书、装备库、卡达拉、尖碑、附魔工匠，以及铁匠的修复装备、分解装备，附魔工匠的附魔，并能获取附魔中的文字。
+
+- **Segment sources** (`TaskSet.SegmentSources`: `segment_dir` relative to the YOLO data root or absolute, `backgrounds`, `real_images`, `frame_step`): recorded segments are read in place (`{segment}/frames` + JSON / VOC), nothing is copied. Every `frame_step`-th annotated frame is (a) a common background whose target boxes are real positives and whose difficult / non-target boxes are inpainted, and (b) a real labeled image `seg_*` (difficult boxes inpainted). Split group = segment + block of `segment_block_frames` frames, shared by both uses (no block in train and val). Validation: `SegmentUnreadable`; contamination samples `contamination_video_frames` frames per segment (annotated boxes are known objects). Store: `AddSegmentSources` (a project dir adds all segments), `RemoveSegmentSources`, `ScanSegment`, `AddVariantsFromSegments`. UI: task-set window tab **Segments** (add folders / drag-drop, use toggles, frame step, extract deduplicated variants), calibration segment menu **Share with task set**.
+- **Annotation variants** (`AnnotationVariantOptions`): frame step, dHash dedupe, cap per label, minimum side; variants record `source_width/height` of their frame.
+- **Relative sizing "source"** (`synthesis.relative_sizing`): in relative mode an object keeps the size it had in its source frame, scaled by background / source short side. Recordings are downscaled frames of the game window, so the model is trained in relative mode and the detector letterboxes the whole capture (§11 Relative).
+- **Source placement** (`TaskTarget.placement` = `source`, `placement_jitter`): the object is pasted at the position it was cut from (fixed UI), after world objects and distractors; it may hide earlier objects, which lose their label below `min_visible_fraction`. `PlacementSourceUnknown` when no usable variant knows its source.
+- **Compound variants** (`TaskResource.boxes` on a variant): labeled parts in variant pixels; when present they are the variant's labels (scaled with the paste; no flip, rotation or one-sided stretch). `AnnotationVariantOptions.GroupLabels` + `GroupRegion` cut one region per frame (e.g. the whole NPC window) carrying panel, tabs, buttons and text. A target without own variants is pasted through the compound variants that carry it (`NoVariants` only when none does); compound variants are not contamination templates and skip `VariantWithoutAlpha`.
+- **Consumer** (d3d4tester): `D3TownTargets` (10 world targets) and `D3TownUi` (panels, tabs, buttons, `enchant_text`); `D3TownNavigator.ReadPanel` / test pathfinding log the open panel, button centers and the enchant affix lines read by `D3EnchantTextReader` (YOLO box → enlarged crop → `OcrEngineRegistry` general engine → lines).

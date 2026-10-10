@@ -594,10 +594,10 @@ public static partial class TaskSetSynthesizer
             ApplyResourceBoxes(image, used, f, origin, ctx.Classes, placed, s);
             var regions = MapRegions(used, f, origin, image.Size());
             double bgScale = used.Resource.EffectivePixelScale;
+            var picks = new List<int>();
             if (!job.IsNegative)
             {
                 int objects = rng.Next(s.MinObjectsPerImage, s.MaxObjectsPerImage + 1);
-                var picks = new List<int>(objects);
                 for (int o = 0; o < objects; o++)
                 {
                     int targetIndex = job.TargetIndex;
@@ -605,25 +605,25 @@ public static partial class TaskSetSynthesizer
                         targetIndex = (job.TargetIndex + 1 + rng.Next(ctx.Classes.Count - 1)) % ctx.Classes.Count;
                     picks.Add(targetIndex);
                 }
-                // Source-anchored targets (UI overlays) are pasted last so world objects never cover them; one per target and image.
-                var ordered = picks.Where(t => !ctx.Set.Targets[t].PlacesAtSource)
-                    .Concat(picks.Where(t => ctx.Set.Targets[t].PlacesAtSource).Distinct()).ToList();
-                foreach (int targetIndex in ordered)
-                {
-                    var variants = ctx.VariantsFor(targetIndex, job.Split);
-                    if (variants.Count == 0) continue;
-                    var target = ctx.Set.Targets[targetIndex];
-                    var entry = PickVariant(variants, target, rng);
-                    var anchor = target.PlacesAtSource ? SourceAnchor(entry, used, f, origin, image.Size(), target.PlacementJitter) : null;
-                    PasteObject(image, entry, ctx.Profiles[targetIndex], ctx.Classes[targetIndex], bgScale, placed, regions, s, rng, anchor);
-                }
             }
+            void Paste(int targetIndex)
+            {
+                var variants = ctx.VariantsFor(targetIndex, job.Split);
+                if (variants.Count == 0) return;
+                var target = ctx.Set.Targets[targetIndex];
+                var entry = PickVariant(variants, target, rng);
+                var anchor = target.PlacesAtSource ? SourceAnchor(entry, used, f, origin, image.Size(), target.PlacementJitter) : null;
+                PasteObject(image, entry, ctx.Profiles[targetIndex], ctx.Classes[targetIndex], bgScale, placed, regions, s, rng, anchor);
+            }
+            // World objects, then distractors, then source-anchored targets (UI overlays, one per target and image) so nothing covers the UI.
+            foreach (int t in picks.Where(t => !ctx.Set.Targets[t].PlacesAtSource)) Paste(t);
             if (ctx.Distractors.Length > 0 && s.MaxDistractorsPerImage > 0 && rng.NextDouble() < s.DistractorProbability)
             {
                 int n = rng.Next(1, s.MaxDistractorsPerImage + 1);
                 for (int d = 0; d < n; d++)
                     PasteObject(image, ctx.Distractors[rng.Next(ctx.Distractors.Length)], ctx.DistractorProfile, null, bgScale, placed, regions, s, rng);
             }
+            foreach (int t in picks.Where(t => ctx.Set.Targets[t].PlacesAtSource).Distinct()) Paste(t);
             // Compound parts may carry labels of classes outside this task set: those stay unlabeled pixels.
             var boxes = placed.Where(p => p.Box != null && IndexOf(ctx.Classes, p.Box.Label) >= 0).Select(p => p.Box!).ToList();
             return new Rendered(image, boxes, used);
