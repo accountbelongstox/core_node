@@ -1,9 +1,10 @@
 import React from 'react';
-import { Languages, Moon, Sun } from 'lucide-react';
+import { Languages, Moon, Smartphone, Sun } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../../shell/shellTypes';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { CM_LANGUAGES } from '../cm-locales';
+import { cmDefaultUiMode, setCmUiMode, useCmUiMode } from '../shared/cmUiMode';
 
 /**
  * CodeMart top-right chrome: shared-shell language switcher and dark/light
@@ -13,9 +14,17 @@ import { CM_LANGUAGES } from '../cm-locales';
 export const CmChromeControls: React.FC<{ inverse?: boolean }> = ({ inverse = false }) => {
   const { dark, toggleDark, lang, setLang } = useShell();
   const { t } = useTranslation('cm');
+  const uiMode = useCmUiMode();
+  const leftTheApp = uiMode === 'web' && cmDefaultUiMode() === 'mobile';
 
   return (
     <div className={`cm-chrome-controls ${inverse ? 'is-inverse' : ''}`}>
+      {leftTheApp && (
+        <button type="button" className="cm-chrome-controls__button cm-chrome-controls__app" onClick={() => setCmUiMode(null)}>
+          <Smartphone aria-hidden="true" />
+          <span>{t('mobile.shell.backToApp')}</span>
+        </button>
+      )}
       <button
         type="button"
         className="cm-chrome-controls__button"
