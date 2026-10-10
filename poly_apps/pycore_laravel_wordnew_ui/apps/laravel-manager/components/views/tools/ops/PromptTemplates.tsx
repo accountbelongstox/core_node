@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FilePlus2, Pencil, Search, Star, Trash2 } from 'lucide-react';
 import { Btn, Chips, controlClass, CopyBtn, EmptyBlock, Field, Panel } from './opsKit';
 import { extractVariables, renderPrompt } from './opsLogic';
+import { LaravelManagerStorageKeys } from '@/apps/laravel-manager/persistence/LaravelManagerStorageKeys';
 
 interface PromptTemplate {
   id: string;
@@ -18,7 +19,7 @@ interface PromptTemplate {
 
 type Mode = 'view' | 'edit';
 
-const STORAGE_KEY = 'ai_prompts';
+const STORAGE_KEY = LaravelManagerStorageKeys.PROMPT_TEMPLATES;
 const ALL = 'all';
 const FAVORITES = '__favorites__';
 const CATEGORY_KEYS: Record<string, string> = {

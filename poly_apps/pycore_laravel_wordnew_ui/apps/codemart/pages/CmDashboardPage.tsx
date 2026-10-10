@@ -1,78 +1,23 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ClipboardCheck, FilePlus2, ShieldCheck, Store } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import { cmApi } from '../api/CmApi';
-import type { CmBootstrap, CmNotification, CmPagination, CmProject, CmReviewSubmission, CmTask } from '../api/CmApiTypes';
-import type { CmIconName } from '../assets/cmImageRegistry';
-import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmIcon } from '../components/CmImage';
-import { CM_PROTECTED_ROUTE, cmProjectPath, cmTaskPath } from '../components/public-home/cmPublicRoutes';
+import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmEmptyState, CmErrorState, CmLoadingState } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
-import { cmNotificationLink, cmNotificationParams } from '../components/workspace/cmNotificationFormat';
-import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-import { useCmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
+import { type CmDashboardPrimaryAction } from '../shared/cmDashboardModel';
+import { useCmDashboard, type CmDashboardPreviewItem } from '../shared/useCmDashboard';
 
-const PREVIEW_SIZE = 5;
-const MAX_PREVIEW_PAGES = 5;
-const STATE_KEY_SEPARATOR = ',';
 const METRIC_ICON_SIZE = 38;
 const SHORTCUT_ICON_SIZE = 40;
-const STEP_ROUTES: Record<string, string> = {
-  account: CM_PROTECTED_ROUTE.profile,
-  deposit: CM_PROTECTED_ROUTE.wallet,
-};
-const DEFAULT_STEP_ROUTE = CM_PROTECTED_ROUTE.verification;
-
-interface CmShortcut {
-  id: string;
-  capability: string;
-  route: string;
-  icon: CmIconName;
-  role?: string;
-}
-
-const SHORTCUTS: CmShortcut[] = [
-  { id: 'createProject', capability: 'project.create', route: CM_PROTECTED_ROUTE.projectCreate, icon: 'nav-project-create', role: 'client' },
-  { id: 'myProjects', capability: 'project.read', route: CM_PROTECTED_ROUTE.projects, icon: 'nav-projects', role: 'client' },
-  { id: 'marketplace', capability: 'task.browse', route: CM_PROTECTED_ROUTE.marketplace, icon: 'nav-marketplace', role: 'developer' },
-  { id: 'myTasks', capability: 'task.read', route: CM_PROTECTED_ROUTE.tasks, icon: 'nav-tasks', role: 'developer' },
-  { id: 'architect', capability: 'architect.read', route: CM_PROTECTED_ROUTE.architect, icon: 'nav-architect', role: 'architect' },
-  { id: 'reviews', capability: 'review.read', route: CM_PROTECTED_ROUTE.reviews, icon: 'nav-reviews', role: 'reviewer' },
-  { id: 'wallet', capability: 'finance.read', route: CM_PROTECTED_ROUTE.wallet, icon: 'nav-wallet' },
-  { id: 'verification', capability: 'onboarding.read', route: CM_PROTECTED_ROUTE.verification, icon: 'nav-verification' },
-];
-
-interface CmMetric {
-  id: string;
-  capability: string;
-  route: string;
-  icon: CmIconName;
-  tone: string;
-  value: (bootstrap: CmBootstrap, format: ReturnType<typeof useCmFormat>) => string;
-  roles?: string[];
-}
-
-const METRICS: CmMetric[] = [
-  { id: 'activeProjects', capability: 'project.read', roles: ['client', 'architect'], route: CM_PROTECTED_ROUTE.projects, icon: 'feature-active-projects', tone: 'blue', value: (b, f) => f.number(b.counters.active_projects) },
-  { id: 'escrowFunds', capability: 'project.create', route: CM_PROTECTED_ROUTE.projects, icon: 'feature-escrow-funds', tone: 'green', value: (b, f) => f.money(b.counters.protected_funds, b.counters.currency) },
-  { id: 'myOpenTasks', capability: 'task.read', route: CM_PROTECTED_ROUTE.tasks, icon: 'feature-open-tasks', tone: 'violet', value: (b, f) => f.number(b.counters.my_open_tasks) },
-  { id: 'marketplaceTasks', capability: 'task.browse', route: CM_PROTECTED_ROUTE.marketplace, icon: 'feature-marketplace-tasks', tone: 'blue', value: (b, f) => f.number(b.counters.open_marketplace_tasks) },
-  { id: 'pendingReviews', capability: 'review.read', roles: ['reviewer'], route: CM_PROTECTED_ROUTE.reviews, icon: 'feature-pending-reviews', tone: 'amber', value: (b, f) => f.number(b.counters.pending_reviews) },
-  { id: 'walletBalance', capability: 'finance.read', route: CM_PROTECTED_ROUTE.wallet, icon: 'feature-wallet-balance', tone: 'green', value: (b, f) => f.money(b.counters.wallet_balance, b.counters.currency) },
-  { id: 'unread', capability: 'notification.read', route: CM_PROTECTED_ROUTE.notifications, icon: 'feature-unread-notifications', tone: 'amber', value: (b, f) => f.number(b.counters.unread_notifications) },
-];
-
-interface CmPreviewRow {
-  id: number;
-  title: string;
-  to: string;
-  badge: React.ReactNode;
-  meta?: string;
-}
+const PRIMARY_ACTION_ICONS = {
+  createProject: FilePlus2,
+  browseMarketplace: Store,
+  openReviews: ClipboardCheck,
+  openVerification: ShieldCheck,
+} as const;
 
 const CmPreviewList: React.FC<{
   titleKey: string;
@@ -80,8 +25,8 @@ const CmPreviewList: React.FC<{
   emptyKey: string;
   loading: boolean;
   error: string | null;
-  rows: CmPreviewRow[];
-  onRetry: () => void;
+  rows: CmDashboardPreviewItem[];
+  onRetry?: () => void;
 }> = ({ titleKey, allRoute, emptyKey, loading, error, rows, onRetry }) => {
   const { t } = useTranslation('cm');
   return (
@@ -103,7 +48,7 @@ const CmPreviewList: React.FC<{
               <Link to={row.to}>
                 <span className="cm-preview-list__title">{row.title}</span>
                 {row.meta && <span className="cm-preview-list__meta">{row.meta}</span>}
-                {row.badge}
+                <CmStatusBadge group={row.statusGroup} status={row.status} />
               </Link>
             </li>
           ))}
@@ -113,82 +58,18 @@ const CmPreviewList: React.FC<{
   );
 };
 
-/**
- * Walks the server pages (newest first) until enough still-open items are
- * collected, so closed items on page 1 never hide open work on later pages.
- */
-async function collectOpenPreview<R, T>(
-  fetchPage: (page: number) => Promise<APIResponse<R>>,
-  itemsOf: (data: R) => T[],
-  paginationOf: (data: R) => CmPagination | undefined,
-  isOpen: (item: T) => boolean,
-): Promise<APIResponse<CmPagedSlice<T>>> {
-  const open: T[] = [];
-  let response = await fetchPage(1);
-  let page = 1;
-  while (response.success && response.data) {
-    open.push(...itemsOf(response.data).filter(isOpen));
-    const totalPages = paginationOf(response.data)?.totalPages ?? 1;
-    if (open.length >= PREVIEW_SIZE || page >= totalPages || page >= MAX_PREVIEW_PAGES) break;
-    page += 1;
-    const next = await fetchPage(page);
-    if (!next.success || !next.data) break;
-    response = next;
-  }
-  const data = response.success && response.data ? { items: open.slice(0, PREVIEW_SIZE), totalPages: 1 } : null;
-  return { ...response, data };
-}
-const sliceOf = <T,>(data: CmPagedSlice<T>): CmPagedSlice<T> => data;
-const fetchReviews = (page: number) => cmApi.getReviewTasks(page);
-const extractReviews = (data: { pending_reviews: CmReviewSubmission[] }): CmPagedSlice<CmReviewSubmission> => ({
-  items: (Array.isArray(data.pending_reviews) ? data.pending_reviews : []).slice(0, PREVIEW_SIZE),
-  totalPages: 1,
-});
-const fetchNotifications = (page: number) => cmApi.getNotifications(page);
-const extractNotifications = (data: { items: CmNotification[] }): CmPagedSlice<CmNotification> => ({
-  items: (Array.isArray(data.items) ? data.items : []).slice(0, PREVIEW_SIZE),
-  totalPages: 1,
-});
-
 const CmDashboardPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const format = useCmFormat();
-  const { bootstrap, loading, error, refresh, hasCapability, hasRole, roles, terminalStates } = useCmBootstrap();
-  const retryBootstrap = useCallback(() => { void refresh(); }, [refresh]);
+  const dashboard = useCmDashboard();
+  const { bootstrap, loading, error, retryBootstrap, onboarding, projects, tasks, reviews, notifications } = dashboard;
 
-  const heldRoles = roles.filter((role) => hasRole(role));
-  const showProjects = hasCapability('project.read') && (hasRole('client') || hasRole('architect'));
-  const showTasks = hasCapability('task.read');
-  const showReviews = hasCapability('review.read') && hasRole('reviewer', 'active');
-  const showNotifications = hasCapability('notification.read');
-
-  const closedProjectKey = terminalStates('project').join(STATE_KEY_SEPARATOR);
-  const closedTaskKey = terminalStates('task').join(STATE_KEY_SEPARATOR);
-  const fetchProjects = useCallback(() => collectOpenPreview(
-    (page) => cmApi.getProjects({ include_assigned: true, page }),
-    (data) => (Array.isArray(data.projects) ? data.projects : []),
-    (data) => data.pagination,
-    (project: CmProject) => !closedProjectKey.split(STATE_KEY_SEPARATOR).includes(project.status),
-  ), [closedProjectKey]);
-  const fetchTasks = useCallback(() => collectOpenPreview(
-    (page) => cmApi.getMyTasks(page),
-    (data) => (Array.isArray(data.my_tasks) ? data.my_tasks : []),
-    (data) => data.pagination,
-    (task: CmTask) => !closedTaskKey.split(STATE_KEY_SEPARATOR).includes(task.status),
-  ), [closedTaskKey]);
-  const projects = useCmPagedList(fetchProjects, sliceOf<CmProject>, 'projects.loadFailed', showProjects);
-  const tasks = useCmPagedList(fetchTasks, sliceOf<CmTask>, 'tasks.loadFailed', showTasks);
-  const reviews = useCmPagedList(fetchReviews, extractReviews, 'reviews.loadFailed', showReviews);
-  const notifications = useCmPagedList(fetchNotifications, extractNotifications, 'notifications.loadFailed', showNotifications);
-
-  const displayName = bootstrap?.user.name || bootstrap?.user.nickname || bootstrap?.user.username || '';
   const header = (
     <CmPageHeader
       eyebrowKey="dashboard.eyebrow"
       titleKey="dashboard.title"
       purposeKey="dashboard.subtitle"
-      title={displayName ? t('dashboard.greeting', { name: displayName }) : undefined}
-      actions={bootstrap ? <CmDashboardPrimaryAction hasCapability={hasCapability} /> : undefined}
+      title={dashboard.displayName ? t('dashboard.greeting', { name: dashboard.displayName }) : undefined}
+      actions={dashboard.primaryAction ? <CmDashboardPrimaryActionLink action={dashboard.primaryAction} /> : undefined}
     />
   );
 
@@ -201,81 +82,51 @@ const CmDashboardPage: React.FC = () => {
     );
   }
 
-  const onboarding = bootstrap.onboarding;
-  const requiredSteps = onboarding.steps.filter((step) => !step.optional);
-  const doneSteps = requiredSteps.filter((step) => step.completed).length;
-  const progress = requiredSteps.length > 0 ? Math.round((doneSteps / requiredSteps.length) * 100) : 100;
-  const nextStep = onboarding.next_step;
-  const metrics = METRICS.filter((metric) => hasCapability(metric.capability) && (!metric.roles || metric.roles.some((role) => hasRole(role))));
-  const shortcuts = SHORTCUTS.filter((shortcut) => hasCapability(shortcut.capability) && (!shortcut.role || hasRole(shortcut.role) || bootstrap.is_admin));
-
-  const projectRows: CmPreviewRow[] = projects.items.map((project) => ({
-    id: project.id,
-    title: project.title,
-    to: cmProjectPath(project.id),
-    meta: project.budget ? format.money(project.budget, project.currency) : undefined,
-    badge: <CmStatusBadge group="project" status={project.status} />,
-  }));
-  const taskRows: CmPreviewRow[] = tasks.items.map((task) => ({
-    id: task.id,
-    title: task.title,
-    to: cmTaskPath(task.id),
-    meta: task.due_date ? t('tasks.due', { date: format.date(task.due_date) }) : undefined,
-    badge: <CmStatusBadge group="task" status={task.status} />,
-  }));
-  const reviewRows: CmPreviewRow[] = reviews.items.map((submission) => ({
-    id: submission.id,
-    title: submission.task?.title ?? t('reviews.submissionTitle', { id: submission.id }),
-    to: CM_PROTECTED_ROUTE.reviews,
-    meta: format.dateTime(submission.created_at),
-    badge: <CmStatusBadge group="submission" status={submission.status} />,
-  }));
-
   return (
     <main className="cm-workspace-page">
       {header}
       <div className="cm-role-chips" aria-label={t('dashboard.rolesLabel')}>
-        {heldRoles.length === 0 && <span className="cm-role-chip">{bootstrap.is_admin ? t('dashboard.adminOnly') : t('dashboard.noRoles')}</span>}
-        {heldRoles.map((role) => (
+        {dashboard.heldRoles.length === 0 && <span className="cm-role-chip">{bootstrap.is_admin ? t('dashboard.adminOnly') : t('dashboard.noRoles')}</span>}
+        {dashboard.heldRoles.map((role) => (
           <span key={role} className="cm-role-chip">
             {t(`roles.${role}`)} <CmStatusBadge group="role" status={bootstrap.roles[role]} />
           </span>
         ))}
       </div>
 
-      {!onboarding.complete && nextStep && (
+      {onboarding && (
         <section className="cm-onboarding-card">
           <div className="cm-onboarding-card__text">
             <span>{t('dashboard.nextStepLabel')}</span>
-            <h2>{t(`dashboard.stepTitles.${nextStep}`, { defaultValue: t(`verification.steps.${nextStep}`, { defaultValue: nextStep }) })}</h2>
-            <p>{t(`dashboard.stepHints.${nextStep}`, { defaultValue: t('dashboard.stepHints.default') })}</p>
-            <div className="cm-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t('dashboard.progressLabel', { done: doneSteps, total: requiredSteps.length })}>
-              <span style={{ width: `${progress}%` }} />
+            <h2>{t(`dashboard.stepTitles.${onboarding.nextStep}`, { defaultValue: t(`verification.steps.${onboarding.nextStep}`, { defaultValue: onboarding.nextStep }) })}</h2>
+            <p>{t(`dashboard.stepHints.${onboarding.nextStep}`, { defaultValue: t('dashboard.stepHints.default') })}</p>
+            <div className="cm-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={onboarding.progress} aria-label={t('dashboard.progressLabel', { done: onboarding.doneSteps, total: onboarding.totalSteps })}>
+              <span style={{ width: `${onboarding.progress}%` }} />
             </div>
-            <small>{t('dashboard.progressLabel', { done: doneSteps, total: requiredSteps.length })}</small>
+            <small>{t('dashboard.progressLabel', { done: onboarding.doneSteps, total: onboarding.totalSteps })}</small>
           </div>
-          <Link to={STEP_ROUTES[nextStep] ?? DEFAULT_STEP_ROUTE} className="cm-workspace-button is-primary">
+          <Link to={onboarding.route} className="cm-workspace-button is-primary">
             {t('dashboard.continueStep')} <ArrowRight aria-hidden="true" />
           </Link>
         </section>
       )}
 
-      {metrics.length > 0 && (
+      {dashboard.metrics.length > 0 && (
         <section className="cm-metric-grid" aria-label={t('dashboard.metricsLabel')}>
-          {metrics.map((metric) => (
+          {dashboard.metrics.map((metric) => (
             <Link key={metric.id} to={metric.route} className="cm-metric-card" data-tone={metric.tone}>
               <span><CmIcon name={metric.icon} size={METRIC_ICON_SIZE} decorative /></span>
-              <div><strong>{metric.value(bootstrap, format)}</strong><small>{t(`dashboard.metrics.${metric.id}`)}</small></div>
+              <div><strong>{metric.value}</strong><small>{t(`dashboard.metrics.${metric.id}`)}</small></div>
             </Link>
           ))}
         </section>
       )}
 
-      {shortcuts.length > 0 && (
+      {dashboard.shortcuts.length > 0 && (
         <section className="cm-dashboard-section">
           <h2>{t('dashboard.shortcutsTitle')}</h2>
           <div className="cm-shortcut-grid">
-            {shortcuts.map((shortcut) => (
+            {dashboard.shortcuts.map((shortcut) => (
               <Link key={shortcut.id} to={shortcut.route} className="cm-shortcut-card">
                 <span className="cm-shortcut-card__icon"><CmIcon name={shortcut.icon} size={SHORTCUT_ICON_SIZE} decorative /></span>
                 <span className="cm-shortcut-card__text">
@@ -291,16 +142,16 @@ const CmDashboardPage: React.FC = () => {
 
       <div className="cm-dashboard-columns">
         <div className="cm-dashboard-columns__main">
-          {showProjects && (
-            <CmPreviewList titleKey="dashboard.activeProjectsTitle" allRoute={CM_PROTECTED_ROUTE.projects} emptyKey="dashboard.noActiveProjects" loading={projects.loading} error={projects.error} rows={projectRows} onRetry={projects.retryable ? () => void projects.reload() : undefined} />
+          {dashboard.showProjects && (
+            <CmPreviewList titleKey="dashboard.activeProjectsTitle" allRoute={CM_PROTECTED_ROUTE.projects} emptyKey="dashboard.noActiveProjects" loading={projects.loading} error={projects.error} rows={dashboard.projectItems} onRetry={projects.retryable ? () => void projects.reload() : undefined} />
           )}
-          {showTasks && (
-            <CmPreviewList titleKey="dashboard.activeTasksTitle" allRoute={CM_PROTECTED_ROUTE.tasks} emptyKey="dashboard.noActiveTasks" loading={tasks.loading} error={tasks.error} rows={taskRows} onRetry={tasks.retryable ? () => void tasks.reload() : undefined} />
+          {dashboard.showTasks && (
+            <CmPreviewList titleKey="dashboard.activeTasksTitle" allRoute={CM_PROTECTED_ROUTE.tasks} emptyKey="dashboard.noActiveTasks" loading={tasks.loading} error={tasks.error} rows={dashboard.taskItems} onRetry={tasks.retryable ? () => void tasks.reload() : undefined} />
           )}
-          {showReviews && (
-            <CmPreviewList titleKey="dashboard.reviewQueueTitle" allRoute={CM_PROTECTED_ROUTE.reviews} emptyKey="dashboard.noReviews" loading={reviews.loading} error={reviews.error} rows={reviewRows} onRetry={reviews.retryable ? () => void reviews.reload() : undefined} />
+          {dashboard.showReviews && (
+            <CmPreviewList titleKey="dashboard.reviewQueueTitle" allRoute={CM_PROTECTED_ROUTE.reviews} emptyKey="dashboard.noReviews" loading={reviews.loading} error={reviews.error} rows={dashboard.reviewItems} onRetry={reviews.retryable ? () => void reviews.reload() : undefined} />
           )}
-          {!showProjects && !showTasks && !showReviews && (
+          {!dashboard.showProjects && !dashboard.showTasks && !dashboard.showReviews && (
             <CmEmptyState
               title={t('dashboard.noWorkTitle')}
               body={t('dashboard.noWorkBody')}
@@ -308,7 +159,7 @@ const CmDashboardPage: React.FC = () => {
             />
           )}
         </div>
-        {showNotifications && (
+        {dashboard.showNotifications && (
           <section className="cm-panel cm-dashboard-columns__side">
             <header className="cm-panel__header">
               <h2>{t('dashboard.notificationsTitle')}</h2>
@@ -318,22 +169,18 @@ const CmDashboardPage: React.FC = () => {
               <CmLoadingState compact />
             ) : notifications.error ? (
               <CmErrorState compact message={notifications.error} onRetry={notifications.retryable ? () => void notifications.reload() : undefined} />
-            ) : notifications.items.length === 0 ? (
+            ) : dashboard.notificationItems.length === 0 ? (
               <CmEmptyState compact title={t('notifications.emptyTitle')} />
             ) : (
               <ul className="cm-preview-list">
-                {notifications.items.map((item) => {
-                  const params = cmNotificationParams(t, item);
-                  const link = cmNotificationLink(item, showTasks) ?? CM_PROTECTED_ROUTE.notifications;
-                  return (
-                    <li key={item.id} className={item.read ? '' : 'is-unread'}>
-                      <Link to={link}>
-                        <span className="cm-preview-list__title">{t(item.title_key, { ...params, defaultValue: t('notifications.fallbackTitle') })}</span>
-                        <span className="cm-preview-list__meta">{format.dateTime(item.created_at)}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
+                {dashboard.notificationItems.map((item) => (
+                  <li key={item.id} className={item.read ? '' : 'is-unread'}>
+                    <Link to={item.link ?? CM_PROTECTED_ROUTE.notifications}>
+                      <span className="cm-preview-list__title">{item.title}</span>
+                      <span className="cm-preview-list__meta">{item.time}</span>
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
           </section>
@@ -343,18 +190,10 @@ const CmDashboardPage: React.FC = () => {
   );
 };
 
-const CmDashboardPrimaryAction: React.FC<{ hasCapability: (capability: string | null) => boolean }> = ({ hasCapability }) => {
+const CmDashboardPrimaryActionLink: React.FC<{ action: CmDashboardPrimaryAction }> = ({ action }) => {
   const { t } = useTranslation('cm');
-  if (hasCapability('project.create')) {
-    return <Link to={CM_PROTECTED_ROUTE.projectCreate} className="cm-workspace-button is-primary"><FilePlus2 aria-hidden="true" /> {t('dashboard.createProject')}</Link>;
-  }
-  if (hasCapability('task.browse')) {
-    return <Link to={CM_PROTECTED_ROUTE.marketplace} className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('dashboard.browseMarketplace')}</Link>;
-  }
-  if (hasCapability('review.read')) {
-    return <Link to={CM_PROTECTED_ROUTE.reviews} className="cm-workspace-button is-primary"><ClipboardCheck aria-hidden="true" /> {t('dashboard.openReviews')}</Link>;
-  }
-  return <Link to={CM_PROTECTED_ROUTE.verification} className="cm-workspace-button is-primary"><ShieldCheck aria-hidden="true" /> {t('dashboard.openVerification')}</Link>;
+  const Icon = PRIMARY_ACTION_ICONS[action.id];
+  return <Link to={action.route} className="cm-workspace-button is-primary"><Icon aria-hidden="true" /> {t(action.labelKey)}</Link>;
 };
 
 export default CmDashboardPage;

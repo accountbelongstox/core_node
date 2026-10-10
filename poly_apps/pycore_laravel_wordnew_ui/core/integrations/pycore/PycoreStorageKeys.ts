@@ -1,3 +1,5 @@
+import { registerLocalDataGroups } from '../../persistence/LocalDataRegistry';
+
 export const PycoreStorageKeys = {
   TARGET: 'pycore_target',
   TARGET_RECENT: 'pycore_target_recent',
@@ -11,3 +13,25 @@ export const PycoreStorageKeys = {
   QY_ACCOUNTS: 'pycore_qy_accounts',
   QY_PENDING_LOGOUTS: 'pycore_qy_pending_logouts',
 } as const;
+
+registerLocalDataGroups([
+  {
+    id: 'core.pycore_connection',
+    appId: 'core',
+    labelKey: 'common.local_data.groups.pycore_connection',
+    descriptionKey: 'common.local_data.groups.pycore_connection_desc',
+    clearable: false,
+    sources: [{
+      kind: 'localStorage',
+      keys: Object.values(PycoreStorageKeys).filter((key) => key !== PycoreStorageKeys.ROUTE_RECOVERY),
+    }],
+  },
+  {
+    id: 'core.route_recovery',
+    appId: 'core',
+    labelKey: 'common.local_data.groups.route_recovery',
+    descriptionKey: 'common.local_data.groups.route_recovery_desc',
+    clearable: true,
+    sources: [{ kind: 'localStorage', keys: [PycoreStorageKeys.ROUTE_RECOVERY] }],
+  },
+]);

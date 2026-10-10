@@ -30,6 +30,7 @@ import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmChromeControls } from '../components/CmChromeControls';
 import { CmBrand } from '../components/CmBrand';
 import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
+import { cmUserDisplayName } from '../shared/cmAccount';
 
 const ADMIN_NAV = [
   { id: 'overview', path: CM_ADMIN_ROUTE.home, labelKey: 'admin.nav.overview', Icon: LayoutDashboard, end: true },
@@ -57,7 +58,7 @@ export const CmAdminLayout: React.FC = () => {
   const { bootstrap, loading, error, refresh } = useCmBootstrap();
   const { signOut, signingOut } = useCmSignOut();
   const [menuOpen, setMenuOpen] = useState(false);
-  const userName = bootstrap?.user?.name || bootstrap?.user?.nickname || bootstrap?.user?.username || '';
+  const userName = cmUserDisplayName(bootstrap?.user);
 
   if (!bootstrap && (loading || !error)) {
     return <div className="cm-page-fallback" role="status">{t('admin.checkingAccess')}</div>;

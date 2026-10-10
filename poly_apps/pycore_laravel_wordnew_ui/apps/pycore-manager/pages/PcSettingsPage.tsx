@@ -29,6 +29,7 @@ import type {
 } from '@/apps/pycore-manager/api';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
 import { ShellAppPackages } from '../../../shell/ShellAppPackages';
+import { ShellLocalData } from '../../../shell/ShellLocalData';
 import PcPycoreRestartButton from '../components/PcPycoreRestartButton';
 import { pycoreNodeClient } from '@/apps/pycore-manager/api';
 import { useShell } from '../../../shell/ShellContext';
@@ -310,6 +311,9 @@ const PcSettingsPage: React.FC = () => {
 
       {/* App update check in the Android app; APK downloads on the web. */}
       <ShellAppPackages />
+
+      {/* Local storage usage of every app on this device, with per-group clear. */}
+      <ShellLocalData />
 
       {/* Global shell preferences — same shared state as the top bar widgets
           and the floating ShellControls dock. */}
