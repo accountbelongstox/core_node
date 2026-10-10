@@ -218,22 +218,22 @@ function Register-NssmService {
     return $true
 }
 
-# True when a TCP exclusion range of the given netsh store (active | persistent) covers the port.
-function Test-TcpPortExcluded {
-    param(
-        [Parameter(Mandatory = $true)][int]$Port,
-        [Parameter(Mandatory = $true)][ValidateSet('active', 'persistent')][string]$Store
-    )
-    $rangeLines = @(netsh int ipv4 show excludedportrange protocol=tcp store=$Store)
+# Exclusion state of a TCP port: administered (netsh reservation, marked '*', survives reboot) |
+# dynamic (a winnat boot-time block: binding fails with EACCES) | none.
+function Get-TcpPortExclusionState {
+    param([Parameter(Mandatory = $true)][int]$Port)
+    $rangeLines = @(netsh int ipv4 show excludedportrange protocol=tcp)
     $rangeLine = ''
     $rangeMatch = $null
+    $state = 'none'
     foreach ($rangeLine in $rangeLines) {
-        $rangeMatch = [regex]::Match([string]$rangeLine, '^\s*(\d+)\s+(\d+)')
+        $rangeMatch = [regex]::Match([string]$rangeLine, '^\s*(\d+)\s+(\d+)\s*(\*)?')
         if ($rangeMatch.Success -and ([int]$rangeMatch.Groups[1].Value -le $Port) -and ($Port -le [int]$rangeMatch.Groups[2].Value)) {
-            return $true
+            if ($rangeMatch.Groups[3].Success) { return 'administered' }
+            $state = 'dynamic'
         }
     }
-    return $false
+    return $state
 }
 
 # Idempotent persistent TCP port exclusion: keeps a service port out of the Windows dynamic
@@ -243,12 +243,13 @@ function Test-TcpPortExcluded {
 function Ensure-TcpPortReserved {
     param([Parameter(Mandatory = $true)][int]$Port)
     $winnatCycle = $false
-    if (Test-TcpPortExcluded -Port $Port -Store 'persistent') { return $true }
+    $exclusionState = Get-TcpPortExclusionState -Port $Port
+    if ($exclusionState -eq 'administered') { return $true }
     if (-not (Test-AdminPrivileges)) {
-        Write-Host "[NssmServiceManager] Port $Port has no persistent reservation; run elevated once to reserve it." -ForegroundColor Yellow
+        Write-Host "[NssmServiceManager] Port $Port has no reservation; run elevated once to reserve it." -ForegroundColor Yellow
         return $false
     }
-    $winnatCycle = Test-TcpPortExcluded -Port $Port -Store 'active'
+    $winnatCycle = ($exclusionState -eq 'dynamic')
     if ($winnatCycle) {
         Write-Host "[NssmServiceManager] Port $Port is inside a winnat dynamic block -> restarting winnat to reserve it." -ForegroundColor Yellow
         net stop winnat 2>&1 | Out-Null
@@ -257,7 +258,7 @@ function Ensure-TcpPortReserved {
     if ($winnatCycle) {
         net start winnat 2>&1 | Out-Null
     }
-    if (Test-TcpPortExcluded -Port $Port -Store 'persistent') {
+    if ((Get-TcpPortExclusionState -Port $Port) -eq 'administered') {
         Write-Host "[NssmServiceManager] Port $Port reserved (persistent excludedportrange)." -ForegroundColor Green
         return $true
     }
