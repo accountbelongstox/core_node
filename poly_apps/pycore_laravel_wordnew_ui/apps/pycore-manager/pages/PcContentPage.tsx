@@ -99,23 +99,22 @@ const PcContentPage: React.FC = () => {
     <div className="min-w-0 max-w-full">
       {/* Sticky page chrome — title + sub-tabs pinned below PcTopBar. */}
       <div
-        className="sticky top-0 z-20 px-6 md:px-8 py-3 flex flex-col gap-3 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"
-        style={{ paddingRight: 'max(1.5rem, var(--shell-dock-right-gutter, 264px))' }}
+        className="sticky top-0 z-20 pl-3 sm:pl-6 md:pl-8 pc-dock-gutter-r py-3 flex flex-col gap-3 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"
       >
         <div className="min-w-0">
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-            <Library className="w-5 h-5 text-rose-500" /> Content
+            <Library className="w-5 h-5 shrink-0 text-rose-500" /> Content
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{activeHint}</p>
         </div>
 
         {/* sub-tab bar */}
-        <div className="flex flex-wrap rounded-xl pc-glass overflow-hidden w-full sm:w-auto self-start">
+        <div className="flex rounded-xl pc-glass overflow-x-auto no-scrollbar max-w-full self-start">
           {TABS.map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => switchTab(key)}
-              className={`relative px-4 py-2 text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`relative px-4 py-2 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
                 tab === key
                   ? 'text-rose-500'
                   : 'text-slate-500 hover:bg-slate-200/40 dark:hover:bg-white/5'

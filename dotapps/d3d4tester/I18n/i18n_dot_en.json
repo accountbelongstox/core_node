@@ -80,6 +80,7 @@
         "fight_monster": "Fight: monster",
         "loot": "Loot",
         "interact": "Interact",
+        "follow_route": "Follow pinned route",
         "explore": "Explore",
         "stuck": "Stuck escape"
       },

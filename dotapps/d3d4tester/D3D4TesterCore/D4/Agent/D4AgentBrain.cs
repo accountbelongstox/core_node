@@ -6,7 +6,7 @@ namespace DotApps.d3d4tester.Core.D4.Agent;
 
 /// <summary>
 /// Rule-based finite state machine: every frame checks, in priority order, death, low health, danger area, open menu, boss, elite,
-/// monster, wanted loot, interactable and exploration, and returns one action. It keeps skill / potion cooldowns, confirms the previous
+/// monster, wanted loot, interactable, pinned minimap route and exploration, and returns one action. It keeps skill / potion cooldowns, confirms the previous
 /// action against the new frame (pickup: the drop is gone; move: the map moved) and recovers from failures (drops and interactables
 /// that do not react are blacklisted for a while; repeated moves without map displacement trigger the stuck escape).
 /// One instance per session.
@@ -117,6 +117,13 @@ public sealed class D4AgentBrain
         if (door != null && Attempt(door, D4AgentConstants.InteractMaxAttempts))
             return new D4AgentDecision(D4AgentState.Interact, D4ActionKind.Interact, door.Center, null, door.TrackId, $"{door.ClassName} #{door.TrackId}");
 
+        if (o.Route is { Direction: { } routeDirection } route)
+        {
+            _lastMoveDirection = routeDirection;
+            return MoveDirection(o, D4AgentState.FollowRoute, _map.ToScreenDirection(routeDirection),
+                $"pinned route ({route.Route.Waypoints.Count} waypoints, {(route.Planned ? "A*" : "direct")})");
+        }
+
         if (_map.NextExploreDirection() is { } direction)
         {
             _lastMoveDirection = direction;
@@ -163,7 +170,7 @@ public sealed class D4AgentBrain
             LootPicked++;
             _attempts.Remove(id);
         }
-        if (p.Action != D4ActionKind.Move || p.State != D4AgentState.Explore) return;
+        if (p.Action != D4ActionKind.Move || p.State is not (D4AgentState.Explore or D4AgentState.FollowRoute)) return;
         double moved = Math.Sqrt(o.Map.Step.X * o.Map.Step.X + o.Map.Step.Y * o.Map.Step.Y);
         _stillMoves = o.Map.Reliable && moved < D4AgentConstants.StuckMinPixels ? _stillMoves + 1 : 0;
         if (_stillMoves < D4AgentConstants.StuckMoves) return;

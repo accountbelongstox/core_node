@@ -206,10 +206,11 @@ fs_perm_target_safety() {
     echo "safe"
 }
 
-# fs_perm_service_data_paths -> prints the data/log directories of every PostgreSQL
-# cluster, read from the data_directory/log_directory step 75_install_postgresql.sh
-# writes into /etc/postgresql/<ver>/<cluster>/postgresql.conf. The server refuses to
-# run when these are not postgres-owned, so no recursive walk may re-own them.
+# fs_perm_service_data_paths -> prints the data/log paths of the installed database
+# services, read from their own configs (never hardcoded): PostgreSQL data_directory/
+# log_directory (written by step 75), Redis dir/logfile, MySQL/MariaDB datadir, MongoDB
+# dbPath/log path. These servers refuse to run when the data is not service-owned, so no
+# recursive walk may re-own them.
 fs_perm_service_data_paths() {
     local conf=""
     local key=""
@@ -219,6 +220,25 @@ fs_perm_service_data_paths() {
         [ -f "$conf" ] || continue
         for key in data_directory log_directory; do
             value="$(sed -n -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*'([^']*)'.*/\1/p" "$conf" 2>/dev/null | tail -n1)"
+            case "$value" in /*) printf '%s\n' "${value%/}" ;; esac
+        done
+    done
+    for conf in /etc/redis/redis.conf /etc/redis/*.conf; do
+        [ -f "$conf" ] || continue
+        for key in dir logfile; do
+            value="$(sed -n -E "s/^[[:space:]]*${key}[[:space:]]+\"?([^\"[:space:]]+)\"?.*/\1/p" "$conf" 2>/dev/null | tail -n1)"
+            case "$value" in /*) printf '%s\n' "${value%/}" ;; esac
+        done
+    done
+    for conf in /etc/mysql/my.cnf /etc/mysql/*.cnf /etc/mysql/*/*.cnf /etc/my.cnf; do
+        [ -f "$conf" ] || continue
+        value="$(sed -n -E 's/^[[:space:]]*datadir[[:space:]]*=[[:space:]]*"?([^"[:space:]#]+)"?.*/\1/p' "$conf" 2>/dev/null | tail -n1)"
+        case "$value" in /*) printf '%s\n' "${value%/}" ;; esac
+    done
+    for conf in /etc/mongod.conf; do
+        [ -f "$conf" ] || continue
+        for key in dbPath path; do
+            value="$(sed -n -E "s/^[[:space:]]*${key}:[[:space:]]*\"?([^\"[:space:]#]+)\"?.*/\1/p" "$conf" 2>/dev/null | tail -n1)"
             case "$value" in /*) printf '%s\n' "${value%/}" ;; esac
         done
     done
@@ -236,7 +256,7 @@ fs_perm_service_prune_args() {
         [ -n "$service_path" ] || continue
         [ "${#path_match[@]}" -gt 0 ] && path_match+=(-o)
         path_match+=(-path "$service_path")
-    done < <(fs_perm_service_data_paths)
+    done < <(fs_perm_service_data_paths | sort -u)
     [ "${#path_match[@]}" -gt 0 ] && FS_PERM_SERVICE_PRUNE=(\( "${path_match[@]}" \) -prune -o)
 }
 

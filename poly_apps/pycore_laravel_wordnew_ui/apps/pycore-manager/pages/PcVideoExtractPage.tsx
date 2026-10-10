@@ -483,11 +483,11 @@ const PcVideoExtractPage: React.FC = () => {
   return (
     <div className="p-3 sm:p-6 md:p-8 space-y-5">
       {/* header */}
-      <section className="pc-glass p-6">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
+      <section className="pc-glass p-4 sm:p-6">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-56">
             <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <Clapperboard className="w-5 h-5 text-rose-500" /> {t('nav.videoExtract')}
+              <Clapperboard className="w-5 h-5 shrink-0 text-rose-500" /> {t('nav.videoExtract')}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {t('videoExtract.page.subtitle')}

@@ -125,6 +125,18 @@ html.dark select:not([multiple]):not([size]) {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.7);
 }
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Horizontal strips (tab bars, chip rows) that scroll without a visible bar. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 /* WfNewApp 3D flip card support */
 .perspective {

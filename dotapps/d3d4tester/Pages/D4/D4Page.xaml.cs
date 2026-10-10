@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core.D4.Agent;
 using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.ViewModels;
@@ -17,6 +19,7 @@ namespace DotApps.d3d4tester.Pages.D4;
 /// <summary>
 /// D4 Functions page (tab[2]). 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/panels/d4_panel.py: EXP Farming start/stop, live status grid
 /// (bound to <see cref="D4ViewModel"/>), Debug Images window toggle, D4 log fed by ColorPrint while the tab is selected.
+/// DOT-only second sub-tab: the vision AI test (<see cref="D4AgentView"/>), whose [D4Agent] lines stay out of the EXP farming log.
 /// </summary>
 public partial class D4Page : UserControl
 {
@@ -82,6 +85,8 @@ public partial class D4Page : UserControl
         var p = D3D4TesterI18n.Provider;
         LblD4Title.Text = p.GetUiText(I18nKeys.D4PanelTitle);
         LblNavExpFarming.Text = p.GetUiText(I18nKeys.D4PanelSubTabsExpFarming);
+        LblNavAgent.Text = p.GetUiText(I18nKeys.D4AgentNav);
+        if (AgentView.IsLoaded) AgentView.RefreshI18n();
         LblExpFarmingTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingTitle);
         LblExpFarmingSubtitle.Text = p.GetUiText(I18nKeys.D4PageSubtitle);
         TxtDebugButton.Text = p.GetUiText(I18nKeys.D4PageDebugButton);
@@ -160,6 +165,21 @@ public partial class D4Page : UserControl
 
     private void BtnClearLog_Click(object sender, RoutedEventArgs e) => TxtExpFarmingLog.Clear();
 
+    private void NavExpFarming_Click(object sender, MouseButtonEventArgs e) => ShowSubTab(agent: false);
+
+    private void NavAgent_Click(object sender, MouseButtonEventArgs e) => ShowSubTab(agent: true);
+
+    /// <summary>Switch the right side between EXP farming and the vision AI test.</summary>
+    private void ShowSubTab(bool agent)
+    {
+        ExpFarmingContent.Visibility = agent ? Visibility.Collapsed : Visibility.Visible;
+        AgentView.Visibility = agent ? Visibility.Visible : Visibility.Collapsed;
+        NavExpFarming.Style = (Style)FindResource(agent ? "D4NavItemStyle" : "D4NavItemSelectedStyle");
+        NavAgent.Style = (Style)FindResource(agent ? "D4NavItemSelectedStyle" : "D4NavItemStyle");
+        BarExpFarming.Visibility = agent ? Visibility.Hidden : Visibility.Visible;
+        BarAgent.Visibility = agent ? Visibility.Visible : Visibility.Hidden;
+    }
+
     private void AddLog(string message)
     {
         lock (_logLock)
@@ -169,7 +189,7 @@ public partial class D4Page : UserControl
     /// <summary>Only D4 lines; no UI access here (any thread). 1:1 Python add_log_message.</summary>
     private void OnColorPrintMessage(string message, string colorType, string? logLevel)
     {
-        if (!message.Contains(D4Marker, StringComparison.Ordinal)) return;
+        if (!message.Contains(D4Marker, StringComparison.Ordinal) || message.Contains(D4AgentConstants.LogTag, StringComparison.Ordinal)) return;
         lock (_logLock)
         {
             _logBuffer.Add(message);

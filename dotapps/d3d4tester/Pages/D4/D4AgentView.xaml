@@ -1,0 +1,301 @@
+<UserControl x:Class="DotApps.d3d4tester.Pages.D4.D4AgentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme">
+  <UserControl.Resources>
+    <Style x:Key="AgentFieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelTextStyle}">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,0,8,6"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <!-- Start/Stop: Success when stopped, Warning when running -->
+    <Style x:Key="AgentStartStopButtonStyle" TargetType="Button" BasedOn="{StaticResource SuccessButtonStyle}">
+      <Setter Property="MinWidth" Value="120"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+          <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}"/>
+          <Setter Property="theme:ControlAssist.HoverBackground" Value="{DynamicResource WarningHoverBrush}"/>
+          <Setter Property="theme:ControlAssist.PressedBackground" Value="{DynamicResource WarningPressedBrush}"/>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AgentRunningChipStyle" TargetType="Border" BasedOn="{StaticResource StatusChipStyle}">
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+          <Setter Property="Background" Value="{DynamicResource SuccessSubtleBrush}"/>
+          <Setter Property="BorderBrush" Value="Transparent"/>
+          <Setter Property="TextElement.Foreground" Value="{DynamicResource SuccessTextBrush}"/>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AgentModelStatusStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding ModelTone}" Value="Success">
+          <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding ModelTone}" Value="Warning">
+          <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding ModelTone}" Value="Danger">
+          <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}"/>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+      <TextBlock x:Name="LblTitle" Style="{StaticResource SubtitleTextStyle}"/>
+      <TextBlock x:Name="LblSubtitle" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <!-- Toolbar -->
+    <Border Grid.Row="1" Style="{StaticResource ToolbarPanelStyle}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" Style="{StaticResource AgentStartStopButtonStyle}" Margin="0,0,8,0" Command="{Binding ToggleCommand}">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="IconStartStop" Style="{StaticResource IconTextStyle}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding StartStopText}" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button x:Name="BtnOpenOutput" Style="{StaticResource SecondaryButtonStyle}" Click="BtnOpenOutput_Click">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE838;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+              <TextBlock x:Name="TxtOpenOutput" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="BtnModelTest" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0" Click="BtnModelTest_Click">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE9D9;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+              <TextBlock x:Name="TxtModelTest" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+        </StackPanel>
+        <Border Grid.Column="3" Style="{StaticResource AgentRunningChipStyle}">
+          <TextBlock Text="{Binding RunningText}"/>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2" Margin="{StaticResource CardMargin}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="380"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Settings -->
+      <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Margin="0,0,12,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+            <TextBlock x:Name="LblSettingsTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="132"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock x:Name="LblSource" Grid.Row="0" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <ComboBox x:Name="CboSource" Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblVideoPath" Grid.Row="1" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtVideoPath"/>
+                <Button x:Name="BtnBrowseVideo" Grid.Column="1" Style="{StaticResource SubtleButtonStyle}" Margin="4,0,0,0" Click="BtnBrowseVideo_Click"/>
+              </Grid>
+
+              <TextBlock x:Name="LblFrameStep" Grid.Row="2" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtFrameStep" Grid.Row="2" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblMode" Grid.Row="3" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <ComboBox x:Name="CboMode" Grid.Row="3" Grid.Column="1" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblModelPath" Grid.Row="4" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtModelPath"/>
+                <Button x:Name="BtnBrowseModel" Grid.Column="1" Style="{StaticResource SubtleButtonStyle}" Margin="4,0,0,0" Click="BtnBrowseModel_Click"/>
+              </Grid>
+              <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Style="{StaticResource AgentModelStatusStyle}" Text="{Binding ModelStatus}"/>
+
+              <TextBlock x:Name="LblConfidence" Grid.Row="6" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtConfidence" Grid.Row="6" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblTargetFps" Grid.Row="7" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtTargetFps" Grid.Row="7" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblLowHealth" Grid.Row="8" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtLowHealth" Grid.Row="8" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblSkillKeys" Grid.Row="9" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtSkillKeys" Grid.Row="9" Grid.Column="1" Margin="0,0,0,6"/>
+
+              <TextBlock x:Name="LblPotionKey" Grid.Row="10" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtPotionKey" Grid.Row="10" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+              <StackPanel Grid.Row="11" Grid.ColumnSpan="2" Margin="0,2,0,6">
+                <CheckBox x:Name="ChkPickupLoot" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,6"/>
+                <CheckBox x:Name="ChkExplore" Style="{StaticResource ToggleSwitchStyle}"/>
+              </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,0,0,6">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="132"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblDebugFrameEvery" Grid.Row="0" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtDebugFrameEvery" Grid.Row="0" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+              <TextBlock x:Name="LblMaxMinutes" Grid.Row="1" Style="{StaticResource AgentFieldLabelStyle}"/>
+              <TextBox x:Name="TxtMaxMinutes" Grid.Row="1" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+            </Grid>
+
+            <Expander x:Name="ExpAdvanced">
+              <StackPanel>
+                <TextBlock x:Name="LblAdvancedTip" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="132"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <TextBlock x:Name="LblSkillInterval" Grid.Row="0" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtSkillInterval" Grid.Row="0" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="LblPotionCooldown" Grid.Row="1" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtPotionCooldown" Grid.Row="1" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="LblMenuKey" Grid.Row="2" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtMenuKey" Grid.Row="2" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="LblMinimapRotation" Grid.Row="3" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtMinimapRotation" Grid.Row="3" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="LblWalkableValueMin" Grid.Row="4" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtWalkableValueMin" Grid.Row="4" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="LblWalkableValueMax" Grid.Row="5" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtWalkableValueMax" Grid.Row="5" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="LblWalkableSaturationMax" Grid.Row="6" Style="{StaticResource AgentFieldLabelStyle}"/>
+                  <TextBox x:Name="TxtWalkableSaturationMax" Grid.Row="6" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                </Grid>
+              </StackPanel>
+            </Expander>
+            <TextBlock x:Name="LblModelClasses" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                       TextWrapping="Wrap" Margin="0,8,0,0"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Status, preview, log -->
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="160"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,12,4,4">
+          <StackPanel>
+            <TextBlock x:Name="LblStatusTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,8,8"/>
+            <ItemsControl ItemsSource="{Binding Tiles}" ItemTemplate="{DynamicResource D4StatusTileTemplate}" Focusable="False">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="4"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblPreviewTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+            <Border Grid.Row="1" Style="{StaticResource InsetBorderStyle}" MinHeight="160">
+              <Grid>
+                <TextBlock x:Name="LblPreviewEmpty" Style="{StaticResource MutedTextStyle}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Image Source="{Binding Preview}" Stretch="Uniform"/>
+              </Grid>
+            </Border>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock x:Name="LblLogTitle" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center"/>
+              <Button Grid.Column="1" Style="{StaticResource SubtleButtonStyle}" Click="BtnClearLog_Click">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE74D;" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                  <TextBlock x:Name="TxtClearLog" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+            </Grid>
+            <TextBox x:Name="TxtLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

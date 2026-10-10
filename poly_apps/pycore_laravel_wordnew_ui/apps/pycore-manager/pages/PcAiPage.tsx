@@ -43,27 +43,26 @@ const PcAiPage: React.FC = () => {
   return (
     <div className="p-3 sm:p-6 md:p-8 space-y-5 min-w-0 max-w-full">
       <div
-        className="sticky top-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-3 -mt-6 md:-mt-8 mb-1 flex flex-col gap-3 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"
-        style={{ paddingRight: 'max(1.5rem, var(--shell-dock-right-gutter, 264px))' }}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        className="sticky top-0 z-20 -mx-3 sm:-mx-6 md:-mx-8 pl-3 sm:pl-6 md:pl-8 pc-dock-gutter-r py-3 -mt-3 sm:-mt-6 md:-mt-8 mb-1 flex flex-col gap-3 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <Sparkles className="w-5 h-5 text-indigo-500" /> {t('ai.title')}
+              <Sparkles className="w-5 h-5 shrink-0 text-indigo-500" /> {t('ai.title')}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t(active.hintKey)}</p>
           </div>
-          <div className="flex shrink-0 gap-2 self-end sm:self-auto">
+          <div className="flex shrink-0 gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={() => openChat('pycore')}
-              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition">
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 whitespace-nowrap transition">
               <MessageSquare className="w-3.5 h-3.5" /> {t('common.openAiChat')}
             </button>
             <button
               type="button"
               onClick={() => setRefreshTick((tick) => tick + 1)}
               title={t('common.refresh')}
-              className="px-3 py-2 pc-glass hover:bg-indigo-500/10 text-xs font-bold rounded-xl flex items-center gap-1 transition text-slate-700 dark:text-slate-200">
+              className="px-3 py-2 pc-glass hover:bg-indigo-500/10 text-xs font-bold rounded-xl flex items-center gap-1 whitespace-nowrap transition text-slate-700 dark:text-slate-200">
               <RefreshCcw className="w-3.5 h-3.5" /> {t('common.refresh')}
             </button>
           </div>
