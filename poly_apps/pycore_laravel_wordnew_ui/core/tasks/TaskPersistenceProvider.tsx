@@ -208,7 +208,9 @@ export function TaskPersistenceProvider({ children }: { children: React.ReactNod
       pending.delete(key);
       re(stored.saved)
         .then((d) => {
-          if (d == null) {
+          if (!s.running) {
+            stopTimer(s);
+          } else if (d == null) {
             // backend has no such task anymore — clear it
             s.running = false;
             stopTimer(s);

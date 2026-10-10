@@ -219,15 +219,28 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
 
   const performSave = async (token?: string | null) => {
     if (!selectedFile || isTruncated || previewLoading) return;
+    const saveSeq = openSeqRef.current;
+    const savedPath = selectedFile.path;
+    const savedContent = editedContent;
     setSaveStatus('saving');
     setError(null);
     try {
       const response = await api.serverManagerV1.writeFile(
-        selectedFile.path,
-        editedContent,
+        savedPath,
+        savedContent,
         token ?? elevatedToken,
         fileEncoding
       );
+      if (saveSeq !== openSeqRef.current) {
+        if (response.success) {
+          setSaveStatus('idle');
+          loadDirectory(currentPath);
+        } else {
+          setSaveStatus('error');
+          setError(response.error || i18n.t('uiServer.file_manager.save_failed'));
+        }
+        return;
+      }
       if (!response.success) {
         const needsElevation = Boolean(
           (response.debugInfo as { data?: { needs_elevation?: boolean } } | undefined)?.data?.needs_elevation
@@ -242,7 +255,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
       }
       setIsEditing(false);
       setSaveStatus('saved');
-      setPreview((prev) => (prev ? { ...prev, content: editedContent } : prev));
+      setPreview((prev) => (prev ? { ...prev, content: savedContent } : prev));
       setTimeout(() => setSaveStatus('idle'), 2000);
       loadDirectory(currentPath);
     } catch (e: any) {

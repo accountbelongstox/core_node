@@ -213,6 +213,7 @@ const VocabularyLearning: React.FC = () => {
         return null;
       });
 
+  const queueStatsRef = useRef<any | null>(null);
   const queueTask = usePersistentTask<any>('laravel.tts-queue', {
     intervalMs: 5000,
     poll: () =>
@@ -220,11 +221,12 @@ const VocabularyLearning: React.FC = () => {
         fetchAssistOverview().then((overview) => {
           if (overview) setAssistOverview(overview);
         });
-        return stats;
+        return stats ?? queueStatsRef.current;
       }),
     reattach: fetchQueueStats,
   });
   const queueStats = queueTask.data;
+  queueStatsRef.current = queueStats;
   const autoRefreshQueue = queueTask.running;
   const setAutoRefreshQueue = (on: boolean) => {
     if (on && !queueTask.running) queueTask.begin();

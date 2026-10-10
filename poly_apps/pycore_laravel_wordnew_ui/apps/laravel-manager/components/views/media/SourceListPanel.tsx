@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/apps/laravel-manager/api';
 import { formatTime } from './mbShared';
@@ -39,7 +39,7 @@ const SourceListItem: React.FC<{
         ) : (
           <BookOpen size={14} className="shrink-0 text-amber-500" />
         )}
-        <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+        <span className="truncate min-w-0 flex-1 text-sm font-medium text-slate-800 dark:text-slate-100">
           {item.title || item.original_name || item.source_key}
         </span>
       </div>
@@ -91,6 +91,7 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
   const [offline, setOffline] = useState(false);
 
   const isMovie = kind === 'movies';
+  const listSeqRef = useRef(0);
 
   // Debounce search input.
   useEffect(() => {
@@ -100,6 +101,7 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
 
   // Load the source list whenever kind / search changes.
   const loadList = useCallback(async () => {
+    const seq = ++listSeqRef.current;
     if (browseBlocked) {
       setSources([]);
       setListLoading(false);
@@ -111,6 +113,7 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
     const res = isMovie
       ? await api.mediaQuery.listSubtitles({ per_page: 100, search: debouncedSearch })
       : await api.mediaQuery.listBooks({ per_page: 100, search: debouncedSearch });
+    if (seq !== listSeqRef.current) return;
     if (res.success && res.data) {
       setSources(Array.isArray(res.data.items) ? res.data.items : []);
     } else {
