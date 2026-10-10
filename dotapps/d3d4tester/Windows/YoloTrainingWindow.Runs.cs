@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core.D4.Agent;
 using DotApps.d3d4tester.Core.Navigation;
 using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.ViewModels;
@@ -33,7 +34,8 @@ public partial class YoloTrainingWindow
     {
         public static readonly ConsumerOption Navigation = new(YoloModelRegistry.ConsumerNavigation, I18nKeys.YoloTrainingConsumerNavigation);
         public static readonly ConsumerOption AutoLabel = new(YoloModelRegistry.ConsumerAutoLabel, I18nKeys.YoloTrainingConsumerAutoLabel);
-        public static readonly IReadOnlyList<ConsumerOption> All = new[] { Navigation, AutoLabel };
+        public static readonly ConsumerOption D4Agent = new(D4AgentConstants.ModelConsumer, I18nKeys.YoloTrainingConsumerD4Agent);
+        public static readonly IReadOnlyList<ConsumerOption> All = new[] { Navigation, AutoLabel, D4Agent };
 
         public string Label => T(LabelKey);
 
@@ -223,6 +225,10 @@ public partial class YoloTrainingWindow
                     ConfigBinding.SetValue(ConfigKeys.NavigationNpcModelPath, "");
                     ColorPrinter.Yellow($"[YoloTraining] Cleared {ConfigKeys.NavigationNpcModelPath} ({overridePath}) so the current navigation model is used");
                 }
+            }
+            else if (consumer == ConsumerOption.D4Agent)
+            {
+                check = D4VisionAgent.SetCurrentModel(onnx);
             }
             else
             {

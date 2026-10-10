@@ -80,6 +80,7 @@
         "fight_monster": "战斗：普通怪",
         "loot": "拾取",
         "interact": "交互",
+        "follow_route": "沿标记路线前进",
         "explore": "探索",
         "stuck": "卡住脱困"
       },

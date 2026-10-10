@@ -1,6 +1,7 @@
 // PY-REF: none (DOT-only)
 using System.Text.Json;
 using DotCore.Foundations;
+using DotCore.MinimapPath;
 using DotCore.Utils.ImagePreprocess;
 using DotCore.YoloDetect;
 using OpenCvSharp;
@@ -18,6 +19,7 @@ public sealed class D4AgentSessionLog : IDisposable
     private static readonly Scalar OverlayColor = new(0, 255, 255);
     private static readonly Scalar AnchorColor = new(255, 0, 255);
     private static readonly Scalar TargetColor = new(0, 0, 255);
+    private static readonly Scalar PlannedPathColor = new(255, 128, 0);
 
     private sealed class ClassCounter
     {
@@ -79,6 +81,9 @@ public sealed class D4AgentSessionLog : IDisposable
             pos = new[] { Math.Round(o.Map.Position.X, 1), Math.Round(o.Map.Position.Y, 1) },
             odometry = o.Map.Reliable,
             frontiers = o.Map.FrontierCount,
+            route_waypoints = o.Route?.Route.Waypoints.Count ?? 0,
+            route_planned = o.Route?.Planned ?? false,
+            route_heading = o.Route?.Route.HeadingDegrees is { } heading ? Math.Round(heading, 1) : (double?)null,
             detections = o.Detections.GroupBy(d => d.ClassName).ToDictionary(g => g.Key, g => g.Count()),
             inference_ms = Math.Round(inferenceMs, 1),
         };
@@ -89,6 +94,12 @@ public sealed class D4AgentSessionLog : IDisposable
     public static Mat Annotate(Mat image, D4Observation o, D4AgentDecision decision)
     {
         var annotated = YoloOnnxDetector.Annotate(image, o.Tracks);
+        if (o.Route is { } route)
+        {
+            MinimapRouteAnnotator.DrawInto(annotated, route.Route);
+            for (int i = 0; i < route.PlannedPath.Count - 1; i++)
+                Cv2.Line(annotated, route.PlannedPath[i], route.PlannedPath[i + 1], PlannedPathColor, 1);
+        }
         Cv2.Circle(annotated, o.PlayerAnchor, 6, AnchorColor, 2);
         if (decision.Target is { } target)
         {

@@ -17,6 +17,7 @@ public enum D4AgentState
     FightMonster,
     Loot,
     Interact,
+    FollowRoute,
     Explore,
     Stuck,
 }
@@ -67,7 +68,7 @@ public sealed record D4Vitals(double? Health, IReadOnlyList<bool> SkillReady, bo
 /// <summary>Map tracking result: hero position in map pixels, the last odometry step, its reliability and exploration counts.</summary>
 public sealed record D4MapStatus(Point2d Position, Point2d Step, bool Reliable, int FreeCells, int FrontierCount);
 
-/// <summary>One frame of perception: client size, detections, confirmed tracks, vitals, map and the hero screen anchor.</summary>
+/// <summary>One frame of perception: client size, detections, confirmed tracks, vitals, map, the hero screen anchor and the pinned route.</summary>
 public sealed record D4Observation(
     long FrameIndex,
     TimeSpan Timestamp,
@@ -76,7 +77,8 @@ public sealed record D4Observation(
     IReadOnlyList<YoloTrack> Tracks,
     D4Vitals Vitals,
     D4MapStatus Map,
-    Point PlayerAnchor)
+    Point PlayerAnchor,
+    D4RouteStatus? Route = null)
 {
     public IEnumerable<YoloTrack> Confirmed(params string[] classes) =>
         Tracks.Where(t => t.Misses == 0 && t.Hits >= D4AgentConstants.TrackerMinHits && classes.Contains(t.ClassName));
