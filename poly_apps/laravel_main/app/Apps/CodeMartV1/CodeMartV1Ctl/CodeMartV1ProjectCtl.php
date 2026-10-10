@@ -666,6 +666,10 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
+        if (!$this->fileUploadService->isAllowedDeliveryFile($request->file('file'))) {
+            return $this->codedError(CodeMartV1Constants::ERROR_FILE_TYPE_NOT_ALLOWED, __('codemart.messages.file_type_not_allowed'), ['allowed_types' => CodeMartV1PolicyService::list('allowed_document_types')], 422);
+        }
+
         $stored = $this->fileUploadService->storePrivateDeliveryFile(
             $request->file('file'),
             CodeMartV1Constants::PROJECT_ATTACHMENT_DIR . '/' . $project->id

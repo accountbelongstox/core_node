@@ -165,6 +165,14 @@ class CodeMartV1FileUploadService
         }
     }
 
+    /** Whether the file extension is on the operator-editable allow list for project attachments and submissions. */
+    public function isAllowedDeliveryFile(object $file): bool
+    {
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        return $extension !== '' && in_array($extension, CodeMartV1PolicyService::list('allowed_document_types'), true);
+    }
+
     public function privateDeliveryFileExists(?string $path): bool
     {
         return is_string($path) && $path !== ''

@@ -437,7 +437,13 @@ class CodeMartV1TaskCtl extends Controller
         }
 
         $uploads = $request->file('uploads', []);
-        foreach (is_array($uploads) ? $uploads : [$uploads] as $upload) {
+        $uploads = is_array($uploads) ? $uploads : [$uploads];
+        foreach ($uploads as $upload) {
+            if (!$this->fileUploadService->isAllowedDeliveryFile($upload)) {
+                return $this->codedError(CodeMartV1Constants::ERROR_FILE_TYPE_NOT_ALLOWED, __('codemart.messages.file_type_not_allowed'), ['allowed_types' => CodeMartV1PolicyService::list('allowed_document_types')], 422);
+            }
+        }
+        foreach ($uploads as $upload) {
             $stored = $this->fileUploadService->storePrivateDeliveryFile($upload, CodeMartV1Constants::SUBMISSION_FILE_DIR . '/' . $task->id);
             if ($stored === null) {
                 return $this->codedError(CodeMartV1Constants::ERROR_FILE_STORE_FAILED, __('codemart.messages.a_file_could_not_be_stored'), null, 422);
