@@ -10,13 +10,19 @@ namespace DotApps.d3d4tester.Core.Kanai;
 /// </summary>
 public static class KanaiFlow
 {
-    /// <summary>1:1 run_kanai_upgrade_flow.</summary>
-    public static bool RunUpgradeFlow()
+    /// <summary>
+    /// Upgrade every rare in the bag (run_kanai_upgrade_flow) with the upgrade hunter and no target: gems / consumables are skipped and
+    /// each rare goes through the D3KeyHelper transmute sequence (the old right-click / Fill / Transmute x2 loop left results in the cube).
+    /// </summary>
+    public static bool RunUpgradeFlow(string cacheDir, int helperDelayMs, Func<bool> shouldStop)
     {
         var shared = GameInterfaceData.Instance;
         if (!IsKanai(shared)) return false;
         ColorPrinter.Blue("[KanaiFlow] Running Kanai upgrade operation...");
-        return KanaiOperations.RunUpgradeOperation(shared);
+        var settings = new KanaiUpgradeSettings(Array.Empty<KanaiUpgradeTarget>(), KanaiUpgradeStop.Never, KanaiUpgradeCheck.EachPass,
+            OnlyCompatibleRares: false, VerifyByOcr: false, MaxTransmutes: 0, helperDelayMs, cacheDir);
+        var run = KanaiUpgradeHunter.Run(settings, "", "", shouldStop, null);
+        return run.Outcome is KanaiUpgradeOutcome.AllRaresUsed or KanaiUpgradeOutcome.LimitReached;
     }
 
     /// <summary>
