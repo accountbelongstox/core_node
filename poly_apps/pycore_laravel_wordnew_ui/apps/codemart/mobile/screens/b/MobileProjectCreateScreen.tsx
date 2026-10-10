@@ -70,7 +70,7 @@ const MobileProjectCreateScreen: React.FC = () => {
     <MobileScreen title={t('projectCreate.title')}>
       {!canCreate && <MobileNotice>{t('projectCreate.noCapability')}</MobileNotice>}
       <div className="cmm-stack-tight">
-        <div className="cmm-steps" role="list" aria-label={t('projectCreate.flowLabel')}>
+        <div className="cmm-steps" role="list" aria-label={t('mobile.work.create.stepsLabel')}>
           {STEPS.map((item, index) => (
             <React.Fragment key={item}>
               {index > 0 && <span className={`cmm-steps__line ${index <= stepIndex ? 'is-done' : ''}`} />}
