@@ -68,7 +68,8 @@ internal static class ScriptProbe
         return result;
     }
 
-    private static IEnumerable<Type> Types(Assembly assembly)
+    /// <summary>Every loadable type of an assembly (shared by the reflection probes).</summary>
+    internal static IEnumerable<Type> Types(Assembly assembly)
     {
         try
         {
@@ -87,6 +88,6 @@ internal static class ScriptProbe
             ?.Invoke(target, args), null);
 
     /// <summary>Obfuscated names are zero-width characters: write them as \uXXXX so the file stays readable.</summary>
-    private static string Printable(string text) =>
+    internal static string Printable(string text) =>
         string.Concat((text ?? "").Select(c => c is >= ' ' and <= '~' ? c.ToString() : $"\\u{(int)c:x4}"));
 }

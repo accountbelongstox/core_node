@@ -17,6 +17,26 @@ namespace Rcdw32.Ws.Models
         T GetAttribute<T>(int attr, uint parameter = 4294963200u) where T : struct;
     }
 
+    /// <summary>Hotbar slot of a power (values read from ROSBOT's enum at runtime: Unset, Left, Right, Pos1-Pos4, Potion).</summary>
+    public enum SkillPosition { }
+
+    /// <summary>ROSBOT's hero (LocalPlayer wraps it): its own cast entry, the subset the plugin calls.</summary>
+    public interface IPlayer
+    {
+        bool CanCast(int power);
+        void Cast(int power, Vector3 tarLoc, bool channel, bool release = true);
+        void RealseCast();
+        bool CastEx(int power, Vector3 target, int worldid, int acdId);
+        void Release(int power);
+        SkillPosition GetSkillDef(int powerid);
+    }
+
+    /// <summary>ROSBOT's context object (a public static field of an internal holder type) giving its hero.</summary>
+    public interface IContext
+    {
+        IPlayer Me { get; }
+    }
+
     /// <summary>ROSBOT's target settings (its combat target selection).</summary>
     public class RosSettings
     {
@@ -126,6 +146,13 @@ namespace Rcdw32.Ws.Plugins
         public static double CurrentHealthPct => throw new NotSupportedException();
         public static bool IsDead => throw new NotSupportedException();
         public static bool IsInCombat => throw new NotSupportedException();
+        public static bool IsCasting => throw new NotSupportedException();
+        public static bool PowerCooldown(int power) => throw new NotSupportedException();
+        public static int PowerCooldownLeft(int power) => throw new NotSupportedException();
+        public static bool HasEnoughResource(int power) => throw new NotSupportedException();
+        public static bool HasEnoughCharges(int power) => throw new NotSupportedException();
+        public static int ChargeCount(int power) => throw new NotSupportedException();
+        public static bool IsCastChannel(int power) => throw new NotSupportedException();
         public static bool PickupItem(IActor actor) => throw new NotSupportedException();
         public static bool MoveTo(IActor actor) => throw new NotSupportedException();
         public static void CoreMoveTo(Vector3 target, float dis = 10f) => throw new NotSupportedException();

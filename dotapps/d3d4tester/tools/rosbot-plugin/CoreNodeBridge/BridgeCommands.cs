@@ -38,7 +38,7 @@ internal sealed class CommandResult
 /// any panel operation carries the shared setting), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
 /// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts), standby (value = on / off: TownStandby, ends
 /// follow mode; follow on ends standby), hold (value = on / off: PulseHold keeps ROSBOT's bot thread so ROSBOT runs no task while the
-/// API stays live; off = control back to ROSBOT: also ends town standby and follow), skills_check (value = maxroll skill set: SkillCheck), script_scope (ScriptProbe: ROSBOT's IronPython scope to script_scope.txt). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
+/// API stays live; off = control back to ROSBOT: also ends town standby and follow), skills_check (value = maxroll skill set: SkillCheck), script_scope (ScriptProbe: ROSBOT's IronPython scope to script_scope.txt), attack_test / power_api (CombatProbe). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -374,6 +374,10 @@ internal sealed class BridgeCommands
                 }
                 case ScriptProbe.Action:
                     return ScriptProbe.Run(result, _dir);
+                case CombatProbe.ActionAttackTest:
+                    return CombatProbe.AttackTest(result, cmd.TryGetValue("value", out var attackValue) ? attackValue : "");
+                case CombatProbe.ActionPowerApi:
+                    return CombatProbe.PowerApi(result, _dir);
                 case SkillCheck.Action:
                     return SkillCheck.Run(result, cmd.TryGetValue("value", out var skillSet) ? skillSet : "");
                 case ActionUiSequence:
