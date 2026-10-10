@@ -21,7 +21,7 @@ export const FloatingAppSwitcher: React.FC<FloatingAppSwitcherProps> = ({
   if (!visible || apps.length < 2) return null;
 
   return (
-    <div className="hide-on-soft-keyboard fixed bottom-20 right-4 z-[1000] flex flex-col items-end gap-2">
+    <div data-app-switcher="" className="hide-on-soft-keyboard fixed bottom-20 right-4 z-[1000] flex flex-col items-end gap-2">
       {open && (
         <div className="w-64 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/95 p-2 text-white shadow-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between px-2 py-1.5">

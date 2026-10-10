@@ -120,6 +120,7 @@ export const ShellControls: React.FC = () => {
 
   return (
     <div
+      data-shell-floating=""
       className="fixed"
       style={{
         top: dockY,

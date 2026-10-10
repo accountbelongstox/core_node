@@ -38,6 +38,7 @@ SECOND_YES_DONT_ASK_PATTERN = re.compile(
 )
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
 OPTION_NUMBER_PATTERN = re.compile(r"^(?P<marker>❯|›|>|▶|►|➜|→|\*)?\s*(?P<number>[1-9])\s*[.)]\s*\S")
+OPTION_NO_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*[2-9]\s*[.)]\s*no\b", re.IGNORECASE)
 # Options that change the agent's permission mode are never chosen or confirmed automatically.
 MODE_SWITCH_OPTION_PATTERN = re.compile(
     r"\bauto[\s-]*(?:mode|accept)|\bbypass(?:es)?\s+permissions?\b|\byolo\b|\ballow\s+all\s+edits\b",
@@ -69,12 +70,33 @@ def _anchors_prompt(line: str) -> bool:
     return bool(OPTION_FIRST_PATTERN.match(line) or OPTION_NEXT_PATTERN.match(line) or HINT_PATTERN.search(line))
 
 
+def _truncated_option_start(lines: List[str]) -> Optional[int]:
+    """Index of the first visible option of a prompt whose top (question, options 1..) scrolled out of the captured
+    text: no "1." left, the key hint closes the tail and the visible options run consecutively from 2+ to a final No."""
+    if not lines or not HINT_PATTERN.search(lines[-1]) or any(OPTION_FIRST_PATTERN.match(line) for line in lines):
+        return None
+    positions = [(index, OPTION_NUMBER_PATTERN.match(line)) for index, line in enumerate(lines)]
+    options = [(index, int(match.group("number"))) for index, match in positions if match]
+    if not options or not OPTION_NO_PATTERN.match(lines[options[-1][0]]):
+        return None
+    start = len(options) - 1
+    while start > 0 and options[start - 1][1] == options[start][1] - 1:
+        start -= 1
+    return options[start][0] if options[start][1] >= 2 else None
+
+
+def truncated_prompt(text: str) -> bool:
+    lines = tail_lines(text or "", PROMPT_SCAN_LINE_COUNT, PROMPT_SCAN_CHAR_LIMIT)
+    return _truncated_option_start(lines) is not None
+
+
 def prompt_lines(text: str) -> List[str]:
-    """Lines of the prompt at the bottom: from just above the last option "1." to the end when an option or hint closes it; a "1." followed by other output is stale and left out of the short tail."""
+    """Lines of the prompt at the bottom: from just above the last option "1." to the end when an option or hint closes it; a "1." followed by other output is stale and left out of the short tail. A prompt cut off above its "1." keeps its visible options."""
     lines = tail_lines(text or "", PROMPT_SCAN_LINE_COUNT, PROMPT_SCAN_CHAR_LIMIT)
     yes_positions = [index for index, line in enumerate(lines) if OPTION_FIRST_PATTERN.match(line)]
     if not yes_positions:
-        return lines[-TAIL_LINE_COUNT:]
+        truncated_start = _truncated_option_start(lines)
+        return lines[truncated_start:] if truncated_start is not None else lines[-TAIL_LINE_COUNT:]
     block = lines[max(0, yes_positions[-1] - PROMPT_LOOKBACK_LINES):]
     if any(_anchors_prompt(line) for line in block[-PROMPT_ANCHOR_LINES:]):
         return block
@@ -86,6 +108,8 @@ def confirmation_prompt(text: str) -> Optional[str]:
     lines = prompt_lines(text)
     if not lines:
         return None
+    if truncated_prompt(text):
+        return hashlib.sha256("\n".join(lines).encode("utf-8", "replace")).hexdigest()
     selected = any(SELECTED_YES_PATTERN.match(line) for line in lines)
     option_yes = selected or any(OPTION_YES_PATTERN.match(line) for line in lines)
     if not option_yes:
@@ -117,6 +141,8 @@ def prompt_options(text: str) -> Dict[int, Tuple[str, bool]]:
     """Options of the bottom prompt from its "1.": number -> (text incl. wrapped continuation lines, selected)."""
     lines = prompt_lines(text)
     yes_positions = [index for index, line in enumerate(lines) if OPTION_FIRST_PATTERN.match(line)]
+    if not yes_positions and truncated_prompt(text):
+        yes_positions = [0]
     options: Dict[int, Tuple[str, bool]] = {}
     current: Optional[int] = None
     for line in lines[yes_positions[-1]:] if yes_positions else []:

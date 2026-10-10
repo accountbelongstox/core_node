@@ -10,7 +10,7 @@ const MODES: ReadonlyArray<{ id: CompareMode; labelKey: string }> = [
   { id: 'diff', labelKey: 'brandGallery.modeDiff' },
 ];
 const DIFF_SCALE = 3;
-const INK_THRESHOLD = 150;
+const INK_THRESHOLD = 200;
 const DEFAULT_OPACITY = 55;
 const COLOR_CANDIDATE: readonly number[] = [226, 61, 61];
 const COLOR_SOURCE: readonly number[] = [52, 120, 235];

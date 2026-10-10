@@ -17,7 +17,7 @@ export const cmZh: CmTranslationDict = {
     sourceTitle: '原图',
     sourceCaption: '低分辨率原图（{{width}} x {{height}} 像素），所有候选都以它为准。',
     rankingTitle: '相似度排名',
-    rankingHint: '得分为二值化后缩小到原图尺寸时 IoU 与 SSIM 的平均值。',
+    rankingHint: '得分为二值化后缩小到原图尺寸时 IoU 与 SSIM 的平均值。与最高分相差不超过 0.01 视为并列，并列候选中几何最简单的作为嵌入的默认版本。',
     pickTitle: '你的选择',
     pickNone: '尚未选择。',
     pickHint: '把候选编号告诉 AI，它会嵌入该版本。选择不会改动已嵌入的资源。',
