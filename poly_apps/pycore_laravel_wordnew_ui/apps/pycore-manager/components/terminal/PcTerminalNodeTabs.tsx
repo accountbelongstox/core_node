@@ -23,7 +23,7 @@ import {
   subscribeTailnetPeers,
   type PycoreEndpoint,
 } from '@/apps/pycore-manager/api';
-import { PcOsIcon, pcOsKind } from '@/apps/pycore-manager/components/terminal/PcOsIcon';
+import { PcOsIcon, pcOsKind, type PcOsKind } from '@/apps/pycore-manager/components/terminal/PcOsIcon';
 
 const PROBE_UP = 'up';
 const REPROBE_INTERVAL_MS = 30_000;
@@ -105,10 +105,42 @@ function uniqueMachines(nodes: PycoreEndpoint[], activeUrl: string | null): Pyco
   });
 }
 
+export interface PcTerminalTabNode {
+  /** Backend URL; null is this machine (the selected pycore target). */
+  url: string | null;
+  /** Computer name shown as the tab title. */
+  label: string;
+  os: PcOsKind;
+  /** OS string the endpoint itself reported (tailnet peer / LAN scan). */
+  endpointOs?: string;
+}
+
+/** The machines the node tabs show, in tab order: this machine, then every online machine. */
+export function listTerminalTabNodes(activeUrl: string | null, thisMachineFallback: string): PcTerminalTabNode[] {
+  const target = getPycoreTarget();
+  const online = uniqueMachines(
+    otherNodes().filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP),
+    activeUrl,
+  );
+  return [
+    {
+      url: null,
+      label: listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || thisMachineFallback,
+      os: pcOsKind(selectionPlatform()),
+    },
+    ...online.map((node) => ({
+      url: node.url,
+      label: node.label,
+      os: pcOsKind(getPycoreProbe(node.url)?.platform || node.os),
+      endpointOs: node.os,
+    })),
+  ];
+}
+
 export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUrl, onSelect }) => {
   const { t } = useTranslation('pc');
   const target = getPycoreTarget();
-  const [nodes, setNodes] = useState<PycoreEndpoint[]>(otherNodes);
+  const [, setNodes] = useState<PycoreEndpoint[]>(otherNodes);
   const [, setProbeVersion] = useState(0);
   const [rescanning, setRescanning] = useState(false);
   const activeUrlRef = useRef(activeUrl);
@@ -161,13 +193,9 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
   };
   const scanning = rescanning || getLanMachines().scanning;
 
-  const online = uniqueMachines(
-    nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP),
-    activeUrl,
-  );
-  const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || t('terminal.nodes.thisMachine');
+  const [thisNode, ...online] = listTerminalTabNodes(activeUrl, t('terminal.nodes.thisMachine'));
 
-  const tab = (url: string | null, index: number, os: string | undefined, title: string) => (
+  const tab = (url: string | null, index: number, os: PcOsKind, title: string) => (
     <button
       key={url ?? 'primary'}
       type="button"
@@ -182,19 +210,19 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
           : 'border border-slate-500/20 text-slate-600 hover:bg-slate-500/10 dark:text-slate-300'
       }`}
     >
-      <PcOsIcon os={pcOsKind((url ? getPycoreProbe(url)?.platform : selectionPlatform()) || os)} />
+      <PcOsIcon os={os} />
       <span>{index}</span>
     </button>
   );
 
   return (
     <div role="tablist" aria-label={t('terminal.nodes.title')} className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {tab(null, 1, undefined, `${thisLabel} · ${t('terminal.nodes.thisMachineHint', { url: target.url })}`)}
+      {tab(null, 1, thisNode.os, `${thisNode.label} · ${t('terminal.nodes.thisMachineHint', { url: target.url })}`)}
       {online.map((node, index) => tab(
         node.url,
         index + 2,
         node.os,
-        `${node.label} · ${t('terminal.nodes.otherHint', { url: node.url, os: node.os || '-' })}`,
+        `${node.label} · ${t('terminal.nodes.otherHint', { url: node.url, os: node.endpointOs || '-' })}`,
       ))}
       {isLanMachinesAvailable() && (
         <button

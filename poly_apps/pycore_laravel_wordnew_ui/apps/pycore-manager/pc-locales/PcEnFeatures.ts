@@ -829,6 +829,7 @@ terminal: {
       limitUntil: 'Usage limit: resumes at {{time}}, then asks whether the previous task is complete',
       doneToastTitle: 'AI agent finished',
       doneToastBody: '#{{number}} {{name}}',
+      doneToastClearAll: 'Clear all notifications',
       plain: 'Plain terminal (scanned, no AI agent)',
       notScanned: 'Not scanned yet',
       yesPending: 'Confirmation prompt to click Yes',
