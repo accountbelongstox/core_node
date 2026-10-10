@@ -23,7 +23,7 @@ internal sealed class CommandResult
 }
 
 /// <summary>
-/// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id, value), written
+/// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id, value, assist), written
 /// atomically by the app (never over a command not taken yet), taken (moved away, then read) on the plugin's own timer once the
 /// worker is free and executed on a worker thread, one at a time, so the plugin keeps
 /// scanning and writing state.json while a command waits for the game (e.g. movement while ROSBOT is paused). A command still running
@@ -33,11 +33,12 @@ internal sealed class CommandResult
 /// go_npc (target = exact actor name: walk the path ROSBOT computes for it, waypoint by waypoint, stop when stuck, then interact at
 /// the NPC's position and report whether a vendor window opened),
 /// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
-/// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1,assist 0/1" with mode nearest /
-/// selected / leader / slot, or "off"; FollowMode; assist = follow only and fight, ROSBOT kept held), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
+/// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1" with mode nearest /
+/// selected / leader / slot, or "off"; FollowMode), assist (value = on / off: CombatAssist; every command's assist line sets it too, so
+/// any panel operation carries the shared setting), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
 /// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts), standby (value = on / off: TownStandby, ends
 /// follow mode; follow on ends standby), hold (value = on / off: PulseHold keeps ROSBOT's bot thread so ROSBOT runs no task while the
-/// API stays live; off also ends town standby and assist follow), skills_check (value = maxroll skill set: SkillCheck). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
+/// API stays live; off = control back to ROSBOT: also ends town standby and follow), skills_check (value = maxroll skill set: SkillCheck). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -58,6 +59,9 @@ internal sealed class BridgeCommands
     public const string ActionUiSequence = "ui_sequence";
     public const string ActionStandby = "standby";
     public const string ActionHold = "hold";
+    public const string ActionAssist = "assist";
+    private const string AssistKey = "assist";
+    private const string AssistOff = "off";
     private const string HoldOff = "off";
     private const char UiSequenceSeparator = '|';
     private const string FollowOff = "off";
@@ -92,14 +96,17 @@ internal sealed class BridgeCommands
     private DateTime _filterStamp = DateTime.MinValue;
     private List<string> _patterns = new();
 
-    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby, PulseHold hold)
+    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby, PulseHold hold, CombatAssist assist)
     {
         _dir = dir;
         _log = log;
         _follow = follow;
         _standby = standby;
         _hold = hold;
+        _assist = assist;
     }
+
+    private readonly CombatAssist _assist;
 
     private readonly PulseHold _hold;
 
@@ -261,6 +268,7 @@ internal sealed class BridgeCommands
         result.Id = cmd.TryGetValue("id", out var id) && long.TryParse(id, out long n) ? n : 0;
         result.Action = cmd.TryGetValue("action", out var action) ? action : "";
         cmd.TryGetValue("target", out var target);
+        if (cmd.TryGetValue(AssistKey, out var assistLine) && bool.TryParse(assistLine, out bool assistOn)) _assist.Set(assistOn);
         try
         {
             switch (result.Action)
@@ -308,7 +316,7 @@ internal sealed class BridgeCommands
                         _standby.Stop();
                         _follow.Start(Part(0), uint.TryParse(target, out uint selected) ? selected : 0u,
                             int.TryParse(Part(1), out int slot) ? slot : 0, int.TryParse(Part(2), out int banner) ? banner : 0, Part(3) == FollowPickupOn,
-                            Part(4) == FollowPickupOn, Part(5) == FollowPickupOn);
+                            Part(4) == FollowPickupOn);
                     }
                     result.Ok = true;
                     result.Message = "follow " + (_follow.Enabled ? "on" : "off");
@@ -319,9 +327,16 @@ internal sealed class BridgeCommands
                     bool on = !(cmd.TryGetValue("value", out var hold) && hold == HoldOff);
                     _hold.Set(on);
                     if (!on) _standby.Stop();
-                    if (!on && _follow.Assist) _follow.Stop();
+                    if (!on && _follow.Enabled) _follow.Stop();
                     result.Ok = !on || _hold.Requested;
                     result.Message = "hold " + _hold.State;
+                    return result;
+                }
+                case ActionAssist:
+                {
+                    _assist.Set(!(cmd.TryGetValue("value", out var assist) && assist == AssistOff));
+                    result.Ok = true;
+                    result.Message = "assist " + (_assist.Enabled ? "on" : "off");
                     return result;
                 }
                 case ActionStandby:

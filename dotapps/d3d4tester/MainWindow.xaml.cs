@@ -169,7 +169,7 @@ public partial class MainWindow : Window, IMainWindowHost
         D3PlannerService.Initialize();
         D3PlannerTownService.Initialize();
         Core.Bridge.BridgeTownPortal.Install();
-        RosbotFollowCombatService.Install();
+        RosbotCombatAssistService.Install();
         D3PlannerService.Alert += a => Dispatcher.BeginInvoke(() => ShowTrayNotification(a.Title, a.Message));
         LoginTryController.Initialize();
         InitializeShell();

@@ -82,10 +82,10 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("follow_leader")] public string FollowLeader { get; init; } = "";
     [JsonPropertyName("follow_distance")] public double FollowDistance { get; init; } = -1;
     [JsonPropertyName("follow_revive")] public bool FollowRevive { get; init; }
-    /// <summary>Follow only and fight: ROSBOT kept held, the plugin moves; follow_combat = monsters around the target (the app casts), follow_combat_target = the monster stepped to.</summary>
-    [JsonPropertyName("follow_assist")] public bool FollowAssist { get; init; }
-    [JsonPropertyName("follow_combat")] public bool FollowCombat { get; init; }
-    [JsonPropertyName("follow_combat_target")] public string FollowCombatTarget { get; init; } = "";
+    /// <summary>Combat assist shared by every plugin mode: on, fight now (the combat macro casts), the monster fought.</summary>
+    [JsonPropertyName("assist_enabled")] public bool AssistEnabled { get; init; }
+    [JsonPropertyName("combat")] public bool Combat { get; init; }
+    [JsonPropertyName("combat_target")] public string CombatTarget { get; init; } = "";
     /// <summary>Town standby (app "return to town and stand by"): on, state (reviving / needs_town / in_town) and since when.</summary>
     [JsonPropertyName("standby_enabled")] public bool StandbyEnabled { get; init; }
     [JsonPropertyName("standby_state")] public string StandbyState { get; init; } = "";

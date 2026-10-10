@@ -119,6 +119,12 @@ public static partial class ConfigKeys
     /// <summary>Panel commands that act in the game (follow, NPC, salvage, ...) first pause monitoring and ROSBOT (F6).</summary>
     public const string BridgeTakeControl = "rosbot.bridge_take_control";
     public const bool BridgeTakeControlDefault = true;
+    /// <summary>
+    /// Combat assist shared by every plugin mode (follow, standby, panel commands, idle under the plugin hold): carried by every command,
+    /// the plugin positions the hero for the fight and the combat macro casts. On: panel game operations always take control first.
+    /// </summary>
+    public const string BridgeAssist = "rosbot.bridge_assist";
+    public const bool BridgeAssistDefault = false;
     public const string BridgeFollowTownPortalKeyDefault = "t";
     /// <summary>
     /// Map teleport run by the plugin right after ROSBOT starts (ROSBOT paused meanwhile): D3 UI element ids / paths clicked in order,

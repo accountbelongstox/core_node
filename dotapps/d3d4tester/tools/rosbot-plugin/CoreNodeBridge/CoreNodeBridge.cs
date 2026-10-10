@@ -18,7 +18,7 @@ namespace CoreNodeBridge;
 /// Every ScanIntervalMs it scans the world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to
 /// this DLL (atomic replace):
 /// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monster counts, carried
-/// items, the live pickup / stash record, follow / town standby state and the last command result. Commands and the pickup filter:
+/// items, the live pickup / stash record, follow / town standby / combat assist state and the last command result. Commands and the pickup filter:
 /// see BridgeCommands; item
 /// GameBalanceIds and the affixes of watched build items: see ItemWatch.
 /// Everything noteworthy also goes to ROSBOT's log (Context.Log). API reads are guarded: outside the game getters may throw.
@@ -46,6 +46,7 @@ public sealed class CoreNodeBridge : IPlugin
     private BridgeCommands _commands;
     private ItemWatch _watch;
     private FollowMode _follow;
+    private CombatAssist _assist;
     private TownHold _townHold;
     private TownStandby _standby;
     private PulseHold _hold;
@@ -92,10 +93,11 @@ public sealed class CoreNodeBridge : IPlugin
     {
         _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
         _townHold = new TownHold(_dir, Log);
-        _follow = new FollowMode(Log) { TownHold = _townHold };
+        _assist = new CombatAssist(Log);
+        _follow = new FollowMode(Log) { TownHold = _townHold, Assist = _assist };
         _standby = new TownStandby(Log) { TownHold = _townHold };
         _hold = new PulseHold(Log, () => _writeStartedUtc, () => _writeThread);
-        _commands = new BridgeCommands(_dir, Log, _follow, _standby, _hold);
+        _commands = new BridgeCommands(_dir, Log, _follow, _standby, _hold, _assist);
         _follow.PickupHandler = _commands.PickupNearestMatching;
         _follow.CommandBusy = () => _commands.Busy;
         _commands.ReloadFilter();
@@ -181,13 +183,31 @@ public sealed class CoreNodeBridge : IPlugin
         _commands.Poll();
         _townHold.Tick();
         _standby.Tick();
-        if (_follow.Assist && _hold.State == PulseHold.StateOff) _hold.Set(true);
+        if (_follow.Enabled && _assist.Enabled && _hold.State == PulseHold.StateOff) _hold.Set(true);
         _follow.Tick();
+        TickAssist();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
             _lastScanUtc = now;
             Scan(now);
         }
+    }
+
+    /// <summary>
+    /// Combat assist outside follow (follow scans and steps itself): only while the app controls the hero (hold or standby) and it is
+    /// alive in game; idle under the hold it steps to the fight, standby and running commands only scan (they own the movement).
+    /// </summary>
+    private void TickAssist()
+    {
+        if (!_assist.Enabled || _follow.Enabled) return;
+        bool control = _standby.Enabled || _hold.State == PulseHold.StateHolding;
+        if (!control || !WorldScanner.Safe(() => LocalPlayer.IsValid && LocalPlayer.IsInGame && !LocalPlayer.IsDead, false))
+        {
+            _assist.Clear();
+            return;
+        }
+        var monster = _assist.Scan(WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()), null);
+        if (monster != null && !_standby.Enabled && !_commands.Busy) _assist.Step(monster, null);
     }
 
     public void OnShutdown()
@@ -347,9 +367,9 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("follow_revive", _follow.Revive)
                 .Prop("follow_leader", _follow.Leader)
                 .Prop("follow_distance", _follow.Distance)
-                .Prop("follow_assist", _follow.Assist)
-                .Prop("follow_combat", _follow.Combat)
-                .Prop("follow_combat_target", _follow.CombatTarget)
+                .Prop("assist_enabled", _assist.Enabled)
+                .Prop("combat", _assist.Combat)
+                .Prop("combat_target", _assist.Target)
                 .Prop("standby_enabled", _standby.Enabled)
                 .Prop("standby_state", _standby.State)
                 .Prop("standby_since_utc", _standby.SinceUtc)

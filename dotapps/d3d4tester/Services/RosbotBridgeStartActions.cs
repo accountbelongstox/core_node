@@ -13,8 +13,8 @@ namespace DotApps.d3d4tester.Services;
 /// reports the hero in game, pause ROSBOT (its pause key) so it does not act meanwhile, then
 /// - follow configured (last follow command, saved when the panel sent it): replay it and hand control to the plugin by pausing
 ///   monitoring with ROSBOT kept paused, so ROSBOT, the log timeout and the follow walk never race (Resume monitoring gives it back);
-///   follow only and fight: ROSBOT is not paused with its key but held by the plugin (it keeps pulsing, the plugin API stays live),
-///   falling back to the key when the hold is not confirmed within HoldWaitSec;
+///   with combat assist on (follow only and fight): ROSBOT is not paused with its key but held by the plugin (it keeps pulsing, the
+///   plugin API stays live), falling back to the key when the hold is not confirmed within HoldWaitSec;
 /// - else, on a fresh ROSBOT start with a teleport sequence configured: the plugin clicks it (map teleport), then ROSBOT is resumed.
 /// Nothing configured, or no live plugin in game: ROSBOT just keeps botting.
 /// </summary>
@@ -40,7 +40,7 @@ public static class RosbotBridgeStartActions
             ColorPrinter.Yellow($"{LogTag} plugin not live in game within {InGameWaitSec}s -> {(follow ? "follow" : "teleport")} skipped, ROSBOT keeps botting");
             return;
         }
-        if (follow && RosbotBridgePluginService.FollowAssist(followValue))
+        if (follow && RosbotBridgePluginService.AssistEnabled)
         {
             RunAssistFollow(ctx, followValue, followTarget);
             return;

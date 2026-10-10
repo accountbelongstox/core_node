@@ -1255,8 +1255,11 @@
       "follow_target_slot": "Party member {0}",
       "follow_revive": "Auto revive",
       "follow_revive_tip": "Dead while following: wait 8 s for a teammate (a party revive needs no click), then revive at corpse, else at checkpoint, else in town.",
-      "follow_assist": "Follow only and fight",
-      "follow_assist_tip": "Follow only the chosen member and help fight: the plugin holds ROSBOT (no town run, no own route, no movement race) and moves the hero; with monsters within 40 yards of the member it steps to the best one (elites / bosses first, never more than 35 yards from the member) and starts / stops the combat macro to cast the skills (set up the combat macro first).",
+      "assist": "Combat assist",
+      "assist_tip": "Shared by every plugin operation (follow, standby, move to, pickup, NPC, salvage, and idle while control is taken): the plugin holds ROSBOT, so it runs no town run, no own route and never races the plugin for movement; with monsters the plugin positions the hero (when following: within 40 yards of the chosen member, never more than 35 yards from them; otherwise only monsters within 20 yards of the hero) and starts / stops the combat macro to cast the skills (set up the combat macro first). While on, every operation takes control first.",
+      "control_end": "End control · resume monitoring",
+      "control_taken": "controlled by the plugin",
+      "combat_target": "fighting: {0}",
       "take_control": "Pause monitoring and ROSBOT when a command acts in the game (follow, NPC, salvage...)",
       "plugin_not_running": "Not sent: the plugin is not running (start ROSBOT and enable CoreNode Bridge)"
     },

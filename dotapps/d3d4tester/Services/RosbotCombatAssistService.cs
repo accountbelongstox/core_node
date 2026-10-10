@@ -7,16 +7,16 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Follow only and fight: the plugin holds ROSBOT and moves the hero, so ROSBOT casts nothing; the combat macro casts instead. On the
-/// 1 s TickDriver it starts the combat macro while the plugin reports follow_combat (assist follow, in game, alive) and stops it when the
-/// fight ends, only when this service started it (a macro the user started stays on). A macro the user stopped meanwhile (smart pause
-/// keys, hotkey) is not started again until the next fight.
+/// Combat assist, cast side: the plugin holds ROSBOT and only positions the hero, so ROSBOT casts nothing; the combat macro casts instead.
+/// On the 1 s TickDriver it starts the combat macro while the plugin reports combat (assist on, any plugin mode: follow, standby,
+/// commands, idle under the hold; in game, alive) and stops it when the fight ends, only when this service started it (a macro the user
+/// started stays on). A macro the user stopped meanwhile (smart pause keys, hotkey) is not started again until the next fight.
 /// </summary>
-public static class RosbotFollowCombatService
+public static class RosbotCombatAssistService
 {
-    private const string LogTag = "[FollowCombat]";
+    private const string LogTag = "[CombatAssist]";
     private static int _installed;
-    private static bool _startedByFollow;
+    private static bool _startedByAssist;
     private static bool _fighting;
 
     public static void Install()
@@ -28,11 +28,11 @@ public static class RosbotFollowCombatService
     private static void OnTick()
     {
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
-        bool fight = snapshot.RosbotBridgeFresh && snapshot.RosbotBridge is { FollowEnabled: true, FollowAssist: true, FollowCombat: true, InGame: true, Dead: false };
+        bool fight = snapshot.RosbotBridgeFresh && snapshot.RosbotBridge is { AssistEnabled: true, Combat: true, InGame: true, Dead: false };
         bool started = fight && !_fighting;
         _fighting = fight;
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher == null || !(started || (!fight && _startedByFollow))) return;
+        if (dispatcher == null || !(started || (!fight && _startedByAssist))) return;
         dispatcher.BeginInvoke(() => Apply(fight, started));
     }
 
@@ -44,13 +44,13 @@ public static class RosbotFollowCombatService
         if (fight)
         {
             if (!started || controller.MacroRunning) return;
-            ColorPrinter.Blue($"{LogTag} monsters around the followed player -> combat macro on");
+            ColorPrinter.Blue($"{LogTag} fight -> combat macro on");
             controller.StartMacro();
-            _startedByFollow = controller.MacroRunning;
+            _startedByAssist = controller.MacroRunning;
             return;
         }
-        if (!_startedByFollow) return;
-        _startedByFollow = false;
+        if (!_startedByAssist) return;
+        _startedByAssist = false;
         if (!controller.MacroRunning) return;
         ColorPrinter.Blue($"{LogTag} fight over -> combat macro off");
         controller.StopMacro();

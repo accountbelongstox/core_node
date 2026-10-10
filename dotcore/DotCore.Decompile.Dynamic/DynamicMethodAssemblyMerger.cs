@@ -56,9 +56,19 @@ public sealed class DynamicMethodAssemblyMerger
                         || !DnGuardMethodBodyClassifier.IsPlaceholder(targetMethod.CilMethodBody))
                         continue;
 
-                    targetMethod.CilMethodBody = CloneBody(candidateMethod.CilMethodBody, targetMethod, targetModule);
-                    mergedMethodCount++;
-                    writeLog($"Merged runtime method {targetMethod.MetadataToken} from {Path.GetFileName(candidatePath)}.");
+                    try
+                    {
+                        targetMethod.CilMethodBody = CloneBody(candidateMethod.CilMethodBody, targetMethod,
+                            targetModule);
+                        mergedMethodCount++;
+                        writeLog($"Merged runtime method {targetMethod.MetadataToken} from {Path.GetFileName(candidatePath)}.");
+                    }
+                    catch (Exception exception)
+                    {
+                        string failureToken = targetMethod.MetadataToken.ToString();
+                        failures.Add(new DynamicMethodFailure(failureToken, exception.Message));
+                        writeLog($"Merge failed for method {failureToken} from {candidatePath}: {exception.Message}");
+                    }
                 }
             }
             catch (Exception exception)
@@ -127,7 +137,7 @@ public sealed class DynamicMethodAssemblyMerger
                 FilterStart = CloneLabel(sourceHandler.FilterStart, instructionMap),
                 ExceptionType = sourceHandler.ExceptionType == null
                     ? null
-                    : (ITypeDefOrRef)targetModule.LookupMember(sourceHandler.ExceptionType.MetadataToken)
+                    : ImportType(sourceHandler.ExceptionType, targetModule, importer)
             };
             result.ExceptionHandlers.Add(targetHandler);
         }
@@ -158,9 +168,60 @@ public sealed class DynamicMethodAssemblyMerger
             if (standAlone.Signature is AsmResolver.DotNet.Signatures.LocalVariablesSignature localSignature)
                 return new StandAloneSignature(importer.ImportLocalVariablesSignature(localSignature));
         }
+        if (operand is ITypeDefOrRef type)
+            return ImportType(type, targetModule, importer);
+        if (operand is IMethodDescriptor method)
+            return ImportMethod(method, targetModule, importer);
+        if (operand is IFieldDescriptor field)
+            return ImportField(field, targetModule, importer);
         if (operand is IMetadataMember metadataMember)
             return targetModule.LookupMember(metadataMember.MetadataToken);
         return operand;
+    }
+
+    private static ITypeDefOrRef ImportType(ITypeDefOrRef type, ModuleDefinition targetModule,
+        ReferenceImporter importer)
+    {
+        if (type is TypeDefinition definition)
+            return (ITypeDefOrRef)targetModule.LookupMember(definition.MetadataToken);
+        try
+        {
+            return importer.ImportType(type);
+        }
+        catch when (type is IMetadataMember metadataMember)
+        {
+            return (ITypeDefOrRef)targetModule.LookupMember(metadataMember.MetadataToken);
+        }
+    }
+
+    private static IMethodDescriptor ImportMethod(IMethodDescriptor method, ModuleDefinition targetModule,
+        ReferenceImporter importer)
+    {
+        if (method is MethodDefinition definition)
+            return (IMethodDescriptor)targetModule.LookupMember(definition.MetadataToken);
+        try
+        {
+            return importer.ImportMethod(method);
+        }
+        catch when (method is IMetadataMember metadataMember)
+        {
+            return (IMethodDescriptor)targetModule.LookupMember(metadataMember.MetadataToken);
+        }
+    }
+
+    private static IFieldDescriptor ImportField(IFieldDescriptor field, ModuleDefinition targetModule,
+        ReferenceImporter importer)
+    {
+        if (field is FieldDefinition definition)
+            return (IFieldDescriptor)targetModule.LookupMember(definition.MetadataToken);
+        try
+        {
+            return importer.ImportField(field);
+        }
+        catch when (field is IMetadataMember metadataMember)
+        {
+            return (IFieldDescriptor)targetModule.LookupMember(metadataMember.MetadataToken);
+        }
     }
 
     private static ICilLabel? CloneLabel(ICilLabel? label,
