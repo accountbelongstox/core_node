@@ -408,7 +408,8 @@ terminal: {
       notImage: '只能添加图片或录音文件。',
       uploadFailed: '图片上传失败。',
       uploadStalled: '图片上传长时间没有进展。',
-      sendBlocked: '部分图片未上传成功。请重试或移除后再发送。',
+      sentWithMissing: '已发送，但有 {{count}} 个附件上传失败未附带；已告知 AI 这些图片缺失。',
+      agentMissingNote: '[{{count}} attached image(s) failed to upload and did not reach you; only the text below was sent.]',
       pull: {
         action: '立即从剪贴板拉取图片（手机端剪贴板无图片时打开相册）',
         empty: '剪贴板中没有图片。',

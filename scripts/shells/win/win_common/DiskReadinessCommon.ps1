@@ -494,9 +494,9 @@ function Invoke-NtfsPathRewrite {
         Write-ColorMessage -Message ("robocopy failed with exit code {0}" -f $process.ExitCode) -Type "Error"
     }
     if (Test-Path -LiteralPath $Path) {
-        Write-ColorMessage -Message ("Some files of {0} are in use; moving the rewritten files back." -f $Path) -Type "Warning"
+        Write-ColorMessage -Message ("Some files of {0} could not be moved (in use or Linux symlinks); moving the rewritten files back." -f $Path) -Type "Warning"
         Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList (@($rewritePath, $Path) + $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS) -NoNewWindow -Wait | Out-Null
-        return $false
+        return $true
     }
     Rename-Item -LiteralPath $rewritePath -NewName (Split-Path $Path -Leaf)
     return $true

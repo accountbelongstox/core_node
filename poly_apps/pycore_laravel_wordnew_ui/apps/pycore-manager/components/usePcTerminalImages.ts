@@ -27,13 +27,18 @@ export interface PcTerminalImages {
   remove: (id: string) => void;
   retry: (id: string) => void;
   clear: () => void;
-  /** Uploads every attachment of the window and returns them in attach order; null when one failed. */
-  uploadAll: () => Promise<PcTerminalUploaded[] | null>;
+  /** Uploads every attachment of the window: the uploaded ones in attach order plus the count that failed. */
+  uploadAll: () => Promise<PcTerminalUploadResult>;
 }
 
 export interface PcTerminalUploaded {
   kind: PcTerminalAttachmentKind;
   displayPath: string;
+}
+
+export interface PcTerminalUploadResult {
+  uploaded: PcTerminalUploaded[];
+  failedCount: number;
 }
 
 const IMAGE_MIME = /^image\//i;
@@ -186,16 +191,17 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
     return flight;
   }, [startUpload]);
 
-  const uploadAll = useCallback(async (): Promise<PcTerminalUploaded[] | null> => {
+  const uploadAll = useCallback(async (): Promise<PcTerminalUploadResult> => {
     const uploaded: PcTerminalUploaded[] = [];
+    let failedCount = 0;
     for (const item of allRef.current.filter((entry) => entry.windowId === windowId)) {
       const path = await uploadOne(item);
       // An image removed while its upload ran is no longer part of the message.
       if (!allRef.current.some((entry) => entry.id === item.id)) continue;
-      if (path === null) return null;
-      uploaded.push({ kind: item.kind, displayPath: path });
+      if (path === null) failedCount += 1;
+      else uploaded.push({ kind: item.kind, displayPath: path });
     }
-    return uploaded;
+    return { uploaded, failedCount };
   }, [uploadOne, windowId]);
 
   const retry = useCallback((id: string) => {
