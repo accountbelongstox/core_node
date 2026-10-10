@@ -44,6 +44,7 @@ SEARCH_HIT_SENT = "sent"
 SEARCH_HIT_DRAFT = "draft"
 LOG_STATUS_DRAFT = "draft"
 CHANGE_LOG = "log"
+CHANGE_LOG_DELETED = "log_deleted"
 CHANGE_DRAFT = "draft"
 
 
@@ -203,7 +204,8 @@ class TerminalStateRepository:
 
     def add_change_listener(self, listener: Callable[[Dict[str, Any]], None]) -> None:
         """Called with every written sent-message log (``{change: log, terminal_number, log_id,
-        values, content}``) and draft (``{change: draft, terminal_number, title, date, text}``);
+        values, content}``), deleted log (``{change: log_deleted, terminal_number, log_id}``) and
+        draft (``{change: draft, terminal_number, title, date, text}``);
         registered once at service start."""
         self._change_listeners.append(listener)
 
@@ -489,20 +491,7 @@ class TerminalStateRepository:
         live_keys = {window_key(platform_name, window) for window in live_windows}
         if str(record.get("window_key") or "") in live_keys:
             return {"success": False, "error_code": "terminal_window_online"}
-        removed_numbers = {terminal_number}
-        pending = True
-        while pending:
-            pending = False
-            for number, stored in self._records.items():
-                merged_into = str(stored.get("merged_into") or "")
-                if (
-                    number not in removed_numbers
-                    and merged_into.isdigit()
-                    and int(merged_into) in removed_numbers
-                    and str(stored.get("window_key") or "") not in live_keys
-                ):
-                    removed_numbers.add(number)
-                    pending = True
+        removed_numbers = self._merged_terminal_numbers(terminal_number, live_keys)
         self._store.delete_terminals(removed_numbers)
         for number in removed_numbers:
             self._records.pop(number, None)
@@ -512,6 +501,71 @@ class TerminalStateRepository:
             "terminal_number": terminal_number,
             "removed_terminal_numbers": sorted(removed_numbers),
         }
+
+    @serialized_method
+    @_transactional_store_method
+    def delete_logs(
+        self,
+        terminal_number: int,
+        log_ids: Sequence[str],
+        delete_all: bool = False,
+        source: str = "",
+    ) -> Dict[str, Any]:
+        """Delete history entries of a terminal, also the copies kept by the records merged into it
+        (a later merge would otherwise copy them back), and drop their MeshSync copies."""
+        record = self._active_record(terminal_number)
+        if record is None:
+            return {"success": False, "error_code": "terminal_state_not_found"}
+        stored_logs = record["logs_by_id"]
+        wanted = set(stored_logs) if delete_all else {str(log_id) for log_id in log_ids}
+        deleted_ids = sorted(
+            log_id
+            for log_id in wanted
+            if log_id in stored_logs
+            and (not source or str(stored_logs[log_id].get("source") or DEFAULT_LOG_SOURCE) == source)
+        )
+        if deleted_ids:
+            numbers = self._merged_terminal_numbers(terminal_number)
+            self._store.delete_logs(numbers, [int(log_id) for log_id in deleted_ids])
+            for number in sorted(numbers):
+                logs_by_id = self._records[number]["logs_by_id"]
+                removed = [log_id for log_id in deleted_ids if logs_by_id.pop(log_id, None) is not None]
+                refresh_record_logs(self._records[number])
+                for log_id in removed:
+                    self._notify_change({
+                        "change": CHANGE_LOG_DELETED,
+                        "terminal_number": number,
+                        "log_id": log_id,
+                    })
+            self._set_fields(record, {"updated_at": utc_now_iso()})
+        return {
+            "success": True,
+            "terminal_number": terminal_number,
+            "deleted_log_ids": deleted_ids,
+            "log_count": len(stored_logs),
+        }
+
+    def _merged_terminal_numbers(
+        self,
+        terminal_number: int,
+        excluded_window_keys: Set[str] = frozenset(),
+    ) -> Set[int]:
+        """The terminal and every record merged into it, directly or through another merged record."""
+        numbers = {terminal_number}
+        pending = True
+        while pending:
+            pending = False
+            for number, stored in self._records.items():
+                merged_into = str(stored.get("merged_into") or "")
+                if (
+                    number not in numbers
+                    and merged_into.isdigit()
+                    and int(merged_into) in numbers
+                    and str(stored.get("window_key") or "") not in excluded_window_keys
+                ):
+                    numbers.add(number)
+                    pending = True
+        return numbers
 
     def resolve_window_id(self, terminal_number: int) -> str:
         return self._reader.window_id(terminal_number)
