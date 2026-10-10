@@ -25,8 +25,15 @@ $script:DISK_USN_MAX_SIZE = "0x2000000"
 $script:DISK_USN_ALLOCATION_DELTA = "0x800000"
 $script:DISK_SHRINK_DEFRAG_ARGUMENTS = @("/X", "/U", "/V")
 $script:DISK_SHRINK_DEFAULT_MB = 512000
-$script:DISK_SHRINK_MAX_PASSES = 3
+$script:DISK_SHRINK_MAX_PASSES = 20
 $script:DISK_VSSADMIN_EXE = Join-Path $script:DISK_SYSTEM32_DIR "vssadmin.exe"
+$script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "robocopy.exe"
+$script:DISK_SHRINK_ROBOCOPY_ARGUMENTS = @("/E", "/MOVE", "/COPY:DAT", "/DCOPY:DAT", "/XJ", "/R:1", "/W:1", "/NFL", "/NDL", "/NP")
+$script:DISK_ROBOCOPY_FAILURE_CODE = 8
+$script:DISK_SHRINK_REWRITE_SUFFIX = ".shrink-rewrite"
+$script:DISK_SECURITY_DESCRIPTOR_STREAM = '$SECURITY_DESCRIPTOR'
+$script:DISK_RECYCLE_BIN_DIR = '$RECYCLE.BIN'
+$script:DISK_SYSTEM_VOLUME_INFO_DIR = "System Volume Information"
 $script:DISK_HIBERFIL = Join-Path $env:SystemDrive "hiberfil.sys"
 $script:DISK_STORAGE_NAMESPACE = "root/Microsoft/Windows/Storage"
 $script:DISK_ENCRYPTION_NAMESPACE = "root/cimv2/Security/MicrosoftVolumeEncryption"
@@ -357,14 +364,12 @@ function Show-NtfsVolumeSummary {
     )
     $driveLetter = $Drive.TrimEnd(':')
     $volume = Get-Volume -DriveLetter $driveLetter
-    $supported = Get-PartitionSupportedSize -DriveLetter $driveLetter -ErrorAction SilentlyContinue
+    $shrinkableMB = Get-ShrinkableMB -Drive $Drive
     $blocker = Get-LastUnmovableFile -Drive $Drive
 
     Write-Host ""
     Write-ColorMessage -Message ("{0} size {1} GB, used {2} GB, free {3} GB" -f $Drive, [math]::Round($volume.Size / 1GB, 1), [math]::Round(($volume.Size - $volume.SizeRemaining) / 1GB, 1), [math]::Round($volume.SizeRemaining / 1GB, 1)) -Type "Info"
-    if ($null -ne $supported) {
-        Write-ColorMessage -Message ("{0} can shrink by {1} GB" -f $Drive, [math]::Round(($supported.SizeMax - $supported.SizeMin) / 1GB, 1)) -Type "Info"
-    }
+    Write-ColorMessage -Message ("{0} can shrink by {1} MB" -f $Drive, $shrinkableMB) -Type "Info"
     if ($null -ne $blocker) {
         Write-ColorMessage -Message ("Last shrink blocker: {0}" -f $blocker) -Type "Info"
     }
@@ -444,10 +449,12 @@ function Get-ShrinkableMB {
         [Parameter(Mandatory = $true)] [string]$Drive
     )
     $driveLetter = $Drive.TrimEnd(':')
-    $partition = Get-Partition -DriveLetter $driveLetter
-    $supported = Get-PartitionSupportedSize -DriveLetter $driveLetter
+    $partition = $null
+    $supported = $null
 
     Update-HostStorageCache
+    $partition = Get-Partition -DriveLetter $driveLetter
+    $supported = Get-PartitionSupportedSize -DriveLetter $driveLetter
     return [math]::Floor(($partition.Size - $supported.SizeMin) / 1MB)
 }
 
@@ -517,6 +524,67 @@ function Clear-ShrinkBlockers {
     return $restartNeeded
 }
 
+function Invoke-NtfsPathRewrite {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Path
+    )
+    $rewritePath = '{0}{1}' -f $Path, $script:DISK_SHRINK_REWRITE_SUFFIX
+    $process = $null
+
+    if (Test-Path -LiteralPath $rewritePath) {
+        Write-ColorMessage -Message ("{0} exists from an interrupted rewrite; merge or remove it first." -f $rewritePath) -Type "Error"
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        Copy-Item -LiteralPath $Path -Destination $rewritePath -Force
+        Move-Item -LiteralPath $rewritePath -Destination $Path -Force
+        return $true
+    }
+    $process = Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList (@($Path, $rewritePath) + $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS) -NoNewWindow -Wait -PassThru
+    if ($process.ExitCode -ge $script:DISK_ROBOCOPY_FAILURE_CODE) {
+        Write-ColorMessage -Message ("robocopy failed with exit code {0}" -f $process.ExitCode) -Type "Error"
+    }
+    if (Test-Path -LiteralPath $Path) {
+        Write-ColorMessage -Message ("Some files of {0} are in use; moving the rewritten files back." -f $Path) -Type "Warning"
+        Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList (@($rewritePath, $Path) + $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS) -NoNewWindow -Wait | Out-Null
+        return $false
+    }
+    Rename-Item -LiteralPath $rewritePath -NewName (Split-Path $Path -Leaf)
+    return $true
+}
+
+function Resolve-ShrinkBlocker {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Drive,
+        [Parameter(Mandatory = $true)] [string]$Blocker
+    )
+    $blockerParts = $Blocker -split '::', 2
+    $segments = @($blockerParts[0].TrimStart('\') -split '\\')
+    $stream = if ($blockerParts.Count -gt 1) { $blockerParts[1] } else { "" }
+    $rewritePath = Join-Path ('{0}\' -f $Drive) $segments[0]
+
+    if ($segments[0] -eq $script:DISK_RECYCLE_BIN_DIR) {
+        if (-not (Read-YesNoDefaultNo -Message ("The Recycle Bin of {0} blocks the shrink. Empty it?" -f $Drive))) {
+            return $false
+        }
+        Clear-RecycleBin -DriveLetter $Drive.TrimEnd(':') -Force
+        return $true
+    }
+    if ($segments[0].StartsWith('$') -or ($segments[0] -eq $script:DISK_SYSTEM_VOLUME_INFO_DIR)) {
+        Write-ColorMessage -Message "NTFS metadata or System Volume Information cannot be moved while Windows runs." -Type "Warning"
+        return $false
+    }
+    if ($stream -ne $script:DISK_SECURITY_DESCRIPTOR_STREAM) {
+        return $false
+    }
+    Write-ColorMessage -Message "Files written by a Linux NTFS driver keep their own security descriptor, which Windows cannot move." -Type "Warning"
+    Write-ColorMessage -Message ("Rewriting {0} through Windows (robocopy move, inherited permissions) makes it movable." -f $rewritePath) -Type "Info"
+    if (-not (Read-YesNoDefaultNo -Message ("Rewrite {0}?" -f $rewritePath))) {
+        return $false
+    }
+    return (Invoke-NtfsPathRewrite -Path $rewritePath)
+}
+
 function Invoke-NtfsVolumeShrink {
     param(
         [Parameter(Mandatory = $true)] [PSCustomObject]$DriveInfo
@@ -529,6 +597,9 @@ function Invoke-NtfsVolumeShrink {
     $pass = 0
     $restartNeeded = $false
     $blocker = $null
+    $previousBlocker = $null
+    $resolved = $false
+    $stalled = $false
     $shrinkMB = 0
     $partition = $null
 
@@ -546,12 +617,19 @@ function Invoke-NtfsVolumeShrink {
     if ($shrinkableMB -lt $targetMB) {
         $restartNeeded = Clear-ShrinkBlockers -Drive $drive
     }
-    while (($shrinkableMB -lt $targetMB) -and ($shrinkableMB -gt $previousMB) -and ($pass -lt $script:DISK_SHRINK_MAX_PASSES)) {
+    while (($shrinkableMB -lt $targetMB) -and (-not $stalled) -and ($pass -lt $script:DISK_SHRINK_MAX_PASSES)) {
         $pass++
         $previousMB = $shrinkableMB
-        Write-ColorMessage -Message ("[pass {0}/{1}] defrag {2} {3}" -f $pass, $script:DISK_SHRINK_MAX_PASSES, $drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
-        Invoke-ShrinkDefrag -Drive $drive
+        $blocker = Get-LastUnmovableFile -Drive $drive
+        Write-ColorMessage -Message ("[pass {0}/{1}] shrink blocker: {2}" -f $pass, $script:DISK_SHRINK_MAX_PASSES, $blocker) -Type "Info"
+        $resolved = ($null -ne $blocker) -and ($blocker -ne $previousBlocker) -and (Resolve-ShrinkBlocker -Drive $drive -Blocker $blocker)
+        if (-not $resolved) {
+            Write-ColorMessage -Message ("defrag {0} {1}" -f $drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
+            Invoke-ShrinkDefrag -Drive $drive
+        }
+        $previousBlocker = $blocker
         $shrinkableMB = Get-ShrinkableMB -Drive $drive
+        $stalled = (-not $resolved) -and ($shrinkableMB -le $previousMB)
         Write-ColorMessage -Message ("{0} can shrink by {1} MB" -f $drive, $shrinkableMB) -Type "Info"
     }
 

@@ -4,7 +4,8 @@
 .DESCRIPTION
     One idempotent action per NTFS drive: reset TxF, chkdsk /f when the read-only check
     finds errors (at restart if busy), restore the USN journal, consolidate free space
-    for shrinking. Run it again after a restart to continue.
+    for shrinking. Run it again after a restart to continue. Shrink clears movable
+    blockers (shadow copies, USN journal, page file) on confirmation and resizes the partition.
 #>
 
 #region Variable Declarations
@@ -35,6 +36,10 @@ function Show-NtfsLinuxRepairMenu {
         $menuItems += @{
             Text   = ("Repair {0,-4}{1,-16}{2,10} GB{3,10} GB free  {4}" -f $driveInfo.Drive, $driveInfo.Label, $driveInfo.SizeGB, $driveInfo.FreeGB, (Get-DriveNotes -DriveInfo $driveInfo))
             Action = [scriptblock]::Create(("Invoke-NtfsLinuxRepair -DriveInfo (Get-RepairableDrives | Where-Object {{ `$_.Drive -eq '{0}' }} | Select-Object -First 1)" -f $driveInfo.Drive))
+        }
+        $menuItems += @{
+            Text   = ("Shrink {0,-4}{1,-16}(free unallocated space, default {2} MB)" -f $driveInfo.Drive, $driveInfo.Label, $script:DISK_SHRINK_DEFAULT_MB)
+            Action = [scriptblock]::Create(("Invoke-NtfsVolumeShrink -DriveInfo (Get-RepairableDrives | Where-Object {{ `$_.Drive -eq '{0}' }} | Select-Object -First 1)" -f $driveInfo.Drive))
         }
     }
     Show-NumberedMenu -Title "Management & Backup > System Tools > NTFS repair after Linux" -Items $menuItems
