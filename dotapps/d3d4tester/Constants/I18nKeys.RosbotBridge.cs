@@ -192,6 +192,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeBuildSkillSwitchImage = "ui.rosbot_bridge.build_skill_switch_image";
     public const string RosbotBridgeBuildSkillSwitchImageDesc = "ui.rosbot_bridge.build_skill_switch_image_desc";
     public const string RosbotBridgeBuildSkillSwitchRequirements = "ui.rosbot_bridge.build_skill_switch_requirements";
+    public const string RosbotBridgeBuildSkillSwitchReuseCache = "ui.rosbot_bridge.build_skill_switch_reuse_cache";
+    public const string RosbotBridgeBuildSkillSwitchReuseCacheDesc = "ui.rosbot_bridge.build_skill_switch_reuse_cache_desc";
     public const string RosbotBridgeBuildSkillSwitchStart = "ui.rosbot_bridge.build_skill_switch_start";
     public const string RosbotBridgeBuildSkillSwitchRunning = "ui.rosbot_bridge.build_skill_switch_running";
     public const string RosbotBridgeBuildSkillSwitchBusy = "ui.rosbot_bridge.build_skill_switch_busy";

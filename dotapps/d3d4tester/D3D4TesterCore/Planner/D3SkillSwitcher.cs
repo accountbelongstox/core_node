@@ -98,6 +98,7 @@ public static class D3SkillSwitcher
     private const double IconThreshold = 0.75;
     private const double IconGrayZone = 0.60;
     private const int PaneOpenMinIcons = 3;
+    private const int PassiveChooserMinIcons = 2;
     private const int SizeStepDivisor = 300;
     private const int AfterKeyMs = 900;
     private const int AfterClickMs = 800;
@@ -213,18 +214,23 @@ public static class D3SkillSwitcher
     }
 
     public static SkillSwitchResult Run(PlannerProfile profile, string cls, string cacheDir, SkillSwitchMethod method,
-        Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null)
+        Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null, bool reuseCache = false)
     {
         var watch = Stopwatch.StartNew();
         _progress = progress;
         _plannedSkillKeys = profile.Skills.Select(s => s.Id).Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.Ordinal).ToArray();
         _fullSearch = false;
-        _layout = D3UiLayout.Shared;
-        // rune / skill icon positions learned before the layout was shared (button places are calibrated per dialog now)
-        if (Path.Combine(cacheDir, LegacyLayoutFileName) is var legacy && File.Exists(legacy)
-            && _layout.Import(LayoutCache.Load(legacy, UiFrame), k => !k.StartsWith(D3UiLayout.TemplatePrefix, StringComparison.Ordinal)) is > 0 and var imported)
-            ColorPrinter.Gray($"{LogTag} {imported} learned position(s) imported from {legacy}");
-        ColorPrinter.Gray($"{LogTag} layout: {_layout.Count} calibrated / learned position(s)");
+        // without the cache everything is recognized in full every time (the original path, kept as the redundant fallback)
+        _layout = reuseCache ? D3UiLayout.Shared : null;
+        if (_layout != null)
+        {
+            // rune / skill icon positions learned before the layout was shared (button places are calibrated per dialog now)
+            if (Path.Combine(cacheDir, LegacyLayoutFileName) is var legacy && File.Exists(legacy)
+                && _layout.Import(LayoutCache.Load(legacy, UiFrame), k => !k.StartsWith(D3UiLayout.TemplatePrefix, StringComparison.Ordinal)) is > 0 and var imported)
+                ColorPrinter.Gray($"{LogTag} {imported} learned position(s) imported from {legacy}");
+            ColorPrinter.Gray($"{LogTag} layout cache on: {_layout.Count} calibrated / learned position(s)");
+        }
+        else ColorPrinter.Gray($"{LogTag} layout cache off: full recognition");
         var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
         var restore = Expand(hwnd);
         SkillSwitchResult result;
@@ -311,7 +317,13 @@ public static class D3SkillSwitcher
             if (passives.Count > 0 && !passivesOk && !shouldStop())
             {
                 passivesChanged = SetPassives(passives, cls, cacheDir);
-                OpenPane(cls, cacheDir);
+            }
+            // the image check reads the pane: make sure it is open (something may have closed it meanwhile), one more try after a pause
+            if (method == SkillSwitchMethod.Image && !OpenPane(cls, cacheDir))
+            {
+                Thread.Sleep(AfterKeyMs);
+                if (!OpenPane(cls, cacheDir))
+                    return Result(SkillSwitchOutcome.Partial, skillsChanged, passivesChanged, 0, $"{skillsChanged} skill(s), {passivesChanged} passive(s) set, skill pane not open for the check");
             }
             int mismatches = Verify(method, pluginCheck, skills, passives, cls, cacheDir);
             var outcome = mismatches == 0 ? SkillSwitchOutcome.Done : SkillSwitchOutcome.Partial;
@@ -353,7 +365,22 @@ public static class D3SkillSwitcher
         // stop once the pane is certain (PaneOpenMinIcons slots show a skill) or impossible (too few slots left)
         for (int slot = 0; slot < SlotCount && icons < PaneOpenMinIcons && icons + SlotCount - slot >= PaneOpenMinIcons; slot++)
             if (AnyIconAt(shot, PaneSlotIcon[slot], keys, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key))) icons++;
-        return icons >= PaneOpenMinIcons ? UiState.Pane : UiState.World;
+        if (icons >= PaneOpenMinIcons) return UiState.Pane;
+        return PassiveChooserShown(shot, cls, cacheDir) ? UiState.PassiveChooser : UiState.World;
+    }
+
+    /// <summary>
+    /// Second sign of the passive chooser when its Accept button is not matched (greyed while nothing changed, or covered): class
+    /// passive icons in at least PassiveChooserMinIcons of its four top slots.
+    /// </summary>
+    private static bool PassiveChooserShown(Shot shot, string cls, string cacheDir)
+    {
+        var keys = IconKeys(Path.GetDirectoryName(D3SkillIcons.PassiveIconPath(cacheDir, cls, "_"))!).ToList();
+        if (keys.Count == 0) return false;
+        int icons = 0;
+        for (int slot = 0; slot < PassiveTopSlots.Length && icons < PassiveChooserMinIcons && icons + PassiveTopSlots.Length - slot >= PassiveChooserMinIcons; slot++)
+            if (AnyIconAt(shot, PassiveTopSlots[slot], keys, key => D3SkillIcons.PassiveIconPath(cacheDir, cls, key))) icons++;
+        return icons >= PassiveChooserMinIcons;
     }
 
     /// <summary>
@@ -369,7 +396,7 @@ public static class D3SkillSwitcher
     /// </summary>
     private static bool FallBackToFullSearch(string why)
     {
-        if (_fullSearch) return false;
+        if (_layout == null || _fullSearch) return false;
         _fullSearch = true;
         ColorPrinter.Yellow($"{LogTag} {why} with the calibrated layout: searching whole captures for the rest of the run");
         Report(SkillSwitchStage.Screen, null, $"{why} with the calibrated layout: whole-capture search, retry");
@@ -426,12 +453,13 @@ public static class D3SkillSwitcher
     /// click that only activates its window, and another program may take the foreground in between.
     /// </summary>
     private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
-        SkillSwitchStage stage, UiState? requires = null) =>
-        ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires)
-        || (FallBackToFullSearch($"{what}: {expected} not shown") && ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires));
+        SkillSwitchStage stage, UiState? requires = null, UiState? shownFor = null) =>
+        ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires, shownFor)
+        || (FallBackToFullSearch($"{what}: {expected} not shown") && ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires, shownFor));
 
+    /// <summary>One round of ClickUntil; shownFor = the screen the target belongs to: when it is gone (closed by something else) the round stops at once.</summary>
     private static bool ClickUntilOnce(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
-        SkillSwitchStage stage, UiState? requires)
+        SkillSwitchStage stage, UiState? requires, UiState? shownFor)
     {
         for (int attempt = 1; attempt <= Attempts; attempt++)
         {
@@ -442,6 +470,12 @@ public static class D3SkillSwitcher
             {
                 if (point(shot) is not { } at)
                 {
+                    if (shownFor is { } screen && State(shot, cls, cacheDir) is var now && now != screen)
+                    {
+                        ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt}, {screen} closed by something else ({now} shown)");
+                        Report(stage, false, $"{what}: {screen} closed by something else ({now} shown), step redone", shot);
+                        return false;
+                    }
                     // a tooltip under the cursor may cover the target: move the cursor away and look again
                     ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt}, target not on screen");
                     Report(stage, false, $"{what}: attempt {attempt}, target not on screen (cursor parked, retry)", shot);
@@ -719,7 +753,7 @@ public static class D3SkillSwitcher
         try { Task.WaitAll(LearnTasks.ToArray()); }
         catch (AggregateException ex) { ColorPrinter.Yellow($"{LogTag} skill icon learning: {ex.InnerException?.Message}"); }
         LearnTasks.Clear();
-        D3UiLayout.Save();
+        if (_layout != null) D3UiLayout.Save();
         _layout = null;
     }
 
@@ -769,10 +803,15 @@ public static class D3SkillSwitcher
     }
 
     /// <summary>Click Accept until the chooser is gone (the expected screen shows).</summary>
-    private static bool AcceptUntil(UiState expected, string dialog, string cls, string cacheDir) =>
-        ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold, dialog) is { } b ? (b.CenterX, b.CenterY)
-            : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
-            expected, "accept", cls, cacheDir, SkillSwitchStage.Accept);
+    /// <summary>Click Accept until the chooser is gone; the OCR fallback for the button runs only while its chooser is still shown.</summary>
+    private static bool AcceptUntil(UiState expected, string dialog, string cls, string cacheDir)
+    {
+        var shownFor = dialog == DialogPassiveChooser ? UiState.PassiveChooser : UiState.SkillChooser;
+        return ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold, dialog) is { } b ? (b.CenterX, b.CenterY)
+                : State(sh, cls, cacheDir) != shownFor ? null
+                : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
+            expected, "accept", cls, cacheDir, SkillSwitchStage.Accept, shownFor: shownFor);
+    }
 
     /// <summary>Open chooser: page arrows (templates) -> icon row center line, row bounds and the next-page point (image px).</summary>
     private sealed record Chooser(int RowY, int Left, int Right, (int X, int Y) Next);
@@ -1125,7 +1164,14 @@ public static class D3SkillSwitcher
         if (Template(Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension)) is not { } template) return null;
         var widths = Enumerable.Range(0, TemplateScaleSteps)
             .Select(i => (int)Math.Round(template.Cols * shot.Scale * (TemplateScaleMin + i * TemplateScaleStep))).ToList();
-        return D3UiLayout.Locate(shot.Image, shot.Area, template, widths, threshold, D3UiLayout.TemplateKey(name, dialog), _fullSearch);
+        if (_layout == null)
+        {
+            var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(shot.Image, template, widths, threshold, name);
+            return m.Success ? m : null;
+        }
+        // the game menu's Return button sits at more than one place (menu variants): its absence is never decided by the cache alone
+        return D3UiLayout.Locate(shot.Image, shot.Area, template, widths, threshold, D3UiLayout.TemplateKey(name, dialog),
+            _fullSearch || dialog == DialogGameMenu);
     }
 
     private static IEnumerable<string> SkillKeys(string cls, string cacheDir) => IconKeys(Path.GetDirectoryName(D3SkillIcons.SkillIconPath(cacheDir, cls, "_"))!);
