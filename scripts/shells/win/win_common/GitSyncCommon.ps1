@@ -576,6 +576,59 @@ function Write-GitSyncAiPrompt {
     Write-Host $script:GitSyncPromptSeparator
 }
 
+# =============================================================================
+# Local-only files (code_sync.local_only_paths, also in .gitignore)
+# =============================================================================
+# .gitignore does not apply to a file that is already tracked, so every `git add .`
+# re-committed these per-machine files and they conflicted between machines. They
+# leave the index (the working copy stays) and survive every pull byte for byte.
+
+function Get-GitSyncLocalOnlyPaths {
+    return @(Get-ServiceContractValue -ContractPath "code_sync.local_only_paths" | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+}
+
+function Remove-GitSyncLocalOnlyFromIndex {
+    <#
+    .SYNOPSIS
+        Untracks every local-only path still in the index (also resolves a
+        conflict on it as deleted); the file on disk is kept.
+    #>
+    $localOnlyPath = ''
+    foreach ($localOnlyPath in (Get-GitSyncLocalOnlyPaths)) {
+        if ([string]::IsNullOrWhiteSpace((git ls-files -- $localOnlyPath | Out-String))) { continue }
+        Write-Host "[gitsync] Untracking local-only file (kept on disk): $localOnlyPath"
+        git rm --cached --quiet -- $localOnlyPath
+    }
+}
+
+function Backup-GitSyncLocalOnlyFiles {
+    param([Parameter(Mandatory = $true)] [string]$RepoRoot)
+    $backup = @{}
+    $localOnlyPath = ''
+    $localOnlyFile = ''
+    foreach ($localOnlyPath in (Get-GitSyncLocalOnlyPaths)) {
+        $localOnlyFile = Join-Path -Path $RepoRoot -ChildPath $localOnlyPath
+        if (Test-Path -LiteralPath $localOnlyFile -PathType Leaf) {
+            $backup[$localOnlyFile] = [System.IO.File]::ReadAllBytes($localOnlyFile)
+        }
+    }
+    return $backup
+}
+
+function Restore-GitSyncLocalOnlyFiles {
+    <#
+    .SYNOPSIS
+        Puts this machine's local-only files back after a pull (a merge may
+        overwrite or delete an ignored file) and untracks them again.
+    #>
+    param([Parameter(Mandatory = $true)] [hashtable]$Backup)
+    $localOnlyFile = ''
+    foreach ($localOnlyFile in $Backup.Keys) {
+        [System.IO.File]::WriteAllBytes($localOnlyFile, $Backup[$localOnlyFile])
+    }
+    Remove-GitSyncLocalOnlyFromIndex
+}
+
 function Resume-GitSyncPendingState {
     <#
     .SYNOPSIS
@@ -606,6 +659,7 @@ function Resume-GitSyncPendingState {
         return $true
     }
 
+    Remove-GitSyncLocalOnlyFromIndex
     $unmergedOutput = (git diff --name-only --diff-filter=U 2>$null | Out-String)
     if (-not [string]::IsNullOrWhiteSpace($unmergedOutput)) {
         Write-Host "[gitsync] ERROR: unresolved conflicts. Push skipped."
@@ -682,6 +736,7 @@ function Invoke-GitSyncRun {
             return $true
         }
 
+        Remove-GitSyncLocalOnlyFromIndex
         Write-Host "[gitsync] Executing: git add ."
         git add .
         if ($LASTEXITCODE -ne 0) {
@@ -702,11 +757,18 @@ function Invoke-GitSyncRun {
             }
         }
 
+        $localOnlyBackup = Backup-GitSyncLocalOnlyFiles -RepoRoot $RepoRoot
         Write-Host "[gitsync] Executing: git pull --no-rebase origin $script:GitSyncTargetBranch"
         git pull --no-rebase origin $script:GitSyncTargetBranch
+        Restore-GitSyncLocalOnlyFiles -Backup $localOnlyBackup
 
         $unmergedOutput = (git diff --name-only --diff-filter=U | Out-String)
         $mergeHeadPath = Join-Path -Path (Get-GitSyncGitDir -RepoRoot $RepoRoot) -ChildPath $script:GitSyncMergeHeadName
+        # A merge whose only conflicts were local-only paths is complete once they are untracked.
+        if ([string]::IsNullOrWhiteSpace($unmergedOutput) -and (Test-Path -LiteralPath $mergeHeadPath)) {
+            Write-Host "[gitsync] Concluding merge (only local-only paths conflicted): git commit --no-edit"
+            git commit --no-edit
+        }
         if (-not [string]::IsNullOrWhiteSpace($unmergedOutput) -or (Test-Path -LiteralPath $mergeHeadPath)) {
             Write-Host "[gitsync] ERROR: pull produced conflicts. Push skipped."
             Write-Host "[gitsync] Conflicted paths:"

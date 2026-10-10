@@ -39,7 +39,7 @@ public sealed class DynamicMethodInvoker
     }
 
     public IReadOnlyList<DynamicMethodInvocationReport> InvokeStatics(string targetPath,
-        IEnumerable<int> methodTokens, TimeSpan? methodTimeout = null)
+        IEnumerable<int> methodTokens, TimeSpan? methodTimeout = null, Action? initialized = null)
     {
         string fullTargetPath = Path.GetFullPath(targetPath);
         Assembly assembly;
@@ -63,6 +63,7 @@ public sealed class DynamicMethodInvoker
         assembly = Assembly.LoadFrom(fullTargetPath);
         module = assembly.ManifestModule;
         RuntimeHelpers.RunModuleConstructor(module.ModuleHandle);
+        initialized?.Invoke();
         foreach (int token in tokens)
         {
             MethodBase method = ResolveMethod(module, token);

@@ -84,7 +84,13 @@ public sealed class DynamicMethodAcquirer
         MethodDefinition[] methods = module.GetAllTypes().SelectMany(type => type.Methods)
             .Where(method => method.CilMethodBody != null)
             .Where(method => !options.MethodToken.HasValue || method.MetadataToken.ToInt32() == options.MethodToken.Value)
+            .Where(method => options.MethodTokens == null || options.MethodTokens.Contains(method.MetadataToken.ToInt32()))
             .ToArray();
+        if (options.CompilationDelay < TimeSpan.Zero || options.CompilationDelay > TimeSpan.FromMinutes(1))
+            throw new ArgumentOutOfRangeException(nameof(options.CompilationDelay));
+        _log($"Compilation ready: process={Process.GetCurrentProcess().Id}, selected={methods.Length}.");
+        if (options.CompilationDelay > TimeSpan.Zero)
+            System.Threading.Thread.Sleep(options.CompilationDelay);
         var stopwatch = Stopwatch.StartNew();
         foreach (MethodDefinition method in methods)
             CaptureMethod(moduleHandle, method, options.CompilationMode);
@@ -182,14 +188,7 @@ public sealed class DynamicMethodAcquirer
             bodyReader.ReadInstructions(codeHandle.AddrOfPinnedObject(), candidate.CilCode.Length);
             bodyReader.ReadExceptionHandlers(exceptionHandle.AddrOfPinnedObject(), candidate.ExceptionHandlerCount);
             bodyReader.Body.VerifyLabels();
-            try
-            {
-                bodyReader.Body.MaxStack = bodyReader.Body.ComputeMaxStack();
-            }
-            catch (Exception exception)
-            {
-                _log($"Preserving the original max-stack fallback for {_currentMethod.MetadataToken}: {exception.Message}");
-            }
+            bodyReader.Body.MaxStack = bodyReader.Body.ComputeMaxStack();
             long candidateScore = (DnGuardMethodBodyClassifier.IsPlaceholder(bodyReader.Body) ? 0L : 1L << 32)
                 + candidate.CilCode.Length;
             if (candidateScore > _bestCandidateScore)

@@ -487,6 +487,9 @@
         "conflict_doc": "docs_fix/GITSYNC_MERGE_CONFLICT.md",
         "conflict_readme": "docs_fix/README.md",
         "conflict_readme_marker": "<!-- GITSYNC_MERGE_CONFLICT -->",
+        "local_only_paths": [
+            ".claude/settings.local.json"
+        ],
         "conflict_ai_prompt": "The core_node repository at {repo} has an unresolved git merge conflict from gitsync. {context}Resolve every conflicted file so that all features from both the remote and this machine are kept. Then git add the files, finish the merge with git commit --no-edit, and run the project's gitsync to push.{cleanup}",
         "conflict_ai_prompt_doc": "Read {doc} first. ",
         "conflict_ai_prompt_cleanup": " Then delete {doc} and the first line of {readme} that starts with {marker}.",

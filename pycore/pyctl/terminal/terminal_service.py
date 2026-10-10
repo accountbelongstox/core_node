@@ -315,6 +315,18 @@ class TerminalService:
     ) -> Optional[Dict[str, Any]]:
         return self._screenshot_cache.read_resource(window_id, digest)
 
+    def capture_live_screenshot(self, window_id: str) -> Optional[Dict[str, Any]]:
+        """Frame of an online window grabbed for this request, not the newest leased one."""
+        if not window_id or is_virtual_window(window_id):
+            return None
+        window = self._collector.online_window(window_id)
+        if window is None or window.get("virtual"):
+            return None
+        frame = self._capture_window_screenshot(window)
+        if frame is None:
+            return None
+        return self._screenshot_cache.read_resource(window_id, str(frame.get("digest") or ""))
+
     def screenshot_captured_at(self, window_id: str) -> int:
         """Capture time (ms) of the window's newest changed frame, 0 when it has none."""
         frame = self._screenshot_cache.metadata(window_id)

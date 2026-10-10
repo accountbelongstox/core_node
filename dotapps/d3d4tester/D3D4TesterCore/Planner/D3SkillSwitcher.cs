@@ -113,7 +113,10 @@ public static class D3SkillSwitcher
     private const double OcrUpscale = 2.0;
     /// <summary>PaddleOCR max_side_len: longer inputs are shrunk before recognition.</summary>
     private const int OcrMaxSide = 960;
-    private const int OcrTileOverlap = 40;
+    /// <summary>Tile overlap wider than a skill / passive name, so every name is whole in at least one tile.</summary>
+    private const int OcrTileOverlap = 120;
+    /// <summary>Two reads on one line whose left edges are closer than this many text heights are the same word.</summary>
+    private const double OcrSameWordHeights = 3.0;
     private const double IconLeftHeights = 2.2;
     /// <summary>Passive list icon size in reference client px (learned crops).</summary>
     private const int LearnIconRefPx = 34;
@@ -215,6 +218,13 @@ public static class D3SkillSwitcher
                     continue;
                 }
                 var step = SetSkill(slot, target, cls, cacheDir);
+                if (step == SkillSwitchOutcome.ChooserNotOpen)
+                {
+                    // something else closed the chooser or opened another panel meanwhile: back to the pane and redo the slot once
+                    ColorPrinter.Yellow($"{LogTag} slot {slot} interrupted, redoing it");
+                    Report(SkillSwitchStage.Screen, null, $"slot {slot} interrupted (chooser closed by something else), redo");
+                    if (OpenPane(cls, cacheDir)) step = SetSkill(slot, target, cls, cacheDir);
+                }
                 if (step is SkillSwitchOutcome.SkillNotInList or SkillSwitchOutcome.ChooserNotOpen or SkillSwitchOutcome.NoGameWindow)
                     return Result(step, skillsChanged, 0, 0, target.Id);
                 if (step == SkillSwitchOutcome.Done) skillsChanged++;
@@ -700,11 +710,13 @@ public static class D3SkillSwitcher
         using (pane.Image)
         {
             var keys = passives.Select(p => p.Id).ToList();
-            var shown = PanePassiveSlots.Select(slot => BestIconAt(pane, slot, keys, k => D3SkillIcons.PassiveIconPath(cacheDir, cls, k)))
-                .Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
+            var slots = PanePassiveSlots.Select(slot => BestIconAt(pane, slot, keys, k => D3SkillIcons.PassiveIconPath(cacheDir, cls, k))).ToList();
+            var shown = slots.Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
             int passiveMismatches = keys.Count(k => !shown.Contains(k));
-            if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))}");
-            Report(SkillSwitchStage.Verify, skillMismatches + passiveMismatches == 0, $"skills off {skillMismatches}, passives missing [{string.Join(", ", keys.Where(k => !shown.Contains(k)))}]", pane);
+            string scores = string.Join(", ", slots.Select(b => $"{b.Key ?? "-"} {b.Score:F2}"));
+            if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))} (slots: {scores})");
+            Report(SkillSwitchStage.Verify, skillMismatches + passiveMismatches == 0,
+                $"skills off {skillMismatches}, passives missing [{string.Join(", ", keys.Where(k => !shown.Contains(k)))}], pane slots [{scores}]", pane);
             return skillMismatches + passiveMismatches;
         }
     }
@@ -823,8 +835,11 @@ public static class D3SkillSwitcher
                     var (x, y) = OcrBbox.Center(box);
                     var word = new Word(w.Text, (part.X + (int)(x / OcrUpscale), part.Y + (int)(y / OcrUpscale)), part.X + (int)(box.MinX / OcrUpscale),
                         part.Y + (int)(box.MinY / OcrUpscale), Math.Max(1, (int)((box.MaxY - box.MinY) / OcrUpscale)));
-                    if (words.Any(o => Math.Abs(o.Center.X - word.Center.X) < word.Height && Math.Abs(o.Center.Y - word.Center.Y) < word.Height)) continue;
-                    words.Add(word);
+                    // the same text read in two overlapping tiles: keep the longer read (a tile edge may have cut the other one)
+                    int same = words.FindIndex(o => Math.Abs(o.Center.Y - word.Center.Y) < word.Height
+                        && o.Left < word.Left + word.Height * OcrSameWordHeights && word.Left < o.Left + o.Height * OcrSameWordHeights);
+                    if (same < 0) words.Add(word);
+                    else if (FuzzyText.Normalize(word.Text).Length > FuzzyText.Normalize(words[same].Text).Length) words[same] = word;
                 }
                 if (part.Right >= area.Right) break;
             }

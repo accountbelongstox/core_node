@@ -325,6 +325,47 @@ git_sync_print_ai_prompt() {
     echo "$GIT_SYNC_PROMPT_SEPARATOR" >&2
 }
 
+# Local-only files (code_sync.local_only_paths, also in .gitignore): .gitignore
+# does not apply to a file that is already tracked, so every `git add .`
+# re-committed these per-machine files and they conflicted between machines.
+# They leave the index (the working copy stays) and survive every pull byte for byte.
+
+# Untracks every local-only path still in the index (also resolves a conflict
+# on it as deleted); the file on disk is kept.
+git_sync_untrack_local_only() {
+    local local_only_path=""
+    for local_only_path in $(sc_list code_sync.local_only_paths); do
+        [ -n "$(git ls-files -- "$local_only_path")" ] || continue
+        echo "[gitsync] Untracking local-only file (kept on disk): $local_only_path"
+        git rm --cached --quiet -- "$local_only_path"
+    done
+}
+
+# git_sync_backup_local_only BACKUP_DIR -> copies the existing local-only files.
+git_sync_backup_local_only() {
+    local backup_dir="$1"
+    local local_only_path=""
+    for local_only_path in $(sc_list code_sync.local_only_paths); do
+        [ -f "$local_only_path" ] || continue
+        mkdir -p "$backup_dir/$(dirname "$local_only_path")"
+        cp -p -- "$local_only_path" "$backup_dir/$local_only_path"
+    done
+}
+
+# git_sync_restore_local_only BACKUP_DIR -> puts this machine's local-only files back
+# after a pull (a merge may overwrite or delete an ignored file) and untracks them again.
+git_sync_restore_local_only() {
+    local backup_dir="$1"
+    local local_only_path=""
+    for local_only_path in $(sc_list code_sync.local_only_paths); do
+        [ -f "$backup_dir/$local_only_path" ] || continue
+        mkdir -p "$(dirname "$local_only_path")"
+        cp -p -- "$backup_dir/$local_only_path" "$local_only_path"
+    done
+    rm -rf -- "$backup_dir"
+    git_sync_untrack_local_only
+}
+
 # Resumes an interrupted sync: stops on an unfinished rebase/cherry-pick or
 # unresolved merge conflicts, and concludes a merge whose conflicts are all
 # resolved so the following pull/push can proceed.
@@ -340,6 +381,9 @@ git_sync_resume_pending_state() {
         fi
     done
 
+    if [ "$dry_run" != "true" ]; then
+        git_sync_untrack_local_only
+    fi
     unmerged="$(git diff --name-only --diff-filter=U 2>/dev/null)"
     if [ -n "$unmerged" ]; then
         echo "[gitsync] ERROR: unresolved conflicts. Push skipped." >&2
@@ -406,6 +450,7 @@ git_sync_run() {
         return 0
     fi
 
+    git_sync_untrack_local_only
     echo "[gitsync] Executing: git add ."
     git add . || return 1
     if git diff --cached --quiet; then
@@ -416,11 +461,19 @@ git_sync_run() {
         git commit -m "$commit_message" || return 1
     fi
 
-    local unmerged_output unpushed_count
+    local unmerged_output unpushed_count local_only_backup
+    local_only_backup="$(mktemp -d)"
+    git_sync_backup_local_only "$local_only_backup"
     echo "[gitsync] Executing: git pull --no-rebase origin $GIT_SYNC_TARGET_BRANCH"
     git pull --no-rebase origin "$GIT_SYNC_TARGET_BRANCH"
+    git_sync_restore_local_only "$local_only_backup"
 
     unmerged_output="$(git diff --name-only --diff-filter=U)"
+    # A merge whose only conflicts were local-only paths is complete once they are untracked.
+    if [ -z "$unmerged_output" ] && [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+        echo "[gitsync] Concluding merge (only local-only paths conflicted): git commit --no-edit"
+        git commit --no-edit
+    fi
     if [ -n "$unmerged_output" ] || [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
         echo "[gitsync] ERROR: pull produced conflicts. Push skipped." >&2
         echo "[gitsync] Conflicted paths:" >&2

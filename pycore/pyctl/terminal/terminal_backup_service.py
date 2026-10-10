@@ -53,6 +53,7 @@ LOW_BATTERY_PERCENT = relay_contract.limit("terminal_backup_low_battery_percent"
 MIN_IDLE_SECONDS = relay_contract.limit("terminal_backup_min_idle_seconds")
 DEFER_RETRY_SECONDS = relay_contract.limit("terminal_backup_defer_retry_seconds")
 SETTLE_SECONDS = relay_contract.limit("terminal_backup_settle_seconds")
+SHUTDOWN_BUDGET_SECONDS = relay_contract.limit("terminal_backup_shutdown_budget_seconds")
 PLAIN_RECHECK_SECONDS = relay_contract.limit("terminal_backup_plain_recheck_seconds")
 INPUT_TIMESTAMP_TOLERANCE_SECONDS = 1.0
 SCHEDULER_LOCK_TARGET = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "scheduler"
@@ -424,12 +425,19 @@ class TerminalBackupService:
         finally:
             self._pass_lock.release()
 
-    def run_pass(self, forced: bool = False, reason: str = REASON_INTERVAL) -> Dict[str, Any]:
-        """One backup pass; never raises. Result: success, written, deferred, error_code."""
-        if not self._pass_lock.acquire(blocking=forced):
+    def run_pass(
+        self, forced: bool = False, reason: str = REASON_INTERVAL, budget_seconds: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """One backup pass; never raises. A budget bounds the wait and the scan; unscanned terminals keep their newest entries."""
+        deadline = time.monotonic() + budget_seconds if budget_seconds is not None else None
+        acquired = (
+            self._pass_lock.acquire(timeout=budget_seconds) if forced and budget_seconds is not None
+            else self._pass_lock.acquire(blocking=forced)
+        )
+        if not acquired:
             return {"success": True, "written": False, "busy": True}
         try:
-            result = self._pass(forced, reason)
+            result = self._pass(forced, reason, deadline)
             if not result.get("deferred"):
                 self._deferred_logged = False
                 if result.get("success"):
@@ -441,7 +449,7 @@ class TerminalBackupService:
         finally:
             self._pass_lock.release()
 
-    def _pass(self, forced: bool, reason: str) -> Dict[str, Any]:
+    def _pass(self, forced: bool, reason: str, deadline: Optional[float] = None) -> Dict[str, Any]:
         """Scan terminals in order; input pauses the pass and the next idle pass resumes at the interrupted terminal."""
         if self._user_active():
             return self._deferred()
@@ -461,9 +469,17 @@ class TerminalBackupService:
         exported = [entry for entry in self._pass_partial if entry["number"] in live]
         previous = self._store.previous_signatures()
         paused_at: Optional[int] = None
+        truncated: List[int] = []
         for index, window in enumerate(queue):
-            if not forced and self._user_active():
+            if not forced and (self._user_active() or self._stopping()):
                 paused_at = index
+                break
+            if deadline is not None and time.monotonic() >= deadline:
+                truncated = [int(pending["terminal_number"]) for pending in queue[index:]]
+                ColorPrint.yellow(
+                    f"[{LABEL}] pass budget reached reason={reason}: scanned={len(exported)} "
+                    f"kept_previous={len(truncated)}"
+                )
                 break
             entry, found_prompt = self._scan_isolated(window)
             self._observe_prompt(window, entry, found_prompt, count_miss=False)
@@ -482,7 +498,7 @@ class TerminalBackupService:
         self._alert_waiting_prompts(exported)
         if not forced and not any(entry["changed"] for entry in exported):
             return {"success": True, "written": False, "terminal_count": len(exported), "skipped": len(skipped)}
-        saved = self._store.save(exported, carry_numbers=skipped)
+        saved = self._store.save(exported, carry_numbers=[*skipped, *truncated])
         if not saved.get("success"):
             return {**saved, "written": False}
         failed = sum(1 for entry in exported if entry.get("error_code"))
@@ -693,7 +709,7 @@ class TerminalBackupService:
             ColorPrint.blue(f"[{LABEL}] automatic backup paused: no final backup before shutdown")
         else:
             ColorPrint.blue(f"[{LABEL}] final backup before shutdown")
-            self.run_pass(forced=True, reason=REASON_SHUTDOWN)
+            self.run_pass(forced=True, reason=REASON_SHUTDOWN, budget_seconds=SHUTDOWN_BUDGET_SECONDS)
         lease, self._lease = self._lease, None
         if lease is not None:
             self._lease_lock.release_hold(lease)

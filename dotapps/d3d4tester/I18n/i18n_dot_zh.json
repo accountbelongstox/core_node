@@ -997,6 +997,8 @@
       "build_loading": "正在读取配装...",
       "build_load_failed": "配装读取失败：{0}",
       "build_loaded": "{0}（{1}），{2} 件装备",
+      "build_duplicate": "未添加：{0} 套配装方案都已存在（技能、符文、被动、装备、魔方、随从完全相同）",
+      "build_duplicates_skipped": "跳过 {0} 套重复的配装方案",
       "build_none": "粘贴 maxroll 配装链接",
       "build_profile": "装备方案",
       "build_notify": "掉落/拾取提示",

@@ -1166,6 +1166,10 @@
       "path": "ui/terminal/screenshot",
       "method": "GET"
     },
+    "terminalLiveScreenshot": {
+      "path": "ui/terminal/live_screenshot",
+      "method": "GET"
+    },
     "terminalScreenshotText": {
       "path": "ui/terminal/screenshot_text",
       "method": "POST"
