@@ -1702,6 +1702,7 @@ export const cmZh: CmTranslationDict = {
       reviewers: '评审员申请',
       contact: '联系留言',
       activity: '操作日志',
+      brandGallery: '品牌图库',
     },
     metrics: {
       users: '用户总数',
