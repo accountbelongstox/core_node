@@ -66,11 +66,13 @@ public static class MonitorActions
     public const string SendKeys = "send_keys";
     public const string Notify = "notify";
     public const string SetSequence = "set_sequence";
+    /// <summary>Return to town and stand by (CoreNodeBridge town standby): monitoring and ROSBOT paused, game kept.</summary>
+    public const string TownStandby = "town_standby";
 
     public static IReadOnlyList<string> All { get; } = new[]
     {
         WriteLog, StartMonitoring, StopMonitoring, PauseMonitoring, ResumeMonitoring, StopBotF7, StopBotF9, CloseBot, RestartBot, RestartBotWithBattlenet, TakeScreenshot,
-        GameSpeed, TownPortal, QuickQuit, UnstuckMove, ExecuteCommand, SendKeys, Notify, SetSequence
+        GameSpeed, TownPortal, TownStandby, QuickQuit, UnstuckMove, ExecuteCommand, SendKeys, Notify, SetSequence
     };
 }
 

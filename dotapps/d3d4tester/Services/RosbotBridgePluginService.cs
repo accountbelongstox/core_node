@@ -8,6 +8,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Bridge;
 using DotApps.d3d4tester.Core.Flow;
+using DotApps.d3d4tester.Ctl;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Services;
@@ -19,7 +20,8 @@ public sealed record RosbotBridgePluginInfo(string? RosDirectory, string? Instal
 
 /// <summary>
 /// This app's ROSBOT plugin (CoreNodeBridge): install / refresh it in &lt;ROSBOT&gt;\plugins\CoreNodeBridge (idempotent, by
-/// content hash; also automatically on startup and whenever ros_settings.ros_directory changes, unless switched off), publish the
+/// content hash; also automatically on startup, before every ROSBOT start (ROSBOT does not hold the DLL then, so a rebuilt plugin
+/// always lands) and whenever ros_settings.ros_directory changes, unless switched off), publish the
 /// state.json it writes into GameInterfaceData once per second (TickDriver; the single source for the bottom bar, the bridge panel
 /// and the planner), and keep user names for level-area SNO ids (rosbot_area_names.json in the user data dir).
 /// ROSBOT loads plugins at its start, so a refreshed DLL is used after the next ROSBOT start; enable it once in ROSBOT's plugin list.
@@ -28,6 +30,9 @@ public static class RosbotBridgePluginService
 {
     private const string LogTag = "[RosbotBridge]";
     private const double CommandPollSec = 0.5;
+    private const double CommandFreeWaitSec = 15.0;
+    /// <summary>Time for ROSBOT to stop its current action after the pause key before a command is written.</summary>
+    public const int TakeControlSettleMs = 1500;
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true, Converters = { new RosbotBridgeDateTimeConverter() } };
     private static string? _lastReadError;
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
@@ -56,7 +61,7 @@ public static class RosbotBridgePluginService
     {
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
         TickDriver.Instance.RegisterEveryTick(_ => PublishState());
-        RosbotFlowRunner.Resumed += StopFollowOnResume;
+        RosbotFlowRunner.Resumed += ReleasePluginControlOnResume;
         D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
         {
             if (key is ConfigKeys.RosSettingsRosDirectory or ConfigKeys.RosbotBridgePluginAutoInstall) _ = Task.Run(AutoInstallIfEnabled);
@@ -64,13 +69,59 @@ public static class RosbotBridgePluginService
         _ = Task.Run(AutoInstallIfEnabled);
     }
 
-    /// <summary>Control given back to ROSBOT: end follow mode, so the plugin does not walk the hero while ROSBOT bots.</summary>
-    private static void StopFollowOnResume()
+    /// <summary>
+    /// Control given back to ROSBOT: end town standby or follow mode (they exclude each other in the plugin), so the plugin does not
+    /// move the hero while ROSBOT bots; the follow setup is kept for the next ROSBOT start.
+    /// </summary>
+    private static void ReleasePluginControlOnResume()
     {
-        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
-        if (snapshot.RosbotBridge is not { FollowEnabled: true }) return;
-        ColorPrinter.Blue($"{LogTag} resumed -> follow off (follow setup kept)");
-        SendCommand(RosbotPluginConstants.BridgeActionFollow, null, null, null, null, RosbotPluginConstants.BridgeFollowOff, rememberFollow: false);
+        var bridge = GameInterfaceData.Instance.GetStateSnapshot().RosbotBridge;
+        if (bridge is { StandbyEnabled: true })
+        {
+            ColorPrinter.Blue($"{LogTag} resumed -> town standby off");
+            _ = SendWhenFreeAsync(RosbotPluginConstants.BridgeActionStandby, RosbotPluginConstants.BridgeStandbyOff, rememberFollow: false);
+        }
+        else if (bridge is { FollowEnabled: true })
+        {
+            ColorPrinter.Blue($"{LogTag} resumed -> follow off (follow setup kept)");
+            _ = SendWhenFreeAsync(RosbotPluginConstants.BridgeActionFollow, RosbotPluginConstants.BridgeFollowOff, rememberFollow: false);
+        }
+    }
+
+    /// <summary>
+    /// Take control for the app / panel: monitoring flow halted and a botting ROSBOT paused with its own pause key (never stopped, so the
+    /// game is not left), then a short settle so ROSBOT ends its current action. No-op wait when control is already taken.
+    /// </summary>
+    public static async Task TakeControlAsync()
+    {
+        if (RosbotFlowState.Instance.Paused) return;
+        await RosbotTaskProcessor.Instance.RequestPauseFlow().ConfigureAwait(false);
+        await Task.Delay(TakeControlSettleMs).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// One-click return to town and stand by: take control (TakeControlAsync), then the plugin's town standby brings the hero home
+    /// (revive in town when dead, the town portal key via BridgeTownPortal outside town) and keeps it idle there for the panel's
+    /// commands. Ends with Resume monitoring. Returns the command id, null when the plugin is not live or the command was not taken.
+    /// </summary>
+    public static async Task<long?> EnterTownStandbyAsync()
+    {
+        if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
+        {
+            ColorPrinter.Yellow($"{LogTag} town standby not started: plugin not live");
+            return null;
+        }
+        ColorPrinter.Blue($"{LogTag} town standby: take control (ROSBOT paused, game kept) -> plugin brings the hero to town");
+        await TakeControlAsync().ConfigureAwait(false);
+        return await SendWhenFreeAsync(RosbotPluginConstants.BridgeActionStandby, RosbotPluginConstants.BridgeStandbyOn, rememberFollow: false).ConfigureAwait(false);
+    }
+
+    /// <summary>Send once command.txt is free (an earlier command is waited out up to CommandFreeWaitSec); null when it never frees.</summary>
+    private static async Task<long?> SendWhenFreeAsync(string action, string value, bool rememberFollow)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(CommandFreeWaitSec);
+        while (CommandPending && DateTime.UtcNow < deadline) await Task.Delay(TimeSpan.FromSeconds(CommandPollSec)).ConfigureAwait(false);
+        return SendCommand(action, null, null, null, null, value, rememberFollow);
     }
 
     private static void AutoInstallIfEnabled()
@@ -186,11 +237,43 @@ public static class RosbotBridgePluginService
         return id;
     }
 
-    /// <summary>Send a command and wait (polling the shared plugin state) until the plugin reports its result; null on timeout / no plugin.</summary>
+    /// <summary>
+    /// True while command.txt holds a command the plugin has not taken yet (it keeps it while another command runs). A command
+    /// older than the plugin's max age is dropped by the plugin anyway, so it no longer blocks.
+    /// </summary>
+    public static bool CommandPending
+    {
+        get
+        {
+            if (InstalledDir is not { } dir) return false;
+            string path = Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName);
+            try
+            {
+                if (!File.Exists(path)) return false;
+                long ticks = File.ReadAllLines(path)
+                    .Select(l => l.Split('=', 2))
+                    .Where(kv => kv.Length == 2 && kv[0].Trim().Equals(CommandKeyId, StringComparison.OrdinalIgnoreCase))
+                    .Select(kv => long.TryParse(kv[1].Trim(), out long t) ? t : 0)
+                    .FirstOrDefault();
+                return ticks > 0 && (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalSeconds <= RosbotPluginConstants.BridgeCommandMaxAgeSec;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Send a command and wait (polling the shared plugin state) until the plugin reports its result; an earlier command still
+    /// waiting in command.txt is waited out first (same timeout). Null on timeout / no plugin.
+    /// </summary>
     public static RosbotBridgeCommandResult? SendCommandAndWait(FlowContext ctx, TimeSpan timeout, string action, string? target = null, string? value = null)
     {
-        if (SendCommand(action, target, value: value) is not { } id) return null;
         var deadline = DateTime.UtcNow + timeout;
+        while (CommandPending && DateTime.UtcNow < deadline) ctx.Wait(CommandPollSec);
+        if (SendCommand(action, target, value: value) is not { } id) return null;
+        deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
             ctx.Wait(CommandPollSec);
