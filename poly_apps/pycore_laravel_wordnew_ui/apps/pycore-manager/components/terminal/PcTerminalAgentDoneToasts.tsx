@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { getBrowserId, pycoreNodeClient } from '@/apps/pycore-manager/api';
 import { PcOsIcon } from '@/apps/pycore-manager/components/terminal/PcOsIcon';
 import { listTerminalTabNodes } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import { recordTerminalCatalog } from '@/apps/pycore-manager/components/terminal/terminalCatalog';
 import {
   NOTICE_FADE_MS,
   agentDoneNotices,
@@ -59,6 +60,7 @@ function useOtherNodeAgentDone(activeUrl: string | null): void {
             untitled: translate('terminal.untitled'),
             localDate: (serverSeconds) => new Date(serverSeconds * 1000),
           }, snapshot.windows);
+          recordTerminalCatalog({ nodeUrl: node.url, nodeLabel: node.label, os: node.os, untitled: translate('terminal.untitled') }, snapshot.windows);
         }, () => undefined);
       }
     };

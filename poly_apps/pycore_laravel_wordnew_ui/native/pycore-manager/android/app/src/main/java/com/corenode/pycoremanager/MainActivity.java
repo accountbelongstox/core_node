@@ -8,6 +8,7 @@ import com.corenode.wordnew.ForegroundSyncPlugin;
 import com.corenode.wordnew.ImmersivePlugin;
 import com.corenode.wordnew.LanInfoPlugin;
 import com.corenode.wordnew.ProtocolHttpPlugin;
+import com.corenode.wordnew.ShareReceiverPlugin;
 import com.corenode.wordnew.TextRecognitionPlugin;
 import com.getcapacitor.BridgeActivity;
 
@@ -21,6 +22,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ForegroundSyncPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
         registerPlugin(TextRecognitionPlugin.class);
+        registerPlugin(ShareReceiverPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
     }

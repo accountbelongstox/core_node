@@ -259,6 +259,9 @@
     "machine_send_files_per_request": 32,
     "machine_send_text_bytes": 10485760
   },
+  "terminal_attachments": {
+    "document_extensions": [ "pdf", "txt", "md", "markdown", "csv", "tsv", "json", "jsonl", "xml", "yaml", "yml", "toml", "ini", "log", "sql", "srt", "vtt", "rtf", "html", "htm", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "epub", "zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "apk", "aab" ]
+  },
   "rate_limits": {
     "device_requests_per_minute": 240,
     "owner_requests_per_minute": 120,

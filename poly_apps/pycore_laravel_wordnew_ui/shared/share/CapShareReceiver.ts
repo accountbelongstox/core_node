@@ -30,6 +30,15 @@ export interface SharedBatch {
   /** Id of the share intent; one share of several files is one batch. */
   batchId: string;
   items: SharedItem[];
+  /** Id of the sharing shortcut (Direct Share target, see `publishShareTargets`) the user picked; absent for a plain share. */
+  targetId?: string;
+}
+
+export interface ShareTarget {
+  /** Stable shortcut id, returned as `SharedBatch.targetId` when the user shares to it. */
+  id: string;
+  /** Name shown in the share sheet's Direct Share row. */
+  label: string;
 }
 
 interface ShareReceiverPlugin {
@@ -37,6 +46,8 @@ interface ShareReceiverPlugin {
   getPending(): Promise<{ batches: SharedBatch[] }>;
   /** Drops queued items and deletes their cached copies; `ids` omitted clears everything. */
   clear(options: { ids?: string[] }): Promise<{ removed: number }>;
+  /** Replaces the dynamic sharing shortcuts shown in the share sheet's top row (empty list removes them). */
+  publishShareTargets(options: { targets: ShareTarget[] }): Promise<{ published: number }>;
   addListener(event: 'shareReceived', handler: (batch: SharedBatch) => void): Promise<PluginListenerHandle>;
 }
 
@@ -62,6 +73,11 @@ export const capShareReceiver = {
   async clear(ids?: string[]): Promise<void> {
     if (!shareReceiverSupported()) return;
     await nativeShare.clear(ids ? { ids } : {}).catch(() => undefined);
+  },
+  /** Publishes Direct Share targets (e.g. recent terminals); a no-op off Android. */
+  async publishShareTargets(targets: ShareTarget[]): Promise<void> {
+    if (!shareReceiverSupported()) return;
+    await nativeShare.publishShareTargets({ targets }).catch(() => undefined);
   },
   /** Subscribes to shares that arrive while the app runs; returns the unsubscribe function. */
   onShare(handler: (batch: SharedBatch) => void): () => void {

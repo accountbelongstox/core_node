@@ -1056,7 +1056,7 @@ class TerminalService:
         return terminal_capture_store.read(terminal_number, name)
 
     def upload_image(self, upload: Any, window_id: str = "") -> Dict[str, Any]:
-        """Store an uploaded image (UploadFile-like: .file stream) for a terminal message.
+        """Store an uploaded image, voice recording or document (UploadFile-like: .file stream, .filename) for a terminal message.
 
         display_path is the exact text to append (space separated) to the message.
         """
@@ -1066,7 +1066,7 @@ class TerminalService:
         read = terminal_image_store.read_stream(stream)
         if not read["success"]:
             return read
-        saved = terminal_image_store.save(read["data"])
+        saved = terminal_image_store.save(read["data"], str(getattr(upload, "filename", "") or ""))
         if not saved["success"]:
             return saved
         window = self._backend.find_window(window_id) if window_id else None
