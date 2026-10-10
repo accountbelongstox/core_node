@@ -95,6 +95,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeFollowPickup = "ui.rosbot_bridge.follow_pickup";
     public const string RosbotBridgeFollowRevive = "ui.rosbot_bridge.follow_revive";
     public const string RosbotBridgeFollowReviveTip = "ui.rosbot_bridge.follow_revive_tip";
+    public const string RosbotBridgeFollowAssist = "ui.rosbot_bridge.follow_assist";
+    public const string RosbotBridgeFollowAssistTip = "ui.rosbot_bridge.follow_assist_tip";
     public const string RosbotBridgeItemNamePrefix = "ui.rosbot_bridge.item_name.";
 
     // town NPC shortcuts and test buttons; NPC display names are NpcNamePrefix + lowercase internal actor name

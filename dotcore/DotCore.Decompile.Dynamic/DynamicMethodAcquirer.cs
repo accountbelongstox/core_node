@@ -60,7 +60,8 @@ public sealed class DynamicMethodAcquirer
     private DynamicMethodAcquisitionReport AcquireCore(string inputPath, DynamicMethodAcquisitionOptions options)
     {
         Assembly assembly = Assembly.LoadFrom(inputPath);
-        ModuleHandle moduleHandle = assembly.ManifestModule.ModuleHandle;
+        Module runtimeModule = assembly.ManifestModule;
+        ModuleHandle moduleHandle = runtimeModule.ModuleHandle;
         RuntimeHelpers.RunModuleConstructor(moduleHandle);
         MethodInfo getModuleHandle = typeof(Marshal).GetMethod("GetHINSTANCE",
             BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(Module) }, null)
@@ -93,7 +94,7 @@ public sealed class DynamicMethodAcquirer
             System.Threading.Thread.Sleep(options.CompilationDelay);
         var stopwatch = Stopwatch.StartNew();
         foreach (MethodDefinition method in methods)
-            CaptureMethod(moduleHandle, method, options.CompilationMode);
+            CaptureMethod(runtimeModule, moduleHandle, method, options.CompilationMode);
         stopwatch.Stop();
         _log($"Captured {_capturedMethodCount}/{methods.Length} methods with {_failures.Count} failures in {stopwatch.Elapsed}.");
 
@@ -117,9 +118,11 @@ public sealed class DynamicMethodAcquirer
             _removedInvalidCustomAttributeCount, diagnostics.Exceptions.Count, _failures.AsReadOnly());
     }
 
-    private void CaptureMethod(ModuleHandle moduleHandle, MethodDefinition method, DynamicCompilationMode mode)
+    private void CaptureMethod(Module runtimeModule, ModuleHandle moduleHandle, MethodDefinition method,
+        DynamicCompilationMode mode)
     {
         CilMethodBody originalBody = method.CilMethodBody!;
+        Exception? captureException = null;
         _currentMethod = method;
         _bestCandidateBody = null;
         _bestCandidateScore = long.MinValue;
@@ -133,20 +136,60 @@ public sealed class DynamicMethodAcquirer
                 NativeJitHook.SetCurrentMethod(NativeJitHook.GetUnboxedMethod(runtimeMethod.Value));
                 RuntimeHelpers.PrepareMethod(runtimeMethod);
             }
+            else if (mode == DynamicCompilationMode.InvokeStatic)
+            {
+                RuntimeMethodHandle runtimeMethod = moduleHandle.ResolveMethodHandle(method.MetadataToken.ToInt32());
+                RuntimeHelpers.PrepareMethod(runtimeMethod);
+                NativeJitHook.SetCurrentMethod(runtimeMethod.Value);
+                InvokeStaticForCapture(runtimeModule, method.MetadataToken.ToInt32());
+            }
             else
             {
                 NativeJitHook.CompileMethod(moduleHandle.ResolveUnboxedMethod(method));
             }
-
-            foreach (CapturedMethodData candidate in _capturedCandidates)
-                ProcessCandidate(candidate);
-            if (_captureSucceeded && _bestCandidateBody != null)
-                method.CilMethodBody = _bestCandidateBody;
         }
         catch (Exception exception)
         {
-            RecordFailure(method.MetadataToken.ToString(), exception.Message);
+            captureException = exception;
         }
+        foreach (CapturedMethodData candidate in _capturedCandidates)
+            ProcessCandidate(candidate);
+        if (_captureSucceeded && _bestCandidateBody != null)
+            method.CilMethodBody = _bestCandidateBody;
+        else if (captureException != null)
+            RecordFailure(method.MetadataToken.ToString(), captureException.Message);
+    }
+
+    private static void InvokeStaticForCapture(Module runtimeModule, int methodToken)
+    {
+        MethodBase method;
+        ParameterInfo[] parameters;
+        object?[] arguments;
+
+        method = runtimeModule.ResolveMethod(methodToken)
+            ?? throw new MissingMethodException($"Metadata token 0x{methodToken:X8} was not resolved.");
+        if (!method.IsStatic)
+            throw new NotSupportedException("Invoke capture accepts static methods only.");
+        if (method.ContainsGenericParameters)
+            throw new NotSupportedException("Invoke capture does not accept open generic methods.");
+        parameters = method.GetParameters();
+        arguments = parameters.Select(CreateDefaultArgument).ToArray();
+        try
+        {
+            method.Invoke(null, arguments);
+        }
+        catch (TargetInvocationException exception)
+        {
+            throw exception.InnerException ?? exception;
+        }
+    }
+
+    private static object? CreateDefaultArgument(ParameterInfo parameter)
+    {
+        Type parameterType = parameter.ParameterType;
+        if (parameterType.IsByRef)
+            parameterType = parameterType.GetElementType() ?? parameterType;
+        return parameterType.IsValueType ? Activator.CreateInstance(parameterType) : null;
     }
 
     private static void CompilationCallback(ref JitCaptureInfo captureInfo)
@@ -268,7 +311,9 @@ public sealed class DynamicMethodAcquirer
         if (!string.IsNullOrWhiteSpace(options.OutputPath))
             return Path.GetFullPath(options.OutputPath!);
         string directory = Path.GetDirectoryName(inputPath) ?? Directory.GetCurrentDirectory();
-        string suffix = options.CompilationMode == DynamicCompilationMode.PrepareMethod ? "-Prepared" : "-Captured";
+        string suffix = options.CompilationMode == DynamicCompilationMode.PrepareMethod
+            ? "-Prepared"
+            : options.CompilationMode == DynamicCompilationMode.InvokeStatic ? "-Invoked" : "-Captured";
         return Path.Combine(directory, Path.GetFileNameWithoutExtension(inputPath) + suffix + Path.GetExtension(inputPath));
     }
 

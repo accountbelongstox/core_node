@@ -101,12 +101,15 @@ internal static class WorldScanner
             .OrderBy(a => Safe(() => a.Distance, float.MaxValue))
             .ToList();
 
+    /// <summary>Valid, living, hostile monsters in this world.</summary>
+    public static IEnumerable<IActor> HostileMonsters(IActor[] actors) =>
+        actors.Where(a => Safe(() => a.IsValid && a.IsMonster && !a.IsDead && a.IsHostile, false));
+
     public static (int Monsters, int Elites) MonsterCounts(IActor[] actors)
     {
         int monsters = 0, elites = 0;
-        foreach (var a in actors)
+        foreach (var a in HostileMonsters(actors))
         {
-            if (!Safe(() => a.IsValid && a.IsMonster && !a.IsDead && a.IsHostile, false)) continue;
             monsters++;
             if (Safe(() => a.IsElite || a.IsBoss, false)) elites++;
         }

@@ -181,6 +181,7 @@ public sealed class CoreNodeBridge : IPlugin
         _commands.Poll();
         _townHold.Tick();
         _standby.Tick();
+        if (_follow.Assist && _hold.State == PulseHold.StateOff) _hold.Set(true);
         _follow.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
@@ -346,6 +347,9 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("follow_revive", _follow.Revive)
                 .Prop("follow_leader", _follow.Leader)
                 .Prop("follow_distance", _follow.Distance)
+                .Prop("follow_assist", _follow.Assist)
+                .Prop("follow_combat", _follow.Combat)
+                .Prop("follow_combat_target", _follow.CombatTarget)
                 .Prop("standby_enabled", _standby.Enabled)
                 .Prop("standby_state", _standby.State)
                 .Prop("standby_since_utc", _standby.SinceUtc)

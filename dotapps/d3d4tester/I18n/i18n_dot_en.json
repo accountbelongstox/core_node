@@ -1228,7 +1228,8 @@
         "banner": "using banner",
         "off": "off",
         "dead": "dead",
-        "town_tasks": "equipping in town"
+        "town_tasks": "equipping in town",
+        "fighting": "fighting"
       },
       "item_name": {
         "healthpotion_bottomless": "Health Potion",
@@ -1243,6 +1244,8 @@
       "follow_target_slot": "Party member {0}",
       "follow_revive": "Auto revive",
       "follow_revive_tip": "Dead while following: wait 8 s for a teammate (a party revive needs no click), then revive at corpse, else at checkpoint, else in town.",
+      "follow_assist": "Follow only and fight",
+      "follow_assist_tip": "Follow only the chosen member and help fight: the plugin holds ROSBOT (no town run, no own route, no movement race) and moves the hero; with monsters within 40 yards of the member it steps to the best one (elites / bosses first, never more than 35 yards from the member) and starts / stops the combat macro to cast the skills (set up the combat macro first).",
       "take_control": "Pause monitoring and ROSBOT when a command acts in the game (follow, NPC, salvage...)",
       "plugin_not_running": "Not sent: the plugin is not running (start ROSBOT and enable CoreNode Bridge)"
     },

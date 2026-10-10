@@ -145,6 +145,8 @@ public partial class RosbotBridgePanel : UserControl
         ChkFollowPickup.Content = p.GetUiText(I18nKeys.RosbotBridgeFollowPickup);
         ChkFollowRevive.Content = p.GetUiText(I18nKeys.RosbotBridgeFollowRevive);
         ChkFollowRevive.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowReviveTip);
+        ChkFollowAssist.Content = p.GetUiText(I18nKeys.RosbotBridgeFollowAssist);
+        ChkFollowAssist.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowAssistTip);
         CmbFollowBanner.SelectedIndex = bannerIndex < 0 ? 0 : bannerIndex;
         LblTests.Text = p.GetUiText(I18nKeys.RosbotBridgeTests);
         ChkTakeControl.Content = p.GetUiText(I18nKeys.RosbotBridgeTakeControl);
@@ -285,7 +287,7 @@ public partial class RosbotBridgePanel : UserControl
         BtnFollow.Content = p.GetUiText(on ? I18nKeys.RosbotBridgeFollowStop : I18nKeys.RosbotBridgeFollowStart);
         BtnFollow.SetResourceReference(StyleProperty, on ? StyleWarningButton : StyleSecondaryButton);
         TxtFollowState.Text = !on ? "" : Join(p.GetUiText(I18nKeys.RosbotBridgeFollowStatePrefix + s!.FollowState, s.FollowState), s.FollowLeader,
-            s.FollowDistance >= 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), s.FollowDistance) : "");
+            s.FollowDistance >= 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), s.FollowDistance) : "", s.FollowCombatTarget);
     }
 
     /// <summary>Start following the selected player (else the nearest one) with the chosen banner slot, or stop.</summary>
@@ -306,7 +308,8 @@ public partial class RosbotBridgePanel : UserControl
         }
         string leader = useSelected ? selected!.Id.ToString() : "";
         int slot = RosbotPluginConstants.BridgeFollowBannerSlots[Math.Max(0, CmbFollowBanner.SelectedIndex)];
-        Send(RosbotPluginConstants.BridgeActionFollow, leader, value: $"{mode},{partySlot},{slot},{(ChkFollowPickup.IsChecked == true ? 1 : 0)},{(ChkFollowRevive.IsChecked == true ? 1 : 0)}");
+        Send(RosbotPluginConstants.BridgeActionFollow, leader, value: $"{mode},{partySlot},{slot},{(ChkFollowPickup.IsChecked == true ? 1 : 0)},{(ChkFollowRevive.IsChecked == true ? 1 : 0)},{(ChkFollowAssist.IsChecked == true ? 1 : 0)}",
+            forceTakeControl: ChkFollowAssist.IsChecked == true);
     }
 
     /// <summary>Localized NPC name (i18n table by internal actor name), the internal name and the SNO id, distances.</summary>
@@ -416,8 +419,8 @@ public partial class RosbotBridgePanel : UserControl
         }
     }
 
-    /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state). Game actions take control first.</summary>
-    private async void Send(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null)
+    /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state). Game actions take control first (always for follow only and fight).</summary>
+    private async void Send(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null, bool forceTakeControl = false)
     {
         var p = D3D4TesterI18n.Provider;
         if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
@@ -425,7 +428,7 @@ public partial class RosbotBridgePanel : UserControl
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
             return;
         }
-        if (GameActions.Contains(action) && ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault))
+        if (GameActions.Contains(action) && (forceTakeControl || ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault)))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
             await RosbotBridgePluginService.TakeControlAsync();

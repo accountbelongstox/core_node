@@ -4,7 +4,8 @@ namespace DotCore.Decompile.Dynamic;
 public enum DynamicCompilationMode
 {
     ForceJit,
-    PrepareMethod
+    PrepareMethod,
+    InvokeStatic
 }
 
 public sealed class DynamicMethodAcquisitionOptions

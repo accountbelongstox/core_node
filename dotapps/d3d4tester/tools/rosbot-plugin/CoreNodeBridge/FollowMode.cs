@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using Rcdw32.Ws.Models;
 using Rcdw32.Ws.Plugins;
 
@@ -18,6 +19,11 @@ namespace CoreNodeBridge;
 /// slot, else 1-4 in turn; outside town it reports needs_town so the app presses the town portal key. With revive on, a dead hero accepts a teammate's resurrection at once
 /// (death menu "accept resurrection", shown while Waiting_To_Accept_Resurrection is set); otherwise after ReviveWaitMs it presses
 /// revive at corpse, else at checkpoint, else in town (every ReviveRetryMs). The plugin never attacks.
+/// Assist (follow only): the plugin keeps ROSBOT held (PulseHold, requested by the plugin while assist is on), so ROSBOT runs no task
+/// (no town run, no own route) and the plugin is the only mover; no town work is taken (TownHold). Hostile monsters within AssistRange
+/// of the target (or SelfDefenseRange of the hero) set Combat (kept CombatLingerMs) and the hero steps to within AttackReach of the
+/// best one (elites / bosses first, then nearest) as long as it stays within LeashDistance of the target; the app's combat macro casts
+/// the skills while Combat is set.
 /// </summary>
 internal sealed class FollowMode
 {
@@ -28,6 +34,7 @@ internal sealed class FollowMode
     public const string StateBanner = "banner";
     public const string StateDead = "dead";
     public const string StateTownTasks = "town_tasks";
+    public const string StateFighting = "fighting";
     public const string ModeNearest = "nearest";
     public const string ModeSelected = "selected";
     public const string ModeLeader = "leader";
@@ -49,6 +56,11 @@ internal sealed class FollowMode
     private const int ReviveWaitMs = 8000;
     private const int ReviveRetryMs = 2000;
     private const string AttrWaitingToAccept = "Waiting_To_Accept_Resurrection";
+    private const float AssistRange = 40f;
+    private const float SelfDefenseRange = 20f;
+    private const float AttackReach = 12f;
+    private const float LeashDistance = 35f;
+    private const int CombatLingerMs = 2500;
 
     private readonly Action<string> _log;
     private readonly Stopwatch _sinceSeen = Stopwatch.StartNew();
@@ -66,6 +78,7 @@ internal sealed class FollowMode
     private IActor _banner;
     private int _bannerUsedSlot;
     private readonly Stopwatch _bannerWalk = new();
+    private readonly Stopwatch _sinceCombat = new();
 
     public FollowMode(Action<string> log) => _log = log;
 
@@ -81,6 +94,13 @@ internal sealed class FollowMode
     public bool Pickup { get; private set; }
     public bool Revive { get; private set; }
     public bool Enabled { get; private set; }
+    public bool Assist { get; private set; }
+
+    /// <summary>Assist: hostile monsters around the target or the hero (kept CombatLingerMs after the last one); the app casts while set.</summary>
+    public bool Combat => Enabled && Assist && _sinceCombat.IsRunning && _sinceCombat.ElapsedMilliseconds < CombatLingerMs;
+
+    /// <summary>Assist: name of the monster the hero steps to, "" when none.</summary>
+    public string CombatTarget { get; private set; } = "";
     public string Mode => _mode;
     public string State { get; private set; } = StateOff;
     public string Leader { get; private set; } = "";
@@ -92,11 +112,14 @@ internal sealed class FollowMode
     public static bool IsLeader(IActor player) =>
         WorldScanner.Safe(() => player.CommData, null) is { } acd && WorldScanner.Attribute(acd, AttrLeader, 0) != 0;
 
-    /// <summary>mode = nearest / selected / leader / slot; selectedId = actor id for selected; slot = party slot for slot mode; bannerSlot 0 = auto.</summary>
-    public void Start(string mode, uint selectedId, int slot, int bannerSlot, bool pickup, bool revive)
+    /// <summary>mode = nearest / selected / leader / slot; selectedId = actor id for selected; slot = party slot for slot mode; bannerSlot 0 = auto; assist = follow only and fight.</summary>
+    public void Start(string mode, uint selectedId, int slot, int bannerSlot, bool pickup, bool revive, bool assist)
     {
         Enabled = true;
         Revive = revive;
+        Assist = assist;
+        _sinceCombat.Reset();
+        CombatTarget = "";
         _mode = mode;
         _selectedId = selectedId;
         _selectedAcd = 0;
@@ -106,12 +129,15 @@ internal sealed class FollowMode
         Pickup = pickup;
         _sinceSeen.Restart();
         State = StateFollowing;
-        _log($"follow on: mode {mode}, selected {selectedId}, slot {slot}, banner {(bannerSlot == 0 ? "auto" : bannerSlot.ToString())}, pickup {pickup}, revive {revive}");
+        _log($"follow on: mode {mode}, selected {selectedId}, slot {slot}, banner {(bannerSlot == 0 ? "auto" : bannerSlot.ToString())}, pickup {pickup}, revive {revive}, assist {assist}");
     }
 
     public void Stop()
     {
         Enabled = false;
+        Assist = false;
+        _sinceCombat.Reset();
+        CombatTarget = "";
         _banner = null;
         State = StateOff;
         Distance = -1;
@@ -142,6 +168,7 @@ internal sealed class FollowMode
         if (WorldScanner.Safe(() => LocalPlayer.IsDead, false))
         {
             State = StateDead;
+            _sinceCombat.Reset();
             TryRevive();
             return;
         }
@@ -150,6 +177,7 @@ internal sealed class FollowMode
         var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>());
         LearnBanners(actors);
         var target = PickTarget(WorldScanner.Players(actors));
+        if (Assist && StepCombat(actors, target)) return;
         if (target != null)
         {
             _sinceSeen.Restart();
@@ -158,7 +186,7 @@ internal sealed class FollowMode
             Leader = WorldScanner.Safe(() => target.Name, "") ?? "";
             Distance = WorldScanner.Safe(() => target.Distance, -1f);
             State = StateFollowing;
-            if (Pickup && Distance <= PickupLeaderRange && PickupHandler?.Invoke(PickupRange) == true) return;
+            if (Pickup && !Combat && Distance <= PickupLeaderRange && PickupHandler?.Invoke(PickupRange) == true) return;
             if (Distance > FollowDistance)
             {
                 var sw = Stopwatch.StartNew();
@@ -175,7 +203,7 @@ internal sealed class FollowMode
             State = StateNeedsTown;
             return;
         }
-        if (TownHold?.TryBegin(TownHold.ReasonFollow) == true)
+        if (!Assist && TownHold?.TryBegin(TownHold.ReasonFollow) == true)
         {
             State = StateTownTasks;
             return;
@@ -189,6 +217,47 @@ internal sealed class FollowMode
         if (_sinceBanner.IsRunning && _sinceBanner.ElapsedMilliseconds < BannerRetryMs) return;
         _sinceBanner.Restart();
         UseBanner(actors);
+    }
+
+    /// <summary>
+    /// Assist, one tick: find the hostile monsters around the target (else around the hero), keep Combat, and step to within AttackReach
+    /// of the best one while staying within LeashDistance of the target. True when this tick moved or holds position for the fight.
+    /// </summary>
+    private bool StepCombat(IActor[] actors, IActor target)
+    {
+        var targetPos = target == null ? (Vector3?)null : WorldScanner.Safe(() => target.Position, LocalPlayer.Position);
+        var me = WorldScanner.Safe(() => LocalPlayer.Position, Vector3.Zero);
+        var monster = WorldScanner.HostileMonsters(actors)
+            .Select(m => (Actor: m, Position: WorldScanner.Safe(() => m.Position, Vector3.Zero), Distance: WorldScanner.Safe(() => m.Distance, float.MaxValue)))
+            .Where(m => targetPos is { } tp ? Vector3.Distance(m.Position, tp) <= AssistRange : m.Distance <= SelfDefenseRange)
+            .OrderBy(m => WorldScanner.Safe(() => m.Actor.IsElite || m.Actor.IsBoss, false) ? 0 : 1)
+            .ThenBy(m => m.Distance)
+            .FirstOrDefault();
+        if (monster.Actor == null)
+        {
+            CombatTarget = "";
+            return false;
+        }
+        _sinceCombat.Restart();
+        CombatTarget = WorldScanner.Safe(() => monster.Actor.Name, "") ?? "";
+        if (target != null && WorldScanner.Safe(() => target.Distance, 0f) > LeashDistance) return false;
+        if (target != null)
+        {
+            _sinceSeen.Restart();
+            _banner = null;
+            _targetAcd = WorldScanner.Safe(() => target.AcdId, _targetAcd);
+            Leader = WorldScanner.Safe(() => target.Name, "") ?? "";
+            Distance = WorldScanner.Safe(() => target.Distance, -1f);
+        }
+        State = StateFighting;
+        if (monster.Distance <= AttackReach) return true;
+        var step = monster.Position;
+        if (targetPos is { } leash && Vector3.Distance(step, leash) > LeashDistance)
+            step = leash + Vector3.Normalize(step - leash) * LeashDistance;
+        if (Vector3.Distance(step, me) <= StepReach) return true;
+        var sw = Stopwatch.StartNew();
+        WorldScanner.Safe(() => { LocalPlayer.CoreMoveTo(step, () => sw.ElapsedMilliseconds > StepMs, AttackReach); return true; }, false);
+        return true;
     }
 
     /// <summary>Dead: after ReviveWaitMs press the first revive button the death menu shows (corpse, checkpoint, town).</summary>

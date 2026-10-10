@@ -19,6 +19,7 @@ internal static class Program
         string tokenText = string.Empty;
         int? methodToken = null;
         bool prepareMethod = false;
+        bool invokeCapture = false;
         TimeSpan compilationDelay = TimeSpan.Zero;
         IReadOnlyCollection<int>? selectedTokens = null;
         bool delayedInvocation;
@@ -205,6 +206,11 @@ internal static class Program
                     methodToken = int.Parse(tokenText, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                     continue;
                 }
+                if (args[index] == "--invoke-capture")
+                {
+                    invokeCapture = true;
+                    continue;
+                }
                 if (args[index] == "--tokens" && index + 1 < args.Length)
                 {
                     selectedTokens = args[++index].Split(',').Select(value => int.Parse(
@@ -223,7 +229,9 @@ internal static class Program
 
             options = new DynamicMethodAcquisitionOptions
             {
-                CompilationMode = prepareMethod ? DynamicCompilationMode.PrepareMethod : DynamicCompilationMode.ForceJit,
+                CompilationMode = invokeCapture
+                    ? DynamicCompilationMode.InvokeStatic
+                    : prepareMethod ? DynamicCompilationMode.PrepareMethod : DynamicCompilationMode.ForceJit,
                 MethodToken = methodToken,
                 MethodTokens = selectedTokens,
                 CompilationDelay = compilationDelay,
