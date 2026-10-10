@@ -55,7 +55,8 @@ public static partial class TaskSetSynthesizer
 
         var templates = new List<TemplateRef>();
         for (int t = 0; t < inspection.Variants.Count; t++)
-            foreach (var v in inspection.Variants[t])
+            // A compound variant (e.g. a whole NPC window) is not one object of its target: only plain variants are searched.
+            foreach (var v in inspection.Variants[t].Where(v => !v.Resource.IsCompound))
                 if (TaskSetImageIo.ReadBgra(v.Path) is { } mat) templates.Add(new TemplateRef(t, v, mat));
 
         var cachePath = Path.Combine(taskSetDir, TaskSetStore.CacheSubdir, ContaminationCacheFileName);

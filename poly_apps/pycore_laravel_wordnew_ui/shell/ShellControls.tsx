@@ -26,6 +26,7 @@ import {
 } from './shellChrome';
 import { StorageManager } from '../core/persistence';
 import { ShellStorageKeys as StorageKeys } from './ShellStorageKeys';
+import { ShellDomainSwitcher } from './ShellDomainSwitcher';
 
 /** Pointer travel (px) beyond which a press counts as a drag, not a tap. */
 const DRAG_THRESHOLD_PX = 4;
@@ -221,6 +222,8 @@ export const ShellControls: React.FC = () => {
             {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             {dark ? 'Light mode' : 'Dark mode'}
           </button>
+
+          <ShellDomainSwitcher />
 
           {/* Language */}
           <label className="flex items-center gap-2 px-2 text-slate-700 dark:text-slate-200">

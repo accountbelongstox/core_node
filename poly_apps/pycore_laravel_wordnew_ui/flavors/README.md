@@ -22,6 +22,7 @@ flavors/
 | `names`           | localized app names, e.g. `{ "en": "WordNew", "zh": "千语单词", "zh-Hant": "千語單詞" }` |
 | `appId`           | Java-package bundle id (Capacitor `appId`, letters/digits/underscore segments) |
 | `rootRoute`       | in-app route the standalone build lands on (e.g. `/wordnew`)           |
+| `mount`           | `standalone` (default: only this app) or `shell` (the full multi-app shell with the shell dock, landing on `rootRoute`; `pycore-manager` is the entry to every UI) |
 | `themeColor`      | `<meta theme-color>`                                                    |
 | `brand.icon`      | project-relative brand icon (PNG/JPEG/WebP/SVG), the ONE icon source; inside an app name it `*-logo-source.*` |
 | `brand.iconBackground` / `adaptiveScale` | adaptive-icon background (default: sampled icon edge) and foreground scale |

@@ -22,7 +22,7 @@ export interface FlavorConfig {
   rootRoute: string;
   /** Project-root-relative React entry. Presence is validated by native scripts. */
   entry?: string;
-  platforms?: Array<'web' | 'android' | 'ios'>;
+  platforms?: Array<'web' | 'android' | 'ios' | 'desktop'>;
   /** 'shell' mounts the full multi-app shell (every end, shell controls) landing on `rootRoute`. */
   mount?: 'standalone' | 'shell';
   standalone?: {

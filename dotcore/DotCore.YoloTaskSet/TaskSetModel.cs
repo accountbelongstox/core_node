@@ -32,7 +32,11 @@ public sealed class TaskResource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<PlacementRegion>? Regions { get; set; }
 
-    /// <summary>Backgrounds only: objects already present in the resource (a class name = real positive label, else masked out).</summary>
+    /// <summary>
+    /// Backgrounds: objects already present in the resource (a class name = real positive label, else masked out).
+    /// Variants: labeled parts in variant pixels (compound variant, e.g. an NPC window with its panel, tabs and buttons); when set,
+    /// these are the variant's labels instead of its tight mask box, and it is pasted without rotation or one-sided stretch.
+    /// </summary>
     [JsonPropertyName("boxes")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ResourceBox>? Boxes { get; set; }
@@ -51,6 +55,10 @@ public sealed class TaskResource
 
     [JsonIgnore]
     public bool HasSourceSize => SourceWidth > 0 && SourceHeight > 0;
+
+    /// <summary>Variant with labeled parts (see Boxes).</summary>
+    [JsonIgnore]
+    public bool IsCompound => Boxes is { Count: > 0 };
 }
 
 /// <summary>

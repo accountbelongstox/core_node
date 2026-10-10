@@ -35,6 +35,7 @@ import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 import { getServiceUrlEntries, getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { isNativeAppShell } from '../../network/NativeShell';
+import { isPrivateIpv4 } from '../../network/LanDiscovery';
 import { isLoopbackHost } from '../../network/hostDetection';
 
 export type PycoreEndpointKind = 'direct' | 'proxy' | 'relay';
@@ -165,11 +166,10 @@ function isProxyAllowed(hostname: string): boolean {
   return isNativeAppShell() || isLoopbackPage() || isLanPage() || pageTailnetDomain() === tailnet;
 }
 
-const PRIVATE_IPV4_RE = /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}$/;
 
 /** RFC 1918 IPv4 host (a LAN machine). */
 export function isPrivateLanHost(hostname: string): boolean {
-  return PRIVATE_IPV4_RE.test(String(hostname || '').trim());
+  return isPrivateIpv4(String(hostname || '').trim());
 }
 
 /** A browser page served from a LAN machine's own address (`http://192.168.x.y:<ui port>`). */

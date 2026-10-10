@@ -80,6 +80,9 @@ public static partial class TaskSetSynthesizer
     {
         public List<TaskSetIssue> Issues { get; } = new();
         public List<List<VariantRef>> Variants { get; } = new();
+
+        /// <summary>Per target: compound variants of other targets that carry it as a labeled part.</summary>
+        public List<List<VariantRef>> Carriers { get; } = new();
         public List<List<Background>> Scenes { get; } = new();
         public List<Background> CommonImages { get; } = new();
         public List<TaskResource> CommonVideos { get; } = new();
@@ -100,6 +103,7 @@ public static partial class TaskSetSynthesizer
         public required AugmentationProfile[] Profiles { get; init; }
         public required AugmentationProfile DistractorProfile { get; init; }
         public required VariantEntry[][] Variants { get; init; }
+        public required VariantEntry[][] Carriers { get; init; }
         public required VariantEntry[] Distractors { get; init; }
         public required PoolSplit[] Scenes { get; init; }
         public required PoolSplit Common { get; init; }
@@ -117,10 +121,13 @@ public static partial class TaskSetSynthesizer
 
         public bool HasVal(int targetIndex) => (targetIndex < 0 ? NegativePool(YoloSplit.Val) : TargetPool(targetIndex, YoloSplit.Val)).Count > 0;
 
-        /// <summary>Variants of a target for a split: val-only variants serve val only (when the split has none, all serve).</summary>
+        /// <summary>
+        /// Variants of a target for a split (its carriers when it has none): val-only variants serve val only (when the split has none, all serve).
+        /// </summary>
         public IReadOnlyList<VariantEntry> VariantsFor(int targetIndex, YoloSplit split)
         {
-            var all = Variants[targetIndex];
+            var all = Variants[targetIndex].Length > 0 ? Variants[targetIndex] : Carriers[targetIndex];
+            if (all.Length == 0) return all;
             var matching = all.Where(v => v.Resource.ValOnly == (split == YoloSplit.Val)).ToArray();
             return matching.Length > 0 ? matching : all;
         }
@@ -129,7 +136,7 @@ public static partial class TaskSetSynthesizer
 
         public void Dispose()
         {
-            foreach (var v in Variants.SelectMany(x => x).Concat(Distractors))
+            foreach (var v in Variants.SelectMany(x => x).Concat(Carriers.SelectMany(x => x)).Concat(Distractors))
                 if (v.Image.IsValueCreated) v.Image.Value?.Dispose();
             Cache.Dispose();
         }
@@ -146,6 +153,9 @@ public static partial class TaskSetSynthesizer
         public required Rect Rect { get; init; }
         public required Mat Visible { get; init; }
         public required int FullArea { get; init; }
+
+        /// <summary>Top-left of the whole pasted object (may lie outside the image when truncated).</summary>
+        public Point Origin { get; init; }
         public int VisibleCount { get; set; }
         public AnnotationBox? Box { get; set; }
 
@@ -363,10 +373,8 @@ public static partial class TaskSetSynthesizer
                 var path = TaskSetStore.ResolveResourcePath(taskSetDir, r);
                 if (CheckedSize(r, path) == null) continue;
                 variants.Add(new VariantRef(path, r));
-                if (VariantExtractor.InspectAlpha(path) is { HasTransparency: false }) Add(TaskSetIssueCode.VariantWithoutAlpha, r.File, false);
+                if (!r.IsCompound && VariantExtractor.InspectAlpha(path) is { HasTransparency: false }) Add(TaskSetIssueCode.VariantWithoutAlpha, r.File, false);
             }
-            if (variants.Count == 0) Add(TaskSetIssueCode.NoVariants, subject, true);
-            else if (t.PlacesAtSource && !variants.Any(v => SourceRegionOf(v.Resource) != null)) Add(TaskSetIssueCode.PlacementSourceUnknown, subject, false);
             var scenes = t.Scenes.Select(CheckBackground).OfType<Background>().ToList();
             int backgrounds = scenes.Count + commonCount;
             if (backgrounds == 0) Add(TaskSetIssueCode.NoBackgrounds, subject, true);
@@ -382,6 +390,19 @@ public static partial class TaskSetSynthesizer
             }
             result.Variants.Add(variants);
             result.Scenes.Add(scenes);
+        }
+
+        // Compound variants carry labeled parts: a target whose label is a part elsewhere needs no own variant (pasted through its carriers).
+        for (int t = 0; t < set.Targets.Count; t++)
+        {
+            var target = set.Targets[t];
+            var subject = target.Name.Trim().Length > 0 ? target.Name : target.Id;
+            var carriers = result.Variants.Where((_, i) => i != t).SelectMany(v => v)
+                .Where(v => v.Resource.Boxes?.Any(b => b.Label.Trim() == target.Name.Trim()) == true).ToList();
+            result.Carriers.Add(carriers);
+            var usable = result.Variants[t].Concat(carriers).ToList();
+            if (usable.Count == 0) Add(TaskSetIssueCode.NoVariants, subject, true);
+            else if (target.PlacesAtSource && !usable.Any(v => SourceRegionOf(v.Resource) != null)) Add(TaskSetIssueCode.PlacementSourceUnknown, subject, false);
         }
 
         foreach (var r in set.Distractors)
@@ -440,6 +461,7 @@ public static partial class TaskSetSynthesizer
             Profiles = set.Targets.Select(t => set.Augmentation.Resolve(t.Augmentation)).ToArray(),
             DistractorProfile = set.Augmentation.Normalized(),
             Variants = inspection.Variants.Select(list => list.Select(Entry).ToArray()).ToArray(),
+            Carriers = inspection.Carriers.Select(list => list.Select(Entry).ToArray()).ToArray(),
             Distractors = inspection.Distractors.Select(Entry).ToArray(),
             Scenes = scenes,
             Common = commonSplit,
@@ -602,7 +624,8 @@ public static partial class TaskSetSynthesizer
                 for (int d = 0; d < n; d++)
                     PasteObject(image, ctx.Distractors[rng.Next(ctx.Distractors.Length)], ctx.DistractorProfile, null, bgScale, placed, regions, s, rng);
             }
-            var boxes = placed.Where(p => p.Box != null).Select(p => p.Box!).ToList();
+            // Compound parts may carry labels of classes outside this task set: those stay unlabeled pixels.
+            var boxes = placed.Where(p => p.Box != null && IndexOf(ctx.Classes, p.Box.Label) >= 0).Select(p => p.Box!).ToList();
             return new Rendered(image, boxes, used);
         }
         catch
@@ -695,17 +718,50 @@ public static partial class TaskSetSynthesizer
     {
         var variant = entry.Image.Value;
         if (variant == null) return;
+        var parts = label == null ? null : entry.Resource.Boxes;
+        bool compound = parts is { Count: > 0 };
+        // Labeled parts follow the object by scale only: no flip, rotation or one-sided stretch for compound variants.
+        if (compound)
+        {
+            profile = profile.Clone();
+            (profile.FlipHorizontal, profile.RotationMaxDegrees, profile.LeftStretchMax, profile.RightStretchMax) = (false, 0, 0, 0);
+        }
         var (extraScale, fixedScale) = ObjectScale(variant, entry.Resource, bgScale, image.Size(), s, rng);
         var (obj, mask) = VariantAugmenter.Apply(variant, profile, extraScale, rng, fixedScale);
         try
         {
             FitInto(ref obj, ref mask, image.Size());
-            if (Place(image, obj, mask, label, placed, regions, s, rng, anchor) is { } p) placed.Add(p);
+            if (Place(image, obj, mask, compound ? null : label, placed, regions, s, rng, anchor) is not { } p) return;
+            placed.Add(p);
+            if (compound) AddParts(p, parts!, obj.Width / (double)variant.Width, obj.Height / (double)variant.Height, image.Size(), placed, s);
         }
         finally
         {
             obj.Dispose();
             mask.Dispose();
+        }
+    }
+
+    /// <summary>Labeled parts of a pasted compound variant, scaled with it; a part keeps its label when min_visible_fraction of it is in the image.</summary>
+    private static void AddParts(Placed whole, IReadOnlyList<ResourceBox> parts, double sx, double sy, Size image, List<Placed> placed, SynthesisSettings s)
+    {
+        var bounds = new Rect(0, 0, image.Width, image.Height);
+        foreach (var part in parts)
+        {
+            if (part.Label.Trim().Length == 0) continue;
+            var full = new Rect(whole.Origin.X + (int)Math.Round(part.X * sx), whole.Origin.Y + (int)Math.Round(part.Y * sy),
+                Math.Max(1, (int)Math.Round(part.Width * sx)), Math.Max(1, (int)Math.Round(part.Height * sy)));
+            var visible = full & bounds;
+            if (visible.Width < MinBoxSide || visible.Height < MinBoxSide || visible.Width * (double)visible.Height < s.MinVisibleFraction * full.Width * full.Height) continue;
+            placed.Add(new Placed
+            {
+                Rect = visible,
+                Visible = new Mat(visible.Height, visible.Width, MatType.CV_8UC1, Scalar.All(byte.MaxValue)),
+                FullArea = full.Width * full.Height,
+                VisibleCount = visible.Width * visible.Height,
+                Box = new AnnotationBox(part.Label.Trim(), visible.X, visible.Y, visible.Right, visible.Bottom),
+                Origin = full.Location,
+            });
         }
     }
 
@@ -802,7 +858,7 @@ public static partial class TaskSetSynthesizer
                 if (covered[i] > 0) Occlude(placed[i], visible, visibleBin, covered[i]);
                 if (overlay && placed[i].Box != null && placed[i].VisibleCount < keep * placed[i].FullArea) placed[i].Box = null;
             }
-            return new Placed { Rect = visible, Visible = visibleBin.Clone(), FullArea = fullArea, VisibleCount = visibleCount, Box = box };
+            return new Placed { Rect = visible, Visible = visibleBin.Clone(), FullArea = fullArea, VisibleCount = visibleCount, Box = box, Origin = pos };
         }
         return null;
     }
