@@ -171,7 +171,7 @@ public static class KanaiUpgradeService
             var aux = MacroAuxiliaryOptions.ReadLive();
             var targets = Targets();
             var stop = targets.Count == 0 ? KanaiUpgradeStop.Never : store.Stop;
-            var settings = new KanaiUpgradeSettings(targets, stop, store.Check, store.OnlyCompatibleRares, store.VerifyByOcr, store.MaxTransmutes,
+            var settings = new KanaiUpgradeSettings(targets, stop, store.Check, store.OnlyCompatibleRares, store.VerifyByOcr, MaxTransmutes(store),
                 AssistantTiming.HelperDelayMs(aux.AnimationSpeed), D3PlannerService.CacheDir) { Uncheckable = D3PlannerService.Uncheckable };
             var run = KanaiUpgradeHunter.Run(settings, D3PlannerService.Build?.Name ?? "", D3PlannerService.Profile?.Name ?? "", shouldStop, e => Progress?.Invoke(e));
             lock (Lock)
@@ -191,6 +191,16 @@ public static class KanaiUpgradeService
         {
             Volatile.Write(ref _running, 0);
         }
+    }
+
+    /// <summary>The configured limit, lowered to what the entered material stock pays for (no stock entered = no material limit; 0 = none).</summary>
+    private static int MaxTransmutes(KanaiUpgradeStore store)
+    {
+        var stock = store.Stock;
+        bool entered = stock.DeathsBreath > 0 || stock.ReusableParts > 0 || stock.ArcaneDust > 0 || stock.VeiledCrystal > 0;
+        if (!entered) return store.MaxTransmutes;
+        int affords = (int)Math.Min(int.MaxValue, Math.Max(1, stock.Affords(KanaiMaterials.UpgradeRareCost)));
+        return store.MaxTransmutes > 0 ? Math.Min(store.MaxTransmutes, affords) : affords;
     }
 
     private static KanaiUpgradeStore Load()

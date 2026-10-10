@@ -111,6 +111,9 @@ TASK_REPETITION_MINUTES = 5
 TASK_REPETITION_INTERVAL = f"PT{TASK_REPETITION_MINUTES}M"
 TASK_RESTART_COUNT = 999
 TASK_RESTART_INTERVAL_MINUTES = 1
+# Task Scheduler defaults to 7 (BelowNormal CPU, low I/O and memory priority): under load the
+# worker's imports then starve for minutes. 4 = normal priority, same as a manual pyservice run.
+TASK_PRIORITY = 4
 
 
 def _ps_single_quote(value: str) -> str:
@@ -345,6 +348,7 @@ class WindowsStartupManager:
             "-and ([string]$t.Settings.MultipleInstances -eq 'IgnoreNew') "
             "-and ([string]$t.Settings.ExecutionTimeLimit -eq 'PT0S') "
             f"-and ([int]$t.Settings.RestartCount -eq {TASK_RESTART_COUNT}) "
+            f"-and ([int]$t.Settings.Priority -eq {TASK_PRIORITY}) "
             "-and (@($t.Triggers).Count -eq 1) "
             "-and (@($t.Triggers)[0].CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger') "
             f"-and ([string]@($t.Triggers)[0].Repetition.Interval -eq '{TASK_REPETITION_INTERVAL}')); "
@@ -358,7 +362,7 @@ class WindowsStartupManager:
             f"$principal = New-ScheduledTaskPrincipal -UserId {user} -LogonType Interactive -RunLevel Highest; "
             "$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries "
             "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew "
-            f"-RestartCount {TASK_RESTART_COUNT} "
+            f"-RestartCount {TASK_RESTART_COUNT} -Priority {TASK_PRIORITY} "
             f"-RestartInterval (New-TimeSpan -Minutes {TASK_RESTART_INTERVAL_MINUTES}); "
             f"Register-ScheduledTask -TaskName {name} "
             f"-Description {_ps_single_quote(TASK_DESCRIPTION)} -Action $action -Trigger $trigger "
