@@ -878,9 +878,19 @@
     },
     "rosbot_bridge": {
       "title": "ROSBOT plugin: CoreNode Bridge (current map)",
-      "desc": "This app's own ROSBOT plugin, installed to ROSBOT's plugins\\CoreNodeBridge. While ROSBOT runs it writes the current map (level area SNO), scene, world, town / rift / greater rift level, paragon, health, blood shards, keys, current sequence and recent maps to state.json once per second; this panel reads it every second. Enable CoreNode Bridge once in ROSBOT's plugin list; after updating the plugin restart ROSBOT to load it. Maps only have numeric ids; name the current map below.",
+      "plugin_action": {
+        "install": "Install / update plugin",
+        "uptodate": "Plugin up to date",
+        "uptodate_tip": "The installed plugin equals the bundled one and ROSBOT uses it. Click to check and repair again.",
+        "restarttoload": "Restart ROSBOT to load plugin",
+        "restarttoload_tip": "The plugin was installed or updated, but the running ROSBOT still uses the old one (or none). Click to restart ROSBOT only (D3 kept, game not left); a taken control pauses the new ROSBOT again.",
+        "restarttoupdate": "Restart ROSBOT and update plugin",
+        "restarttoupdate_tip": "The bundled plugin is newer than the installed one, which the running ROSBOT locks. Click to close ROSBOT, install the new plugin and start ROSBOT again (D3 kept, game not left).",
+        "restarting": "Restarting ROSBOT…",
+        "restarting_tip": "ROSBOT is being closed and started again; the button returns when done.",
+        "install_tip": "This app's own ROSBOT plugin, installed to ROSBOT's plugins\\CoreNodeBridge. While ROSBOT runs it writes the current map (level area SNO), scene, world, town / rift / greater rift level, paragon, health, blood shards, keys, current sequence and recent maps to state.json once per second; this panel reads it every second. Enable CoreNode Bridge once in ROSBOT's plugin list; after updating the plugin restart ROSBOT to load it. Maps only have numeric ids; name the current map below."
+      },
       "auto_install": "Install / update in the current ROSBOT automatically (at start and when the ROSBOT path changes)",
-      "install": "Install / update plugin",
       "open_dir": "Open plugin folder",
       "save_area_name": "Name current map",
       "history": "Recent maps (newest first)",

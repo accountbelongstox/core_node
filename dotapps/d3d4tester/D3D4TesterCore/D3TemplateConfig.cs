@@ -21,6 +21,8 @@ public static class D3TemplateNames
     public const string KanaiCubeLeftPanelIndicator = "kanai_cube_left_panel_indicator";
     public const string KanaiRightPanelToggleIcon = "kanai_right_panel_toggle_icon";
     public const string KanaiNextPageIcon = "kanai_next_page_icon";
+    /// <summary>Kanai recipe page footer "page 2/11" (the reforge recipe page). DOT-only (the file had no Python user).</summary>
+    public const string KanaiReforgePageIndicator = "reforge_interface_indicator";
     public const string D3StartGameButton = "d3_start_game_button";
     public const string D3GameTool = "d3_game_tool";
     public const string D3BountyProgress = "d3_bounty_progress";
@@ -68,6 +70,7 @@ public static class D3TemplateConfig
         [D3TemplateNames.KanaiCubeLeftPanelIndicator] = new(0.80, false, TemplateMatchMethod.Sift, "interface_indicator"),
         [D3TemplateNames.KanaiRightPanelToggleIcon] = new(0.75, false, TemplateMatchMethod.Sift, "icon"),
         [D3TemplateNames.KanaiNextPageIcon] = new(0.75, false, TemplateMatchMethod.Orb, "icon"),
+        [D3TemplateNames.KanaiReforgePageIndicator] = new(0.75, false, TemplateMatchMethod.Sift, "interface_indicator"),
         [D3TemplateNames.D3StartGameButton] = new(0.75, false, TemplateMatchMethod.Sift, "button"),
         [D3TemplateNames.D3GameTool] = new(0.75, false, TemplateMatchMethod.Sift, "interface_indicator"),
         [D3TemplateNames.D3BountyProgress] = new(0.75, false, TemplateMatchMethod.Sift, "interface_indicator"),

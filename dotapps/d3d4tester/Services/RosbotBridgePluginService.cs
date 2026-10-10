@@ -15,6 +15,9 @@ namespace DotApps.d3d4tester.Services;
 
 public enum RosbotBridgeInstallResult { Installed, UpToDate, NoRosbot, NoBundle, Locked, Failed }
 
+/// <summary>What the single plugin button does now (RosbotBridgePluginService.PluginAction).</summary>
+public enum RosbotBridgePluginAction { Install, UpToDate, RestartToLoad, RestartToUpdate, Restarting }
+
 /// <summary>Pause + stay in town: already in town, dead (the plugin revives in town), town portal key sent / not sent.</summary>
 public enum TownStandbyResult { InTown, Reviving, PortalSent, PortalNotSent }
 
@@ -45,6 +48,7 @@ public static class RosbotBridgePluginService
     private static readonly object NamesLock = new();
     private static Dictionary<int, string>? _areaNames;
     private static int _initialized;
+    private static int _installOnNextStart;
 
     public static string BundledDllPath => Path.Combine(AppContext.BaseDirectory, RosbotPluginConstants.BridgeBundledDir, RosbotPluginConstants.BridgeDllName);
 
@@ -68,7 +72,7 @@ public static class RosbotBridgePluginService
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
         TickDriver.Instance.RegisterEveryTick(_ => PublishState());
         RosbotFlowRunner.Resumed += ReleasePluginControlOnResume;
-        RosbotManager.Instance.AddBeforeStartHook(_ => AutoInstallIfEnabled());
+        RosbotManager.Instance.AddBeforeStartHook(_ => InstallBeforeStart());
         D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
         {
             if (key is ConfigKeys.RosSettingsRosDirectory or ConfigKeys.RosbotBridgePluginAutoInstall) _ = Task.Run(AutoInstallIfEnabled);
@@ -176,6 +180,55 @@ public static class RosbotBridgePluginService
     private static void AutoInstallIfEnabled()
     {
         if (AutoInstall) Install();
+    }
+
+    /// <summary>ROSBOT is about to start (the DLL is free): install when auto-install is on or an update restart asked for it.</summary>
+    private static void InstallBeforeStart()
+    {
+        if (Interlocked.Exchange(ref _installOnNextStart, 0) == 1 || AutoInstall) Install();
+    }
+
+    /// <summary>
+    /// What the plugin button offers: Restarting while a ROSBOT-only restart runs; ROSBOT running with an installed DLL that differs from
+    /// the bundled one -> RestartToUpdate (the running ROSBOT locks it); with the installed one not loaded (the live plugin reports another
+    /// version, or no live plugin and the DLL is newer than the ROSBOT process) -> RestartToLoad; else Install (UpToDate when nothing to do).
+    /// </summary>
+    public static RosbotBridgePluginAction PluginAction()
+    {
+        if (RosbotOnlyRestart.IsRunning) return RosbotBridgePluginAction.Restarting;
+        var info = GetInfo();
+        if (!IsRosbotRunning || info.InstalledPath == null) return info.UpToDate ? RosbotBridgePluginAction.UpToDate : RosbotBridgePluginAction.Install;
+        if (!info.UpToDate) return RosbotBridgePluginAction.RestartToUpdate;
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        if (snapshot.RosbotBridgeFresh)
+            return snapshot.RosbotBridge is { } s && !SameVersion(s.PluginVersion, info.InstalledVersion)
+                ? RosbotBridgePluginAction.RestartToLoad : RosbotBridgePluginAction.UpToDate;
+        return InstalledAfterRosbotStart(info.InstalledPath, snapshot.RosbotFoundPid) ? RosbotBridgePluginAction.RestartToLoad : RosbotBridgePluginAction.UpToDate;
+    }
+
+    /// <summary>Restart ROSBOT only so it loads the plugin; update = install the bundled DLL while ROSBOT is closed. False when one already runs.</summary>
+    public static bool RestartRosbotForPlugin(bool update)
+    {
+        if (update) Interlocked.Exchange(ref _installOnNextStart, 1);
+        return RosbotOnlyRestart.Restart(update ? "bridge plugin update" : "bridge plugin reload");
+    }
+
+    private static bool SameVersion(string? a, string? b) =>
+        Version.TryParse(a, out var va) && Version.TryParse(b, out var vb) ? va == vb : string.Equals(a, b, StringComparison.Ordinal);
+
+    /// <summary>The installed DLL was written after the running ROSBOT started (so it is not loaded); false when unknown.</summary>
+    private static bool InstalledAfterRosbotStart(string dllPath, int pid)
+    {
+        if (pid <= 0) return false;
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return File.GetLastWriteTime(dllPath) > process.StartTime;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
+        {
+            return false;
+        }
     }
 
     public static RosbotBridgePluginInfo GetInfo()

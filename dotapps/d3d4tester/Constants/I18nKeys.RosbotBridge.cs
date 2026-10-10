@@ -5,9 +5,10 @@ namespace DotApps.d3d4tester.Constants;
 public static partial class I18nKeys
 {
     public const string RosbotBridgeTitle = "ui.rosbot_bridge.title";
-    public const string RosbotBridgeDesc = "ui.rosbot_bridge.desc";
     public const string RosbotBridgeAutoInstall = "ui.rosbot_bridge.auto_install";
-    public const string RosbotBridgeInstall = "ui.rosbot_bridge.install";
+    /// <summary>Plugin button: prefix + lowercase RosbotBridgePluginAction; + TipSuffix for its tooltip.</summary>
+    public const string RosbotBridgePluginActionPrefix = "ui.rosbot_bridge.plugin_action.";
+    public const string RosbotBridgePluginActionTipSuffix = "_tip";
     public const string RosbotBridgeOpenDir = "ui.rosbot_bridge.open_dir";
     public const string RosbotBridgeSaveAreaName = "ui.rosbot_bridge.save_area_name";
     public const string RosbotBridgeHistory = "ui.rosbot_bridge.history";
