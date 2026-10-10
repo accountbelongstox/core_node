@@ -3,20 +3,15 @@
  * (or a slow poll while the event link is down), with known_revision so an unchanged state
  * costs a revision-only reply; concurrent refreshes share one request.
  */
-import { useEffect, useSyncExternalStore } from 'react';
-import { pycoreNodeClient } from '@/apps/pycore-manager/api';
+import { useEffect } from 'react';
 import type { GitSyncState, PycoreGitSyncApi } from '@/apps/pycore-manager/api';
 import { createPcExternalStore, type PcExternalStore } from '../api/PcExternalStore';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
 import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
-import {
-  readPcUiSessionTerminalNodeUrl,
-  subscribePcUiSessionTerminalNodeUrl,
-} from '../persistence/PcUiSessionStore';
+import { useSelectedPycoreNode } from './useSelectedPycoreNode';
 
 const FALLBACK_POLL_MS = 15_000;
 const TOPICS = [PYCORE_EVENT_TOPICS.gitsyncChanged];
-const PRIMARY_NODE_KEY = 'primary';
 
 export interface GitSyncNode {
   key: string;
@@ -41,8 +36,8 @@ function slotOf(key: string): GitSyncNodeSlot {
 
 /** The gitsync node picked in the terminal node tabs (null URL = this machine). */
 export function useSelectedGitSyncNode(): GitSyncNode {
-  const nodeUrl = useSyncExternalStore(subscribePcUiSessionTerminalNodeUrl, readPcUiSessionTerminalNodeUrl);
-  return { key: nodeUrl ?? PRIMARY_NODE_KEY, api: pycoreNodeClient(nodeUrl).gitSync };
+  const node = useSelectedPycoreNode();
+  return { key: node.key, api: node.client.gitSync };
 }
 
 /** Keeps a full state reply; a revision-only (unchanged) reply leaves the stored state as is. */

@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { Plus } from 'lucide-react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import {
@@ -11,7 +10,7 @@ import {
   useCmWalletTransactions,
   useCmWalletWithdrawals,
 } from '../../../../shared/useCmWallet';
-import { MobileButton, MobileListRow, MobileStatusBadge } from '../../../ui';
+import { MobileListRow, MobileStatusBadge } from '../../../ui';
 import { MobilePagedList } from '../parts/MobilePagedList';
 
 interface WalletListPanelProps {
@@ -63,7 +62,7 @@ export const WalletTransactionsPanel: React.FC<WalletListPanelProps & { currency
   );
 };
 
-export const WalletPaymentsPanel: React.FC<WalletListPanelProps & { userId: number | null; canCreate: boolean; onCreate: () => void; onOpen: (paymentId: number) => void }> = ({ userId, canCreate, onCreate, onOpen, refreshToken }) => {
+export const WalletPaymentsPanel: React.FC<WalletListPanelProps & { userId: number | null; onOpen: (paymentId: number) => void }> = ({ userId, onOpen, refreshToken }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const list = useCmWalletPayments();
@@ -72,7 +71,6 @@ export const WalletPaymentsPanel: React.FC<WalletListPanelProps & { userId: numb
   return (
     <>
       <p className="cmm-muted">{t('wallet.paymentsLead')}</p>
-      {canCreate && <MobileButton block icon={<Plus aria-hidden="true" />} onClick={onCreate}>{t('wallet.paymentCreate.toggle')}</MobileButton>}
       <MobilePagedList
         list={list}
         emptyTitle={t('wallet.noPayments')}
@@ -146,7 +144,7 @@ export const WalletRefundsPanel: React.FC<WalletListPanelProps> = ({ refreshToke
   );
 };
 
-export const WalletWithdrawalsPanel: React.FC<WalletListPanelProps & { onRequest: () => void }> = ({ onRequest, refreshToken }) => {
+export const WalletWithdrawalsPanel: React.FC<WalletListPanelProps> = ({ refreshToken }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const list = useCmWalletWithdrawals();
@@ -155,7 +153,6 @@ export const WalletWithdrawalsPanel: React.FC<WalletListPanelProps & { onRequest
   return (
     <>
       <p className="cmm-muted">{t('wallet.withdrawalsLead')}</p>
-      <MobileButton variant="primary" block icon={<Plus aria-hidden="true" />} onClick={onRequest}>{t('wallet.requestWithdrawal')}</MobileButton>
       <MobilePagedList
         list={list}
         emptyTitle={t('wallet.noWithdrawals')}

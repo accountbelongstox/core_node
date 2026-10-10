@@ -108,3 +108,7 @@ select.cmm-input { appearance: auto; }
 .cmm-a-sr { position: absolute; overflow: hidden; width: 1px; height: 1px; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .cmm-welcome__image { max-height: none; aspect-ratio: 16 / 9; }
+
+.cmm-a-block .cmm-row__subtitle,
+.cmm-a-block .cmm-row__meta { display: block; overflow: visible; -webkit-line-clamp: unset; line-clamp: unset; }
+.cmm-a-block .cmm-row__title { display: block; }
