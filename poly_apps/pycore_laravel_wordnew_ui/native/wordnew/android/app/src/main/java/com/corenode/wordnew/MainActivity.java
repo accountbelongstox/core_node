@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ImmersivePlugin.class);
         registerPlugin(ForegroundSyncPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
+        registerPlugin(TextRecognitionPlugin.class);
         super.onCreate(savedInstanceState);
         // Edge-to-edge on every API level: the Capacitor SystemBars inset listener is the
         // single owner of IME insets (it pads the decor view), so the window never pans.

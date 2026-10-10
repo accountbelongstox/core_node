@@ -2,5 +2,6 @@
 export interface CmFeedback {
   success: (text: string) => void;
   error: (text: string) => void;
+  info?: (text: string) => void;
   clear: () => void;
 }

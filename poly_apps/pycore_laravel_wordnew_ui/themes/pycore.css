@@ -37,3 +37,15 @@ html[data-theme="pycore"] body {
   -webkit-backdrop-filter: blur(16px);
   border-radius: 16px;
 }
+
+/* Opaque surface for floating overlays (docks, popovers) that sit above page content. */
+.pc-overlay {
+  background: var(--pc-surface);
+  color: var(--pc-text);
+  border: 1px solid var(--pc-glass-border);
+  border-radius: 16px;
+}
+
+html[data-theme="pycore"].dark .pc-overlay {
+  border-color: rgba(255, 255, 255, 0.14);
+}

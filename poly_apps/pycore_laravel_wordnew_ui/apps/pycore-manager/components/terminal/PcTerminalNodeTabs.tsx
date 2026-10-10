@@ -9,8 +9,10 @@ import { useTranslation } from 'react-i18next';
 import {
   getLanMachines,
   getPycoreProbe,
+  getPycoreSelectionUrls,
   getPycoreTarget,
   isLanMachinesAvailable,
+  isSamePycoreMachine,
   listPycoreEndpoints,
   probePycoreEndpoints,
   refreshLanMachines,
@@ -43,8 +45,21 @@ function dueForProbe<T extends { url: string }>(nodes: T[]): T[] {
 }
 
 function otherNodes(): PycoreEndpoint[] {
-  const targetUrl = getPycoreTarget().url;
-  return listPycoreEndpoints().filter((endpoint) => endpoint.kind !== 'relay' && endpoint.url !== targetUrl);
+  const selectionUrls = new Set(getPycoreSelectionUrls());
+  return listPycoreEndpoints().filter((endpoint) => endpoint.kind !== 'relay' && !selectionUrls.has(endpoint.url));
+}
+
+/** This machine's URLs (the selection, its LAN route) plus the active target, probed so their identity is known. */
+function selectionTargets() {
+  const target = getPycoreTarget();
+  const urls = getPycoreSelectionUrls();
+  const known = new Map(listPycoreEndpoints().map((endpoint) => [endpoint.url, endpoint]));
+  return [target, ...urls.filter((url) => url !== target.url).flatMap((url) => known.get(url) ?? [])];
+}
+
+/** The platform this machine reports through any of its URLs. */
+function selectionPlatform(): string {
+  return getPycoreSelectionUrls().map((url) => getPycoreProbe(url)?.platform || '').find(Boolean) || '';
 }
 
 export interface PcSearchNode {
@@ -61,8 +76,13 @@ export function listSearchNodes(thisMachineLabel: string): PcSearchNode[] {
   const target = getPycoreTarget();
   const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || thisMachineLabel;
   return [
-    { url: null, label: thisLabel, os: getPycoreProbe(target.url)?.platform, machineId: getPycoreProbe(target.url)?.machineId },
-    ...uniqueMachines(otherNodes(), target.url, null).map((node) => ({
+    {
+      url: null,
+      label: thisLabel,
+      os: selectionPlatform() || undefined,
+      machineId: getPycoreSelectionUrls().map((url) => getPycoreProbe(url)?.machineId || '').find(Boolean) || undefined,
+    },
+    ...uniqueMachines(otherNodes(), null).map((node) => ({
       url: node.url,
       label: node.label,
       os: getPycoreProbe(node.url)?.platform || node.os,
@@ -71,19 +91,16 @@ export function listSearchNodes(thisMachineLabel: string): PcSearchNode[] {
   ];
 }
 
-/** One tab per machine: a node whose machine id is this machine's or an earlier tab's (127.0.0.1 vs its LAN/tailnet URL) is dropped; the shown node always stays. */
-function uniqueMachines(nodes: PycoreEndpoint[], targetUrl: string, activeUrl: string | null): PycoreEndpoint[] {
-  const seen = new Set<string>();
-  const targetMachineId = getPycoreProbe(targetUrl)?.machineId;
-  if (targetMachineId) seen.add(targetMachineId);
-  const activeMachineId = activeUrl ? getPycoreProbe(activeUrl)?.machineId : '';
-  if (activeMachineId && activeMachineId !== targetMachineId) seen.add(activeMachineId);
+/**
+ * One tab per machine: a node that reaches this machine (127.0.0.1 vs its LAN/tailnet URL), the shown
+ * node's machine or an earlier tab's machine is dropped; the shown node always stays.
+ */
+function uniqueMachines(nodes: PycoreEndpoint[], activeUrl: string | null): PycoreEndpoint[] {
+  const kept: string[] = [];
+  const claimed = [...getPycoreSelectionUrls(), ...(activeUrl ? [activeUrl] : [])];
   return nodes.filter((node) => {
-    if (node.url === activeUrl) return true;
-    const machineId = getPycoreProbe(node.url)?.machineId;
-    if (!machineId) return true;
-    if (seen.has(machineId)) return false;
-    seen.add(machineId);
+    if (node.url !== activeUrl && [...claimed, ...kept].some((url) => isSamePycoreMachine(url, node.url))) return false;
+    kept.push(node.url);
     return true;
   });
 }
@@ -104,7 +121,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
     const stopLan = subscribeLanMachines(() => {
       const list = otherNodes();
       setNodes(list);
-      void probePycoreEndpoints(dueForProbe([getPycoreTarget(), ...list]));
+      void probePycoreEndpoints(dueForProbe([...selectionTargets(), ...list]));
     });
     const stopProbes = subscribePycoreProbes(() => setProbeVersion((value) => value + 1));
     let firstDiscovery = true;
@@ -113,7 +130,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
         const list = otherNodes();
         setNodes(list);
         // This machine is probed too: its /api/status reports the OS its tab shows.
-        void probePycoreEndpoints(dueForProbe([getPycoreTarget(), ...list]));
+        void probePycoreEndpoints(dueForProbe([...selectionTargets(), ...list]));
         // A node restored from the last session that discovery no longer knows falls back to this machine, once.
         const restoredUrl = activeUrlRef.current;
         if (firstDiscovery && restoredUrl !== null && !list.some((node) => node.url === restoredUrl)) {
@@ -132,6 +149,12 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
     };
   }, []);
 
+  // A shown node that turns out to be this machine under another URL folds back into tab 1.
+  const activeIsSelection = activeUrl !== null && getPycoreSelectionUrls().some((url) => isSamePycoreMachine(url, activeUrl));
+  useEffect(() => {
+    if (activeIsSelection) onSelectRef.current(null);
+  }, [activeIsSelection]);
+
   const rescan = () => {
     setRescanning(true);
     void rescanLanMachines().finally(() => setRescanning(false));
@@ -140,7 +163,6 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
 
   const online = uniqueMachines(
     nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP),
-    target.url,
     activeUrl,
   );
   const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || t('terminal.nodes.thisMachine');
@@ -160,7 +182,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
           : 'border border-slate-500/20 text-slate-600 hover:bg-slate-500/10 dark:text-slate-300'
       }`}
     >
-      <PcOsIcon os={pcOsKind(getPycoreProbe(url ?? target.url)?.platform || os)} />
+      <PcOsIcon os={pcOsKind((url ? getPycoreProbe(url)?.platform : selectionPlatform()) || os)} />
       <span>{index}</span>
     </button>
   );

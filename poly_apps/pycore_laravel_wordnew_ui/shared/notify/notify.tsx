@@ -379,6 +379,7 @@ export const AppToaster: React.FC = () => {
         role="region"
         aria-label="Notifications"
         aria-live="polite"
+        data-notify-viewport=""
         className={`pointer-events-none fixed bottom-4 right-4 flex flex-col items-end gap-2.5 ${OVERLAY_Z.toast}`}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}

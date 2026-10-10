@@ -381,6 +381,11 @@ export function getPycoreTarget(): PycoreTarget {
   return readTarget();
 }
 
+/** URLs that reach the selected machine: the selection and, while active, its LAN route. */
+export function getPycoreSelectionUrls(): string[] {
+  return Array.from(new Set([readSelectedTarget().url, readTarget().url]));
+}
+
 /** True when the active target is the page's own default backend. */
 export function isPycoreDefaultTarget(): boolean {
   return readTarget().url === defaultTarget().url;

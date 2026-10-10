@@ -1,12 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ClipboardList, Pencil, Plus, RefreshCw, Send } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmApi } from '../api/CmApi';
 import type { CmProjectDetail } from '../api/CmApiTypes';
-import { cmErrorCode, cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
-import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmMilestoneCard } from '../components/workspace/CmMilestoneCard';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmProjectAnalysisPanel } from '../components/workspace/CmProjectAnalysisPanel';
@@ -16,65 +13,22 @@ import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
-import { cmJoinList, cmShortDate, cmSplitList, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-
-const DEFAULT_COMPLEXITY = 'medium';
-const OWNER_ROLE = 'owner';
-const FUNDING_PENDING_STATUS = 'funding_pending';
-const SCOPE_EDITABLE_STATUSES = new Set(['draft', 'proposal_review']);
-const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
-const NOT_FOUND_STATUS = 404;
-const FORBIDDEN_STATUS = 403;
-
-type CmStackField = typeof STACK_FIELDS[number];
+import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { CM_STACK_FIELDS } from '../shared/cmProjectForm';
+import { useCmMilestoneForm } from '../shared/useCmMilestones';
+import { CM_FUNDING_PENDING_STATUS, useCmProjectDetail } from '../shared/useCmProjectDetail';
+import { useCmProjectEdit } from '../shared/useCmProjectEdit';
 
 const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Promise<void> }> = ({ project, onSaved }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const { policyList } = useCmBootstrap();
-  const { projectMinBudget } = useCmPolicy();
-  const scopeEditable = SCOPE_EDITABLE_STATUSES.has(project.status);
-  const [title, setTitle] = useState(project.title);
-  const [description, setDescription] = useState(project.description);
-  const [complexity, setComplexity] = useState<string>(project.complexity ?? DEFAULT_COMPLEXITY);
-  const [budget, setBudget] = useState(project.budget ?? '');
-  const [startDate, setStartDate] = useState(cmShortDate(project.start_date));
-  const [endDate, setEndDate] = useState(cmShortDate(project.end_date));
-  const [stack, setStack] = useState<Record<CmStackField, string>>({
-    skills: cmJoinList(project.skills),
-    languages: cmJoinList(project.languages),
-    frameworks: cmJoinList(project.frameworks),
-    databases: cmJoinList(project.databases),
-  });
-  const [busy, setBusy] = useState(false);
-
-  const invalid = !title.trim() || !description.trim()
-    || (scopeEditable && (!budget || Number(budget) < projectMinBudget))
-    || (scopeEditable && startDate !== '' && endDate !== '' && endDate <= startDate);
+  const edit = useCmProjectEdit(project, onSaved, notice);
+  const { scopeEditable, projectMinBudget } = edit;
 
   const save = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (busy || invalid) return;
-    setBusy(true);
-    notice.clear();
-    const payload: Record<string, unknown> = { title: title.trim(), description: description.trim() };
-    if (scopeEditable) {
-      payload.complexity = complexity;
-      payload.budget = Number(budget);
-      payload.start_date = startDate || null;
-      payload.end_date = endDate || null;
-      STACK_FIELDS.forEach((field) => {
-        payload[field] = cmSplitList(stack[field]);
-      });
-    }
-    const response = await cmApi.updateProject(project.id, payload);
-    setBusy(false);
-    if (response.success) {
-      notice.success(t('projectDetail.saved'));
-      await onSaved();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'projectDetail.saveFailed'));
-    }
+    await edit.save();
   };
 
   return (
@@ -82,24 +36,24 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
       {!scopeEditable && <p className="cm-field-hint is-wide">{t('projectDetail.scopeLocked')}</p>}
       <label className="is-wide">
         <span>{t('projectCreate.projectTitle')}</span>
-        <input value={title} maxLength={255} onChange={(event) => setTitle(event.target.value)} aria-invalid={!title.trim()} />
-        {!title.trim() && <small className="cm-field-error">{t('projectCreate.errors.titleRequired')}</small>}
+        <input value={edit.title} maxLength={255} onChange={(event) => edit.setTitle(event.target.value)} aria-invalid={!edit.title.trim()} />
+        {!edit.title.trim() && <small className="cm-field-error">{t('projectCreate.errors.titleRequired')}</small>}
       </label>
       <label className="is-wide">
         <span>{t('projectCreate.summary')}</span>
-        <textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} aria-invalid={!description.trim()} />
-        {!description.trim() && <small className="cm-field-error">{t('projectCreate.errors.descriptionRequired')}</small>}
+        <textarea rows={5} value={edit.description} onChange={(event) => edit.setDescription(event.target.value)} aria-invalid={!edit.description.trim()} />
+        {!edit.description.trim() && <small className="cm-field-error">{t('projectCreate.errors.descriptionRequired')}</small>}
       </label>
       {scopeEditable && (
         <>
           <label>
             <span>{t('projectCreate.budget')}</span>
-            <input type="number" min={projectMinBudget} step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} aria-invalid={!budget || Number(budget) < projectMinBudget} />
-            {(!budget || Number(budget) < projectMinBudget) && <small className="cm-field-error">{t('projectCreate.errors.budgetMin', { amount: projectMinBudget, currency: project.currency ?? '' })}</small>}
+            <input type="number" min={projectMinBudget} step="0.01" value={edit.budget} onChange={(event) => edit.setBudget(event.target.value)} aria-invalid={edit.budgetInvalid} />
+            {edit.budgetInvalid && <small className="cm-field-error">{t('projectCreate.errors.budgetMin', { amount: projectMinBudget, currency: project.currency ?? '' })}</small>}
           </label>
           <label>
             <span>{t('projectCreate.complexity')}</span>
-            <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
+            <select value={edit.complexity} onChange={(event) => edit.setComplexity(event.target.value)}>
               {policyList('complexities').map((value) => (
                 <option key={value} value={value}>{t(`estimate.complexities.${value}`)}</option>
               ))}
@@ -107,19 +61,19 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
           </label>
           <label>
             <span>{t('projectCreate.startDate')}</span>
-            <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+            <input type="date" value={edit.startDate} onChange={(event) => edit.setStartDate(event.target.value)} />
           </label>
           <label>
             <span>{t('projectCreate.endDate')}</span>
-            <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} />
-            {startDate !== '' && endDate !== '' && endDate <= startDate && <small className="cm-field-error">{t('projectCreate.errors.endAfterStart')}</small>}
+            <input type="date" value={edit.endDate} min={edit.startDate || undefined} onChange={(event) => edit.setEndDate(event.target.value)} />
+            {edit.endInvalid && <small className="cm-field-error">{t('projectCreate.errors.endAfterStart')}</small>}
           </label>
-          {STACK_FIELDS.map((field) => (
+          {CM_STACK_FIELDS.map((field) => (
             <label key={field}>
               <span>{t(`projectCreate.${field}`)}</span>
               <input
-                value={stack[field]}
-                onChange={(event) => setStack((current) => ({ ...current, [field]: event.target.value }))}
+                value={edit.stack[field]}
+                onChange={(event) => edit.setStackField(field, event.target.value)}
                 placeholder={t('projectCreate.listPlaceholder')}
               />
             </label>
@@ -128,8 +82,8 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
       )}
       {notice.notice && <div className="is-wide"><CmNotice notice={notice.notice} onDismiss={notice.clear} /></div>}
       <div className="cm-project-form__actions">
-        <button type="submit" className="is-primary" disabled={busy || invalid}>
-          {busy ? t('common.saving') : t('projectDetail.saveChanges')}
+        <button type="submit" className="is-primary" disabled={edit.busy || edit.invalid}>
+          {edit.busy ? t('common.saving') : t('projectDetail.saveChanges')}
         </button>
       </div>
     </form>
@@ -139,77 +93,43 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
 const CmMilestoneCreateForm: React.FC<{ projectId: number; onCreated: () => Promise<void> }> = ({ projectId, onCreated }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [budget, setBudget] = useState('');
-  const [deliverables, setDeliverables] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const errors = {
-    title: !title.trim() ? t('milestones.errors.titleRequired') : null,
-    dueDate: !dueDate ? t('milestones.errors.dueDateRequired') : null,
-    budget: budget === '' || Number(budget) < 0 ? t('milestones.errors.budgetRequired') : null,
-  };
-  const invalid = Object.values(errors).some((value) => value !== null);
+  const form = useCmMilestoneForm(projectId, null, onCreated, notice);
+  const { errors, submitted } = form;
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    setSubmitted(true);
-    if (busy || invalid) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.createMilestone(projectId, {
-      title: title.trim(),
-      description: description.trim() || null,
-      due_date: dueDate,
-      budget: Number(budget),
-      deliverables: deliverables.split('\n').map((item) => item.trim()).filter((item) => item !== ''),
-    });
-    setBusy(false);
-    if (response.success) {
-      setTitle('');
-      setDescription('');
-      setDueDate('');
-      setBudget('');
-      setDeliverables('');
-      setSubmitted(false);
-      notice.success(t('projectDetail.milestoneAdded'));
-      await onCreated();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'projectDetail.milestoneFailed'));
-    }
+    await form.submit();
   };
 
   return (
     <form className="cm-project-form" onSubmit={(event) => void submit(event)} noValidate>
       <label className="is-wide">
         <span>{t('projectDetail.milestoneTitle')}</span>
-        <input value={title} onChange={(event) => setTitle(event.target.value)} aria-invalid={submitted && Boolean(errors.title)} />
+        <input value={form.title} onChange={(event) => form.setTitle(event.target.value)} aria-invalid={submitted && Boolean(errors.title)} />
         {submitted && errors.title && <small className="cm-field-error">{errors.title}</small>}
       </label>
       <label>
         <span>{t('projectDetail.milestoneDueDate')}</span>
-        <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} aria-invalid={submitted && Boolean(errors.dueDate)} />
+        <input type="date" value={form.dueDate} onChange={(event) => form.setDueDate(event.target.value)} aria-invalid={submitted && Boolean(errors.dueDate)} />
         {submitted && errors.dueDate && <small className="cm-field-error">{errors.dueDate}</small>}
       </label>
       <label>
         <span>{t('projectDetail.milestoneBudget')}</span>
-        <input type="number" min={0} step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} aria-invalid={submitted && Boolean(errors.budget)} />
+        <input type="number" min={0} step="0.01" value={form.budget} onChange={(event) => form.setBudget(event.target.value)} aria-invalid={submitted && Boolean(errors.budget)} />
         {submitted && errors.budget && <small className="cm-field-error">{errors.budget}</small>}
       </label>
       <label className="is-wide">
         <span>{t('projectDetail.milestoneDescription')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-        <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
+        <textarea rows={3} value={form.description} onChange={(event) => form.setDescription(event.target.value)} />
       </label>
       <label className="is-wide">
         <span>{t('milestones.deliverables')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-        <textarea rows={3} value={deliverables} onChange={(event) => setDeliverables(event.target.value)} placeholder={t('milestones.deliverablesPlaceholder')} />
+        <textarea rows={3} value={form.deliverables} onChange={(event) => form.setDeliverables(event.target.value)} placeholder={t('milestones.deliverablesPlaceholder')} />
       </label>
       {notice.notice && <div className="is-wide"><CmNotice notice={notice.notice} onDismiss={notice.clear} /></div>}
       <div className="cm-project-form__actions">
-        <button type="submit" className="is-primary" disabled={busy}>
-          {busy ? t('common.saving') : t('projectDetail.addMilestone')}
+        <button type="submit" className="is-primary" disabled={form.busy}>
+          {form.busy ? t('common.saving') : t('projectDetail.addMilestone')}
         </button>
       </div>
     </form>
@@ -220,53 +140,14 @@ export const CmProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { projectId } = useParams<{ projectId: string }>();
-  const { bootstrap, refresh, terminalStates, stateRule } = useCmBootstrap();
   const numericId = Number.parseInt(projectId ?? '', 10);
   const notice = useCmNotice();
+  const detail = useCmProjectDetail(numericId, notice);
+  const { project, loading, load, reloadAll, isOwner, canManage, closed, publishable, currentUserId, milestones, nextAction, architectLabel } = detail;
 
-  const [project, setProject] = useState<CmProjectDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [forbidden, setForbidden] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [addingMilestone, setAddingMilestone] = useState(false);
   const [formKey, setFormKey] = useState(0);
-
-  const load = useCallback(async (): Promise<void> => {
-    if (!Number.isFinite(numericId)) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    const response = await cmApi.getProject(numericId);
-    if (response.success && response.data) {
-      setProject(response.data);
-      setLoadError(null);
-      setNotFound(false);
-    } else {
-      setNotFound(response.status === NOT_FOUND_STATUS || cmErrorCode(response) === 'project_not_found');
-      setForbidden(response.status === FORBIDDEN_STATUS);
-      setLoadError(cmErrorMessage(t, response, 'projectDetail.loadFailed'));
-    }
-    setLoading(false);
-  }, [numericId, t]);
-
-  useEffect(() => {
-    setLoading(true);
-    void load();
-  }, [load]);
-
-  const reloadAll = useCallback(async (): Promise<void> => {
-    await load();
-    await refresh();
-  }, [load, refresh]);
-
-  const retry = (): void => {
-    setLoading(true);
-    void load();
-  };
 
   const backLink = (
     <Link to={CM_PROTECTED_ROUTE.projects} className="cm-workspace-button">
@@ -280,62 +161,18 @@ export const CmProjectDetailPage: React.FC = () => {
         <CmPageHeader eyebrowKey="projects.eyebrow" titleKey="projectDetail.docTitle" purposeKey="projectDetail.purpose" actions={backLink} />
         {loading ? (
           <CmLoadingState />
-        ) : notFound ? (
+        ) : detail.notFound ? (
           <CmEmptyState title={t('projectDetail.notFoundTitle')} body={t('projectDetail.notFoundBody')} action={backLink} />
-        ) : forbidden ? (
+        ) : detail.forbidden ? (
           <CmEmptyState title={t('projectDetail.noAccessTitle')} body={t('projectDetail.noAccessBody')} action={backLink} />
         ) : (
-          <CmErrorState message={loadError ?? t('projectDetail.loadFailed')} onRetry={retry} />
+          <CmErrorState message={detail.loadError ?? t('projectDetail.loadFailed')} onRetry={detail.retry} />
         )}
       </main>
     );
   }
 
   const access = project.access;
-  const isOwner = access?.role === OWNER_ROLE;
-  const canManage = access?.can_manage === true;
-  const closed = terminalStates('project').includes(project.status);
-  const publishable = stateRule('project_task_publishable').includes(project.status) && !project.published_at;
-  const currentUserId = bootstrap?.user.id ?? null;
-  const milestones = project.milestones ?? [];
-  const nextActionKey = `projects.nextAction.${project.status}`;
-  const nextAction = isOwner ? t(nextActionKey, { defaultValue: '' }) : '';
-  const architectLabel = project.architect_id
-    ? (project.architect_id === currentUserId ? t('projectDetail.architectYou') : t('projectDetail.architectAssigned'))
-    : t('projectDetail.unassigned');
-
-  const transition = async (toStatus: string, reason: string): Promise<boolean> => {
-    notice.clear();
-    const response = await cmApi.transitionProject(project.id, toStatus, reason);
-    if (response.success) {
-      const refundedAmount = response.data?.side_effects?.escrow_refund?.refunded_amount;
-      const refunded = refundedAmount && Number(refundedAmount) > 0
-        ? t('transitions.escrowRefunded', { amount: format.money(refundedAmount, project.currency) })
-        : '';
-      notice.success([t('transitions.projectDone', { status: t(`states.project.${toStatus}`, { defaultValue: toStatus }) }), refunded].filter(Boolean).join(' '));
-      await reloadAll();
-      return true;
-    }
-    notice.error(cmErrorMessage(t, response, 'transitions.failed'));
-    return false;
-  };
-
-  const publish = async (): Promise<void> => {
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.publishProject(project.id);
-    setBusy(false);
-    if (response.success) {
-      notice.success(t('projects.published'));
-      await reloadAll();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'projects.publishFailed'));
-    }
-  };
-
-  const onSaved = async (): Promise<void> => {
-    await load();
-  };
 
   return (
     <main className="cm-workspace-page">
@@ -355,7 +192,7 @@ export const CmProjectDetailPage: React.FC = () => {
         )}
       />
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
-      {access?.read_only && <CmNotice notice={{ tone: 'info', text: t('projectDetail.readOnly') }} />}
+      {detail.readOnly && <CmNotice notice={{ tone: 'info', text: t('projectDetail.readOnly') }} />}
 
       <section className="cm-section-card">
         <h2><ClipboardList aria-hidden="true" /> {t('projectDetail.overviewTitle')}</h2>
@@ -375,9 +212,9 @@ export const CmProjectDetailPage: React.FC = () => {
           {project.created_at && <div><dt>{t('projectDetail.createdAt')}</dt><dd>{format.date(project.created_at)}</dd></div>}
           {project.published_at && <div><dt>{t('projectDetail.publishedAt')}</dt><dd>{format.date(project.published_at)}</dd></div>}
         </dl>
-        {STACK_FIELDS.some((field) => (project[field] ?? []).length > 0) && (
+        {CM_STACK_FIELDS.some((field) => (project[field] ?? []).length > 0) && (
           <div className="cm-stack-list">
-            {STACK_FIELDS.map((field) => (
+            {CM_STACK_FIELDS.map((field) => (
               (project[field] ?? []).length > 0 && (
                 <div key={field}>
                   <span>{t(`projectCreate.${field}`)}</span>
@@ -391,20 +228,20 @@ export const CmProjectDetailPage: React.FC = () => {
           <div className="cm-section-card__footer">
             <h3>{t('projectDetail.actionsTitle')}</h3>
             {publishable && (
-              <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void publish()}>
-                <Send aria-hidden="true" /> {busy ? t('common.saving') : t('projects.publish')}
+              <button type="button" className="cm-workspace-button is-primary" disabled={detail.publishing} onClick={() => void detail.publish()}>
+                <Send aria-hidden="true" /> {detail.publishing ? t('common.saving') : t('projects.publish')}
               </button>
             )}
             <CmTransitionBar
               transitions={access?.allowed_transitions ?? []}
               labelFor={(toStatus) => t(`transitions.project.${toStatus}`, { defaultValue: toStatus })}
-              onConfirm={transition}
+              onConfirm={detail.transition}
             />
           </div>
         )}
       </section>
 
-      {isOwner && project.status === FUNDING_PENDING_STATUS && (
+      {isOwner && project.status === CM_FUNDING_PENDING_STATUS && (
         <CmProjectFundPanel project={project} onFunded={reloadAll} />
       )}
 
@@ -455,7 +292,7 @@ export const CmProjectDetailPage: React.FC = () => {
               <Pencil aria-hidden="true" /> {editing ? t('common.cancel') : t('projectDetail.editOpen')}
             </button>
           </div>
-          {editing && <CmProjectEditForm key={formKey} project={project} onSaved={onSaved} />}
+          {editing && <CmProjectEditForm key={formKey} project={project} onSaved={load} />}
         </section>
       )}
     </main>

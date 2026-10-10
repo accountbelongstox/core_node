@@ -1,61 +1,28 @@
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, CalendarDays, FilePlus2, Milestone, RefreshCw, Search } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmApi } from '../api/CmApi';
-import type { CmProject } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
-import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CM_PROTECTED_ROUTE, cmProjectPath } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
-import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-import { useCmPagedList } from '../components/workspace/useCmPagedList';
-
-const DEFAULT_COMPLEXITY = 'medium';
-const DEFAULT_BUDGET_TYPE = 'fixed';
-const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
-const TITLE_MAX_LENGTH = 255;
-const ALL_STATUSES = '';
-
-type CmStackField = typeof STACK_FIELDS[number];
-type CmCreateField = 'title' | 'description' | 'budget' | 'endDate';
-
-const extractProjects = (data: { projects: CmProject[]; pagination: unknown }) => ({
-  items: Array.isArray(data.projects) ? data.projects : [],
-  totalPages: cmTotalPages(data.pagination as Parameters<typeof cmTotalPages>[0]),
-});
+import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { CM_PROJECT_TITLE_MAX_LENGTH, CM_STACK_FIELDS } from '../shared/cmProjectForm';
+import { useCmProjectCreate } from '../shared/useCmProjectCreate';
+import { useCmProjectsList } from '../shared/useCmProjectsList';
 
 export const CmProjectsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { hasCapability, states } = useCmBootstrap();
   const canCreate = hasCapability('project.create');
-  const [status, setStatus] = useState<string>(ALL_STATUSES);
-  const [searchDraft, setSearchDraft] = useState('');
-  const [search, setSearch] = useState('');
+  const { list, status, setStatus, searchDraft, setSearchDraft, filtered, applySearch, clearFilters } = useCmProjectsList();
 
-  const fetcher = useCallback((page: number) => cmApi.getProjects({
-    include_assigned: true,
-    page,
-    ...(status ? { status } : {}),
-    ...(search ? { search } : {}),
-  }), [status, search]);
-  const list = useCmPagedList(fetcher, extractProjects, 'projects.loadFailed');
-  const filtered = status !== ALL_STATUSES || search !== '';
-
-  const applySearch = (event: React.FormEvent): void => {
+  const submitSearch = (event: React.FormEvent): void => {
     event.preventDefault();
-    setSearch(searchDraft.trim());
-  };
-
-  const clearFilters = (): void => {
-    setStatus(ALL_STATUSES);
-    setSearch('');
-    setSearchDraft('');
+    applySearch();
   };
 
   return (
@@ -77,7 +44,7 @@ export const CmProjectsPage: React.FC = () => {
           </>
         )}
       />
-      <form className="cm-filter-bar" onSubmit={applySearch}>
+      <form className="cm-filter-bar" onSubmit={submitSearch}>
         <label className="cm-filter-bar__search">
           <span className="cm-visually-hidden">{t('projects.searchLabel')}</span>
           <Search aria-hidden="true" />
@@ -86,7 +53,7 @@ export const CmProjectsPage: React.FC = () => {
         <label>
           <span className="cm-visually-hidden">{t('projects.statusFilter')}</span>
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value={ALL_STATUSES}>{t('projects.allStatuses')}</option>
+            <option value="">{t('projects.allStatuses')}</option>
             {states('project').map((value) => (
               <option key={value} value={value}>{t(`states.project.${value}`)}</option>
             ))}
@@ -154,56 +121,14 @@ const CmFieldLabel: React.FC<{ label: string; required?: boolean; hint?: string 
 export const CmProjectCreatePage: React.FC = () => {
   const { t } = useTranslation('cm');
   const navigate = useNavigate();
-  const { hasCapability, refresh, policyList } = useCmBootstrap();
+  const { policyList } = useCmBootstrap();
   const notice = useCmNotice();
-  const canCreate = hasCapability('project.create');
-  const { currency, projectMinBudget } = useCmPolicy();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [complexity, setComplexity] = useState<string>(DEFAULT_COMPLEXITY);
-  const [budget, setBudget] = useState('');
-  const [budgetType, setBudgetType] = useState<string>(DEFAULT_BUDGET_TYPE);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [stack, setStack] = useState<Record<CmStackField, string>>({ skills: '', languages: '', frameworks: '', databases: '' });
-  const [pending, setPending] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  const errors: Partial<Record<CmCreateField, string>> = {};
-  if (!title.trim()) errors.title = t('projectCreate.errors.titleRequired');
-  else if (title.length > TITLE_MAX_LENGTH) errors.title = t('projectCreate.errors.titleTooLong', { max: TITLE_MAX_LENGTH });
-  if (!description.trim()) errors.description = t('projectCreate.errors.descriptionRequired');
-  if (!budget || Number(budget) < projectMinBudget) errors.budget = t('projectCreate.errors.budgetMin', { amount: projectMinBudget, currency });
-  if (startDate && endDate && endDate <= startDate) errors.endDate = t('projectCreate.errors.endAfterStart');
-  const showError = (field: CmCreateField): string | undefined => (submitted ? errors[field] : undefined);
+  const { form, update, updateStack, errors, showError, submitted, canCreate, pending, currency, projectMinBudget, submit: createProject } = useCmProjectCreate(notice);
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    setSubmitted(true);
-    if (!canCreate || pending || Object.keys(errors).length > 0) return;
-    setPending(true);
-    notice.clear();
-    const response = await cmApi.createProject({
-      title: title.trim(),
-      description: description.trim(),
-      complexity,
-      budget: Number(budget),
-      budget_type: budgetType,
-      currency,
-      start_date: startDate || null,
-      end_date: endDate || null,
-      skills: cmSplitList(stack.skills),
-      languages: cmSplitList(stack.languages),
-      frameworks: cmSplitList(stack.frameworks),
-      databases: cmSplitList(stack.databases),
-    });
-    setPending(false);
-    if (response.success && response.data) {
-      await refresh();
-      navigate(cmProjectPath(response.data.id));
-      return;
-    }
-    notice.error(cmErrorMessage(t, response, 'projectCreate.createFailed'));
+    const projectId = await createProject();
+    if (projectId !== null) navigate(cmProjectPath(projectId));
   };
 
   return (
@@ -221,22 +146,22 @@ export const CmProjectCreatePage: React.FC = () => {
       <form className="cm-project-form" onSubmit={(event) => void submit(event)} noValidate>
         <label className="is-wide">
           <CmFieldLabel label={t('projectCreate.projectTitle')} required />
-          <input value={title} maxLength={TITLE_MAX_LENGTH} onChange={(event) => setTitle(event.target.value)} placeholder={t('projectCreate.projectTitlePlaceholder')} aria-invalid={Boolean(showError('title'))} />
+          <input value={form.title} maxLength={CM_PROJECT_TITLE_MAX_LENGTH} onChange={(event) => update({ title: event.target.value })} placeholder={t('projectCreate.projectTitlePlaceholder')} aria-invalid={Boolean(showError('title'))} />
           {showError('title') && <small className="cm-field-error">{showError('title')}</small>}
         </label>
         <label className="is-wide">
           <CmFieldLabel label={t('projectCreate.summary')} required />
-          <textarea rows={7} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={t('projectCreate.summaryPlaceholder')} aria-invalid={Boolean(showError('description'))} />
+          <textarea rows={7} value={form.description} onChange={(event) => update({ description: event.target.value })} placeholder={t('projectCreate.summaryPlaceholder')} aria-invalid={Boolean(showError('description'))} />
           {showError('description') ? <small className="cm-field-error">{showError('description')}</small> : <small className="cm-field-hint">{t('projectCreate.summaryHint')}</small>}
         </label>
         <label>
           <CmFieldLabel label={t('projectCreate.budget')} required />
-          <input type="number" min={projectMinBudget} step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder={t('projectCreate.budgetPlaceholder', { amount: projectMinBudget, currency })} aria-invalid={Boolean(showError('budget'))} />
+          <input type="number" min={projectMinBudget} step="0.01" inputMode="decimal" value={form.budget} onChange={(event) => update({ budget: event.target.value })} placeholder={t('projectCreate.budgetPlaceholder', { amount: projectMinBudget, currency })} aria-invalid={Boolean(showError('budget'))} />
           {showError('budget') && <small className="cm-field-error">{showError('budget')}</small>}
         </label>
         <label>
           <CmFieldLabel label={t('projectCreate.budgetType')} required />
-          <select value={budgetType} onChange={(event) => setBudgetType(event.target.value)}>
+          <select value={form.budgetType} onChange={(event) => update({ budgetType: event.target.value })}>
             {policyList('budget_types').map((value) => (
               <option key={value} value={value}>{t(`projectCreate.budgetTypes.${value}`)}</option>
             ))}
@@ -244,7 +169,7 @@ export const CmProjectCreatePage: React.FC = () => {
         </label>
         <label>
           <CmFieldLabel label={t('projectCreate.complexity')} required />
-          <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
+          <select value={form.complexity} onChange={(event) => update({ complexity: event.target.value })}>
             {policyList('complexities').map((value) => (
               <option key={value} value={value}>{t(`estimate.complexities.${value}`)}</option>
             ))}
@@ -253,20 +178,20 @@ export const CmProjectCreatePage: React.FC = () => {
         <span className="cm-project-form__spacer" aria-hidden="true" />
         <label>
           <CmFieldLabel label={t('projectCreate.startDate')} />
-          <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          <input type="date" value={form.startDate} onChange={(event) => update({ startDate: event.target.value })} />
         </label>
         <label>
           <CmFieldLabel label={t('projectCreate.endDate')} />
-          <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} aria-invalid={Boolean(showError('endDate'))} />
+          <input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(event) => update({ endDate: event.target.value })} aria-invalid={Boolean(showError('endDate'))} />
           {showError('endDate') && <small className="cm-field-error">{showError('endDate')}</small>}
         </label>
         <h2 className="is-wide">{t('projectCreate.stackTitle')}</h2>
-        {STACK_FIELDS.map((field) => (
+        {CM_STACK_FIELDS.map((field) => (
           <label key={field}>
             <CmFieldLabel label={t(`projectCreate.${field}`)} hint={t('projectCreate.listPlaceholder')} />
             <input
-              value={stack[field]}
-              onChange={(event) => setStack((current) => ({ ...current, [field]: event.target.value }))}
+              value={form.stack[field]}
+              onChange={(event) => updateStack(field, event.target.value)}
               placeholder={t(`projectCreate.placeholders.${field}`)}
             />
           </label>

@@ -143,10 +143,10 @@ def rasterize(elements, window, params=None, sigma=0.85):
         if not polys:
             continue
         pts = [np.round((poly - [x0, y0]) * SUPERSAMPLE * (1 << shift)).astype(np.int32) for poly in polys]
-        cv2.fillPoly(mask, pts, 1, lineType=cv2.LINE_8, shift=shift)
+        cv2.fillPoly(mask, pts, 255, lineType=cv2.LINE_AA, shift=shift)
         alpha = float(el.extra.get("alpha", 1.0)) if not callable(el.extra.get("alpha")) else float(el.extra["alpha"](p))
         tone = 1.0 if el.tone == "black" else 0.0
-        m = mask.astype(np.float32) * alpha
+        m = mask.astype(np.float32) * (alpha / 255.0)
         canvas = canvas * (1 - m) + tone * m
     if sigma > 0:
         canvas = cv2.GaussianBlur(canvas, (0, 0), sigma * SUPERSAMPLE)

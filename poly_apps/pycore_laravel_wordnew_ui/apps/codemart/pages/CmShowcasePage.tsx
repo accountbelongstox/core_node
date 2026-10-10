@@ -1,63 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { BriefcaseBusiness, CalendarClock, RotateCw, Trophy } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmErrorMessage } from '../api/cmErrors';
-import { cmPublicApi, type CmShowcaseProject, type CmShowcaseSection, type CmShowcaseTask } from '../api/CmPublicApi';
+import type { CmShowcaseProject, CmShowcaseTask } from '../api/CmPublicApi';
 import { CmPublicIllustration, CmPublicSplit } from '../components/public-home/CmPublicBlocks';
 import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { useCmProtectedNavigate } from '../components/public-home/useCmProtectedNavigate';
 import { CmPager } from '../components/workspace/CmPager';
+import { useCmShowcaseSection, CM_SHOWCASE_PAGE_SIZE, type CmShowcaseSectionModel } from '../shared/useCmShowcase';
 import { CM_WHOLE_MONEY_DIGITS, cmFormatDate, cmFormatMoneyRange, cmFormatNumber, cmTotalPages } from '../components/workspace/cmWorkspaceFormat';
 
-type CmShowcaseKind = 'open_tasks' | 'completed_projects';
-
-interface CmShowcaseSectionState<T> {
-  page: number;
-  section: CmShowcaseSection<T> | null;
-  loading: boolean;
-  error: string | null;
-}
-
-type CmShowcaseSectionHook<T> = CmShowcaseSectionState<T> & { setPage: (page: number) => void; retry: () => void };
-
-const SHOWCASE_PAGE_SIZE = 9;
 const OPEN_TASKS_ANCHOR = 'cm-showcase-open-tasks';
 const COMPLETED_ANCHOR = 'cm-showcase-completed';
 const SHOWCASE_INTRO_POINTS = ['redacted', 'accept', 'completed'];
-
-function useShowcaseSection<T>(kind: CmShowcaseKind): CmShowcaseSectionHook<T> {
-  const { t } = useTranslation('cm');
-  const [page, setPage] = useState(1);
-  const [attempt, setAttempt] = useState(0);
-  const [section, setSection] = useState<CmShowcaseSection<T> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(null);
-    void cmPublicApi.getShowcase(page, SHOWCASE_PAGE_SIZE).then((response) => {
-      if (!active) return;
-      setLoading(false);
-      if (response.success && response.data) {
-        setSection(response.data[kind] as unknown as CmShowcaseSection<T>);
-      } else {
-        setError(cmErrorMessage(t, response, 'showcase.loadFailed'));
-      }
-    });
-    return () => {
-      active = false;
-    };
-    // Reload on page or retry only; translation changes keep the data.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, page, attempt]);
-
-  return { page, section, loading, error, setPage, retry: () => setAttempt((current) => current + 1) };
-}
 
 const CmSkillChips: React.FC<{ skills: string[] }> = ({ skills }) => {
   const { t } = useTranslation('cm');
@@ -81,7 +38,7 @@ function CmShowcaseBlock<T extends { id: number }>({
   titleKey: string;
   emptyKey: string;
   icon: React.ReactNode;
-  state: CmShowcaseSectionHook<T>;
+  state: CmShowcaseSectionModel<T>;
   renderItem: (item: T) => React.ReactNode;
 }): React.ReactElement {
   const { t, i18n } = useTranslation('cm');
@@ -112,7 +69,7 @@ function CmShowcaseBlock<T extends { id: number }>({
       <CmPager
         variant="public"
         page={state.page}
-        totalPages={cmTotalPages({ total, page_size: SHOWCASE_PAGE_SIZE })}
+        totalPages={cmTotalPages({ total, page_size: CM_SHOWCASE_PAGE_SIZE })}
         onChange={state.setPage}
       />
     </section>
@@ -124,8 +81,8 @@ const CmShowcasePage: React.FC = () => {
   const { t, i18n } = useTranslation('cm');
   const location = useLocation();
   const openProtected = useCmProtectedNavigate();
-  const tasks = useShowcaseSection<CmShowcaseTask>('open_tasks');
-  const projects = useShowcaseSection<CmShowcaseProject>('completed_projects');
+  const tasks = useCmShowcaseSection<CmShowcaseTask>('open_tasks');
+  const projects = useCmShowcaseSection<CmShowcaseProject>('completed_projects');
   const tasksReady = tasks.section !== null;
 
   useEffect(() => {
