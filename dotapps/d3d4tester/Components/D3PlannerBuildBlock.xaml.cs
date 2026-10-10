@@ -183,9 +183,11 @@ public partial class D3PlannerBuildBlock : UserControl
         if (dialog.ShowDialog() != true) return;
         BtnSwitchSkills.IsEnabled = false;
         TxtSwitchStatus.Text = T(I18nKeys.RosbotBridgeBuildSkillSwitchRunning);
+        var progress = new SkillSwitchProgressWindow($"{build.Name} · {profile.Name}") { Owner = Window.GetWindow(this) };
+        progress.Show();
         try
         {
-            var result = await D3SkillSwitchService.RunAsync(dialog.Method);
+            var result = await D3SkillSwitchService.RunAsync(dialog.Method, progress.Add);
             TxtSwitchStatus.Text = result == null
                 ? T(I18nKeys.RosbotBridgeBuildSkillSwitchBusy)
                 : string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildSkillSwitchOutcomePrefix + result.Outcome.ToString().ToLowerInvariant()),
@@ -198,6 +200,7 @@ public partial class D3PlannerBuildBlock : UserControl
         finally
         {
             BtnSwitchSkills.IsEnabled = true;
+            progress.Finish(TxtSwitchStatus.Text);
         }
     }
 

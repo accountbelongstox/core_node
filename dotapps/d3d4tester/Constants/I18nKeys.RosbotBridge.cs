@@ -195,6 +195,14 @@ public static partial class I18nKeys
     public const string RosbotBridgeBuildSkillSwitchBusy = "ui.rosbot_bridge.build_skill_switch_busy";
     public const string RosbotBridgeBuildSkillSwitchFailed = "ui.rosbot_bridge.build_skill_switch_failed";
     /// <summary>Prefix + SkillSwitchOutcome in lower case ({0} skills set, {1} passives set, {2} mismatches, {3} detail).</summary>
+    public const string RosbotBridgeBuildSkillSwitchProgressTitle = "ui.rosbot_bridge.build_skill_switch_progress_title";
+    public const string RosbotBridgeBuildSkillSwitchProgressRunning = "ui.rosbot_bridge.build_skill_switch_progress_running";
+    public const string RosbotBridgeBuildSkillSwitchProgressTime = "ui.rosbot_bridge.build_skill_switch_progress_time";
+    public const string RosbotBridgeBuildSkillSwitchProgressStage = "ui.rosbot_bridge.build_skill_switch_progress_stage";
+    public const string RosbotBridgeBuildSkillSwitchProgressDetail = "ui.rosbot_bridge.build_skill_switch_progress_detail";
+    public const string RosbotBridgeBuildSkillSwitchProgressClose = "ui.rosbot_bridge.build_skill_switch_progress_close";
+    /// <summary>Prefix + SkillSwitchStage in lower case.</summary>
+    public const string RosbotBridgeBuildSkillSwitchStagePrefix = "ui.rosbot_bridge.build_skill_switch_stage_";
     public const string RosbotBridgeBuildSkillSwitchOutcomePrefix = "ui.rosbot_bridge.build_skill_switch_outcome_";
     public const string RosbotBridgeMoveTo = "ui.rosbot_bridge.move_to";
     public const string RosbotBridgePickup = "ui.rosbot_bridge.pickup";

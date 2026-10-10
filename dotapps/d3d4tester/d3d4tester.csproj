@@ -34,6 +34,9 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <!-- PaddleOCR native runtime (paddle_inference, mkl, ...): its files sit in the package build folder, which NuGet applies only to
+         direct references, so the app must reference it itself or PaddleOCR.dll cannot load (version = PaddleOCRSharp's dependency) -->
+    <PackageReference Include="Paddle.Runtime.win_x64" Version="3.3.0.1" />
     <ProjectReference Include="..\..\dotcore\DotCore.Foundations\DotCore.Foundations.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.Utils\DotCore.Utils.csproj" />

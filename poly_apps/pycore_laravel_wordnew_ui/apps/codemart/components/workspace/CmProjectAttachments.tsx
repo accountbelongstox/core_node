@@ -4,16 +4,14 @@ import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { cmApi } from '../../api/CmApi';
 import type { CmAttachment, CmListPage } from '../../api/CmApiTypes';
 import { cmErrorMessage } from '../../api/cmErrors';
+import { useCmPolicy } from '../../contexts/useCmPolicy';
 import { CmPager } from './CmPager';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { cmFormatNumber, cmTotalPages, useCmFormat } from './cmWorkspaceFormat';
 import { useCmPagedList } from './useCmPagedList';
 
 const BYTES_PER_KB = 1024;
-
-/** Server limit: CodeMartV1Constants::MAX_ATTACHMENT_SIZE (10240 KB). */
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const MAX_ATTACHMENT_MB = 10;
+const KB_PER_MB = 1024;
 
 /** First server field message of a validation failure, when present. */
 function firstServerFieldMessage(response: unknown): string | null {
@@ -39,6 +37,7 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
   const notice = useCmNotice();
   const fetcher = useCallback((page: number) => cmApi.getProjectAttachments(projectId, page), [projectId]);
   const list = useCmPagedList(fetcher, extractAttachments, 'attachments.loadFailed');
+  const { maxAttachmentKb } = useCmPolicy();
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -48,8 +47,8 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
     event.preventDefault();
     if (!file || progress !== null) return;
     notice.clear();
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      notice.error(t('attachments.tooLarge', { size: MAX_ATTACHMENT_MB }));
+    if (file.size > maxAttachmentKb * BYTES_PER_KB) {
+      notice.error(t('attachments.tooLarge', { size: Math.round(maxAttachmentKb / KB_PER_MB) }));
       return;
     }
     setProgress(0);
