@@ -108,11 +108,12 @@ export const PcTerminalAgentDoneToasts: React.FC<PcTerminalAgentDoneToastsProps>
   const { t } = useTranslation('pc');
   const notices = agentDoneNotices.use();
   const stackRef = useRef<HTMLDivElement>(null);
-  const anchor = useMainColumnAnchor(stackRef, notices.length > 0);
+  const hasNotices = notices.length > 0;
+  const anchor = useMainColumnAnchor(stackRef, hasNotices);
   useOtherNodeAgentDone(activeUrl);
 
   useEffect(() => {
-    if (!notices.length) return undefined;
+    if (!hasNotices) return undefined;
     const onInput = (event: Event) => {
       if (event.target instanceof Node && stackRef.current?.contains(event.target)) return;
       if (!expireAgentDoneNoticesAfterInteraction(Date.now())) return;
@@ -122,7 +123,7 @@ export const PcTerminalAgentDoneToasts: React.FC<PcTerminalAgentDoneToastsProps>
     return () => {
       for (const name of USER_INPUT_EVENTS) window.removeEventListener(name, onInput, { capture: true });
     };
-  }, [notices.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasNotices]);
 
   const open = (nodeUrl: string | null, terminalNumber: number) => {
     agentDoneOpenRequest.set({ nodeUrl, terminalNumber });
@@ -133,7 +134,7 @@ export const PcTerminalAgentDoneToasts: React.FC<PcTerminalAgentDoneToastsProps>
     <div
       ref={stackRef}
       style={anchor}
-      className={`pointer-events-none fixed z-50 flex w-80 flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${notices.length ? '' : 'hidden'}`}
+      className={`pointer-events-none fixed z-50 flex w-80 flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${hasNotices ? '' : 'hidden'}`}
     >
       {notices.length > 1 && (
         <div className="pointer-events-none sticky top-0 z-10 flex justify-start">
