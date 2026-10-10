@@ -31,6 +31,7 @@ $script:DISK_SHRINK_UNRESOLVED = "unresolved"
 $script:DISK_EXTEND_DIR = '$Extend'
 $script:DISK_PAGE_FILE_NAMES = @("pagefile.sys", "swapfile.sys")
 $script:DISK_DISKMGMT_MSC = Join-Path $script:DISK_SYSTEM32_DIR "diskmgmt.msc"
+$script:DISK_LINUX_CACHE_DIRS = @(".pnpm-store", ".pnpm-store.shrink-rewrite", ".cache", ".npm", "~\.cache", "~\.npm", "~\.pnpm-store")
 $script:DISK_VSSADMIN_EXE = Join-Path $script:DISK_SYSTEM32_DIR "vssadmin.exe"
 $script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "robocopy.exe"
 $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS = @("/E", "/MOVE", "/COPY:DAT", "/DCOPY:DAT", "/XJ", "/R:1", "/W:1", "/NFL", "/NDL", "/NP")
@@ -394,7 +395,7 @@ function Invoke-NtfsLinuxRepair {
         return
     }
 
-    Write-ColorMessage -Message "[1/4] NTFS transaction manager (TxF)" -Type "Info"
+    Write-ColorMessage -Message "[1/5] NTFS transaction manager (TxF)" -Type "Info"
     if (Test-NtfsTransactionManagerOk -Drive $drive) {
         Write-ColorMessage -Message "TxF is running" -Type "Success"
     } else {
@@ -402,7 +403,7 @@ function Invoke-NtfsLinuxRepair {
         Write-ColorMessage -Message "TxF metadata resets at the next mount" -Type "Info"
     }
 
-    Write-ColorMessage -Message "[2/4] File system check" -Type "Info"
+    Write-ColorMessage -Message "[2/5] File system check" -Type "Info"
     if ($DriveInfo.Dirty -or (-not (Test-NtfsReadOnlyCheckClean -Drive $drive))) {
         Write-ColorMessage -Message ("{0} has file system errors (orphan records / lost clusters); repairing with chkdsk /f" -f $drive) -Type "Warning"
         Show-ChkdskPromptHints
@@ -417,10 +418,13 @@ function Invoke-NtfsLinuxRepair {
         Write-ColorMessage -Message ("{0} file system is clean" -f $drive) -Type "Success"
     }
 
-    Write-ColorMessage -Message "[3/4] USN change journal" -Type "Info"
+    Write-ColorMessage -Message "[3/5] USN change journal" -Type "Info"
     Enable-NtfsUsnJournal -Drive $drive
 
-    Write-ColorMessage -Message "[4/4] Clear shrink blockers (Linux-written files, then defrag)" -Type "Info"
+    Write-ColorMessage -Message "[4/5] Linux cache folders" -Type "Info"
+    Remove-LinuxCacheDirs -Drive $drive
+
+    Write-ColorMessage -Message "[5/5] Clear shrink blockers (Linux-written files, then defrag)" -Type "Info"
     Invoke-ShrinkBlockerCleanup -Drive $drive
     Enable-NtfsUsnJournal -Drive $drive
 
@@ -471,6 +475,31 @@ function Get-DrivePageFileSettings {
     )
 
     @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { (Split-Path $_.Name -Qualifier) -eq $Drive })
+}
+
+function Remove-LinuxCacheDirs {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Drive
+    )
+    $driveRoot = '{0}\' -f $Drive
+    $cachePaths = @($script:DISK_LINUX_CACHE_DIRS | ForEach-Object { Join-Path $driveRoot $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Container })
+
+    if ($cachePaths.Count -eq 0) {
+        Write-ColorMessage -Message "No Linux cache folder found" -Type "Success"
+        return
+    }
+    $cachePaths | ForEach-Object { Write-ColorMessage -Message ("  {0}" -f $_) -Type "Info" }
+    Write-ColorMessage -Message "These caches are rebuilt on demand; installed node_modules keep their files." -Type "Info"
+    if (-not (Read-YesNoDefaultYes -Message "Delete these Linux cache folders?")) {
+        return
+    }
+    foreach ($cachePath in $cachePaths) {
+        Write-ColorMessage -Message ("Deleting {0}..." -f $cachePath) -Type "Info"
+        & $env:ComSpec /c rd /s /q $cachePath | Out-Host
+        if (Test-Path -LiteralPath $cachePath) {
+            Write-ColorMessage -Message ("{0} is partly in use and was not fully deleted" -f $cachePath) -Type "Warning"
+        }
+    }
 }
 
 function Invoke-NtfsPathRewrite {
