@@ -385,6 +385,8 @@ terminal: {
     coordinates: 'x={{x}}, y={{y}} · {{width}}×{{height}}',
     activate: 'Activate',
     activated: 'Terminal raised and activated by coordinate click.',
+    pullLatest: 'Latest',
+    pullLatestHint: 'Pull the current screenshot and text of this terminal now',
     clicked: 'The terminal was raised and clicked at the selected screenshot position.',
     directClickHint: 'Click the screenshot to operate at that position.',
     previewTapToClose: 'Click the screenshot to shrink it back.',

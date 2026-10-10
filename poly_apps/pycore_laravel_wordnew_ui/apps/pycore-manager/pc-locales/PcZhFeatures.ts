@@ -385,6 +385,8 @@ terminal: {
     coordinates: 'x={{x}}, y={{y}} · {{width}}×{{height}}',
     activate: '切换',
     activated: '已按坐标点击并将终端置顶激活。',
+    pullLatest: '最新',
+    pullLatestHint: '立即拉取该终端当前的截图和文本',
     clicked: '已置顶终端并点击截图对应位置。',
     directClickHint: '点击截图可操作对应位置。',
     previewTapToClose: '点击大图即可缩小复原。',

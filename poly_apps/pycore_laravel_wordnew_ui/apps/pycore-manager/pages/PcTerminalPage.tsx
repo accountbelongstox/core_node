@@ -101,6 +101,7 @@ import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/Pc
 import { PcTerminalLauncherBar } from '@/apps/pycore-manager/components/terminal/PcTerminalLauncherBar';
 import { PcTerminalAgentCreate } from '@/apps/pycore-manager/components/terminal/PcTerminalAgentCreate';
 import { PcTerminalSentSearch, type PcSentSearchHit } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
+import Portal from '@/shared/ui/Portal';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
@@ -147,6 +148,8 @@ const TILE_ASPECT_RATIO = 4 / 3;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
 const MOBILE_JUMP_GAP_PX = 8;
+/** Longest time the pull-latest button spins when no new frame arrives. */
+const PULL_LATEST_SPIN_MAX_MS = 8000;
 /** CSS variables carrying the pinned node-tabs bar and node-title bar heights, so the bars below stack under them. */
 const STICKY_TABS_HEIGHT_VAR = '--pc-terminal-tabs-h';
 const STICKY_HEAD_HEIGHT_VAR = '--pc-terminal-head-h';
@@ -766,6 +769,17 @@ const PcTerminalNodeView: React.FC<{
   const screenshotImageFor = frames.imageFor;
   const terminalViewFor = frames.viewFor;
   const screenshotVersion = frames.version;
+  const [pullingWindowId, setPullingWindowId] = useState<string | null>(null);
+  useEffect(() => { setPullingWindowId(null); }, [screenshotVersion]);
+  useEffect(() => {
+    if (!pullingWindowId) return undefined;
+    const timer = window.setTimeout(() => setPullingWindowId(null), PULL_LATEST_SPIN_MAX_MS);
+    return () => window.clearTimeout(timer);
+  }, [pullingWindowId]);
+  const pullLatestScreenshot = useCallback((windowId: string) => {
+    setPullingWindowId(windowId);
+    frames.forceLatest(windowId);
+  }, [frames.forceLatest]);
 
   // Latest snapshot without widening the refresh callback identity: the
   // polling interval must not be torn down on every snapshot update.
@@ -3089,6 +3103,7 @@ const PcTerminalNodeView: React.FC<{
       />
 
       {previewWindow && (
+        <Portal>
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-sm md:p-4"
           role="dialog"
@@ -3102,37 +3117,61 @@ const PcTerminalNodeView: React.FC<{
             className="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-none border-white/15 bg-slate-950 shadow-2xl md:h-[94vh] md:rounded-2xl md:border"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-white/10 px-3 py-2 text-white md:flex-nowrap md:px-4 md:py-3">
               {renderNavControls()}
-              <p className="min-w-0 truncate text-sm font-semibold">
-                #{previewWindow.terminal_number} · {terminalName(previewWindow, t('terminal.untitled'))}
-              </p>
+              <div className="order-first min-w-0 basis-full md:order-none md:basis-auto md:flex-1">
+                <p className="break-words text-sm font-semibold leading-snug">
+                  #{previewWindow.terminal_number} · {terminalName(previewWindow, t('terminal.untitled'))}
+                </p>
+                {(nodeIdentity.hostname || nodeIdentity.lanIps) && (
+                  <p className="flex min-w-0 items-start gap-1 text-[10px] leading-tight text-slate-400">
+                    <Monitor className="mt-px h-3 w-3 shrink-0" />
+                    <span className="break-all">
+                      {[nodeIdentity.hostname, nodeIdentity.lanIps].filter(Boolean).join(' · ')}
+                    </span>
+                  </p>
+                )}
+              </div>
               {previewNextRunAt && (
                 <p className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-amber-300">
                   <Timer className="h-3.5 w-3.5" />
                   {t('terminal.scheduleCountdown')} {formatScheduleCountdown(previewNextRunAt - nowMs)}
                 </p>
               )}
-              <p className="hidden min-w-0 flex-1 truncate text-right text-[10px] text-slate-400 lg:block">
+              <p className="hidden min-w-0 max-w-[16rem] truncate text-right text-[10px] text-slate-400 xl:block">
                 {t(previewDirectClick && previewWindow.online
                   ? 'terminal.directClickHint'
                   : 'terminal.previewTapToClose')}
               </p>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                {previewWindow.online && (
+                  <button
+                    type="button"
+                    onClick={() => pullLatestScreenshot(previewWindow.id)}
+                    disabled={pullingWindowId === previewWindow.id}
+                    title={t('terminal.pullLatestHint')}
+                    aria-label={t('terminal.pullLatestHint')}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-500/15 px-2 text-[10px] font-semibold text-sky-200 hover:bg-sky-500/25 disabled:opacity-70 sm:px-2.5"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${pullingWindowId === previewWindow.id ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">{t('terminal.pullLatest')}</span>
+                  </button>
+                )}
                 {previewWindow.online && (
                   <button
                     type="button"
                     onClick={() => setPreviewDirectClick((current) => !current)}
                     aria-pressed={previewDirectClick}
                     title={t('terminal.directClickModeHint')}
-                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold ${
+                    aria-label={t('terminal.directClickMode')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-[10px] font-semibold sm:px-2.5 ${
                       previewDirectClick
                         ? 'border-indigo-400 bg-indigo-600 text-white'
                         : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
                     }`}
                   >
                     <Crosshair className="h-3.5 w-3.5" />
-                    {t('terminal.directClickMode')}
+                    <span className="hidden sm:inline">{t('terminal.directClickMode')}</span>
                   </button>
                 )}
                 {previewWindow.online && !previewDirectClick && (
@@ -3148,12 +3187,14 @@ const PcTerminalNodeView: React.FC<{
                         role="radio"
                         aria-checked={previewViewMode === mode}
                         onClick={() => setPreviewViewMode(mode)}
-                        className={`inline-flex h-full items-center gap-1 rounded-md px-2 ${
+                        title={t(`terminal.frameMode.${mode}`)}
+                        aria-label={t(`terminal.frameMode.${mode}`)}
+                        className={`inline-flex h-full items-center gap-1 rounded-md px-1.5 sm:px-2 ${
                           previewViewMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'
                         }`}
                       >
                         <Icon className="h-3.5 w-3.5" />
-                        {t(`terminal.frameMode.${mode}`)}
+                        <span className="hidden sm:inline">{t(`terminal.frameMode.${mode}`)}</span>
                       </button>
                     ))}
                   </div>
@@ -3165,10 +3206,12 @@ const PcTerminalNodeView: React.FC<{
                     setLogDialogOpen(true);
                   }}
                   disabled={!previewWindow.logs.length}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[10px] font-semibold text-slate-300 hover:bg-white/10 disabled:opacity-50"
+                  title={t('terminal.logs.open')}
+                  aria-label={t('terminal.logs.open')}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 text-[10px] font-semibold text-slate-300 hover:bg-white/10 disabled:opacity-50 sm:px-2.5"
                 >
                   <ScrollText className="h-3.5 w-3.5" />
-                  {t('terminal.logs.open')}
+                  <span className="hidden sm:inline">{t('terminal.logs.open')}</span>
                 </button>
                 <button
                   type="button"

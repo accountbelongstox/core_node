@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
+import Portal from '@/shared/ui/Portal';
 
 export const LOG_SOURCES: TerminalLogSource[] = ['input', 'enter', 'schedule', 'quick'];
 const DEFAULT_LOG_SOURCE: TerminalLogSource = 'input';
@@ -116,6 +117,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
   };
 
   return (
+    <Portal>
     <div
       className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/70 p-0 backdrop-blur-sm md:p-4"
       role="dialog"
@@ -263,6 +265,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
         </div>
       </div>
     </div>
+    </Portal>
   );
 };
 
