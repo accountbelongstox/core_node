@@ -38,6 +38,31 @@ class CodeMartV1EmailService
         return $frontendUrl . CodeMartV1Constants::EMAIL_VERIFICATION_UI_PATH . '?' . http_build_query(['email' => $email, 'token' => $token]);
     }
 
+    public function buildEmailChangeUrl(string $token): string
+    {
+        $frontendUrl = rtrim((string) Config::get('app.frontend_url'), '/');
+
+        return $frontendUrl . CodeMartV1Constants::EMAIL_CHANGE_UI_PATH . '?' . http_build_query(['email_change_token' => $token]);
+    }
+
+    /** Confirmation link for a requested email change, sent to the new address. */
+    public function sendEmailChangeEmail(string $newEmail, string $token): bool
+    {
+        try {
+            $url = $this->buildEmailChangeUrl($token);
+
+            Mail::raw(__('codemart.mail.email_change_body', ['url' => $url]), function ($message) use ($newEmail) {
+                $message->to($newEmail)
+                    ->subject(__('codemart.mail.email_change_subject'))
+                    ->from(Config::get('mail.from.address'));
+            });
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function verifyToken(string $email, string $token): bool
     {
         return CodeMartV1EmailVerificationModel::consume($email, $token);

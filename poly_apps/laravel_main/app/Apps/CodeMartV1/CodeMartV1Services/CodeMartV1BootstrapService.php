@@ -49,6 +49,7 @@ class CodeMartV1BootstrapService
                 'email' => $user->email,
                 'name' => $user->name,
                 'nickname' => $user->nickname,
+                'avatar_url' => CodeMartV1AccountService::avatarUrl($user->avatar),
                 'rolelevel' => (int) $user->rolelevel,
                 'rolename' => $user->rolename,
             ],

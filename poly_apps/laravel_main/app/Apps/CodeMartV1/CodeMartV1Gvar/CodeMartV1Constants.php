@@ -382,12 +382,19 @@ class CodeMartV1Constants
     public const THROTTLE_CONTACT = 'throttle:5,1,codemart_contact';
     // Authenticated route: the bucket is per user, not per IP.
     public const THROTTLE_EMAIL_RESEND = 'throttle:3,10,codemart_email_resend';
+    public const THROTTLE_EMAIL_CHANGE = 'throttle:5,10,codemart_email_change';
+    public const THROTTLE_AVATAR = 'throttle:10,10,codemart_avatar';
 
     // Email verification resend results (data.result); throttling is the standard 429.
     public const EMAIL_RESEND_SENT = 'sent';
     public const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
     // UI page that completes email verification from the mailed link (query: email, token).
     public const EMAIL_VERIFICATION_UI_PATH = '/codemart/verification';
+    // UI page that completes an email change from the mailed link (query: email_change_token).
+    public const EMAIL_CHANGE_UI_PATH = '/codemart/settings';
+    public const EMAIL_CHANGE_TTL_HOURS = 24;
+    // Avatar upload: accepted extensions and the byte cap come from the shared AvatarService contract.
+    public const AVATAR_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png'];
 
     // Additional capability keys
     public const CAPABILITY_ROLE_REQUEST = 'role.request';
@@ -437,6 +444,11 @@ class CodeMartV1Constants
     public const ERROR_INVALID_VERIFICATION_TOKEN = 'invalid_verification_token';
     public const ERROR_INVALID_OTP_CODE = 'invalid_otp_code';
     public const ERROR_FILE_UPLOAD_FAILED = 'file_upload_failed';
+    public const ERROR_EMAIL_TAKEN = 'email_taken';
+    public const ERROR_EMAIL_UNCHANGED = 'email_unchanged';
+    public const ERROR_INVALID_PASSWORD = 'invalid_password';
+    public const ERROR_INVALID_EMAIL_CHANGE_TOKEN = 'invalid_email_change_token';
+    public const ERROR_AVATAR_INVALID = 'avatar_invalid';
 
     public static function getAllDepositStatuses(): array
     {

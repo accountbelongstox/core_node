@@ -259,6 +259,21 @@ class CodeMartV1AdminCtl extends Controller
         ));
     }
 
+    public function tasks(Request $request): JsonResponse
+    {
+        if (!$this->requireAdmin($request)) {
+            return $this->adminDenied($request);
+        }
+
+        [$page, $pageSize] = $this->pageParams($request);
+
+        return $this->success($this->adminService->tasksPage(
+            $this->listFilters($request, ['search', 'status', 'project_id']),
+            $page,
+            $pageSize
+        ));
+    }
+
     public function setProjectStatus(Request $request, int $projectId): JsonResponse
     {
         $admin = $this->requireAdmin($request);

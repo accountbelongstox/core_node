@@ -281,4 +281,7 @@ class CodeMartV1PublicHomeService
 
         return [
             'id' => $message->id,
-            'status
+            'status' => CodeMartV1Constants::CONTACT_STATUS_NEW,
+        ];
+    }
+}

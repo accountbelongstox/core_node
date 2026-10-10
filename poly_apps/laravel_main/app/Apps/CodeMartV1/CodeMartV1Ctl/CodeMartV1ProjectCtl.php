@@ -80,6 +80,7 @@ class CodeMartV1ProjectCtl extends Controller
             'revision' => (int) ($analysis->revision ?? 1),
             'estimated_hours' => $analysis->estimated_hours,
             'estimated_cost' => $analysis->estimated_cost,
+            'currency' => CodeMartV1PolicyService::aiEstimateCurrency(),
             'complexity_score' => $analysis->complexity_score,
             'completed_at' => $analysis->completed_at,
             'accepted_at' => $analysis->accepted_at,

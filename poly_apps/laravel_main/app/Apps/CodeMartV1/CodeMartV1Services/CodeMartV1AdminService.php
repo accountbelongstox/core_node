@@ -9,6 +9,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ContactMessageModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperProfileModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerificationModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1MilestoneModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ReviewerApplicationModel;
@@ -361,7 +362,7 @@ class CodeMartV1AdminService
                 'balance' => $wallet ? (string) $wallet->balance : '0.00',
                 'available_balance' => $wallet ? (string) $wallet->available_balance : '0.00',
                 'frozen_balance' => $wallet ? (string) $wallet->frozen_balance : '0.00',
-                'currency' => $wallet?->currency ?? CodeMartV1Constants::DEFAULT_CURRENCY,
+                'currency' => $wallet?->currency ?? CodeMartV1PolicyService::currency(),
             ],
             'projects' => $projects,
             'tasks' => $tasks,
@@ -845,6 +846,57 @@ class CodeMartV1AdminService
                 'admin_transitions' => self::adminProjectTargets((string) $project->status),
                 'created_at' => self::iso($project->created_at),
             ],
+            $result['items']
+        );
+
+        return $result;
+    }
+
+    /** Read-only task list across all projects (administrator oversight). */
+    public function tasksPage(array $filters, int $page, int $pageSize): array
+    {
+        $status = (string) ($filters['status'] ?? '');
+        $search = (string) ($filters['search'] ?? '');
+        $projectId = (int) ($filters['project_id'] ?? 0);
+
+        $query = $projectId > 0 ? CodeMartV1TaskModel::forProjectQuery($projectId) : CodeMartV1TaskModel::query();
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+        self::applySearch($query, $search, ['title']);
+        $query->orderByDesc('id');
+
+        $result = self::paginate($query, $page, $pageSize, 'items', static fn ($task) => $task);
+        $milestoneIds = array_values(array_unique(array_map(static fn ($task): int => (int) $task->milestone_id, $result['items'])));
+        $milestones = $milestoneIds === []
+            ? collect()
+            : CodeMartV1MilestoneModel::query()->whereIn('id', $milestoneIds)->get(['id', 'project_id'])->keyBy('id');
+        $projectIds = $milestones->pluck('project_id')->unique()->values()->all();
+        $projects = $projectIds === []
+            ? collect()
+            : CodeMartV1ProjectModel::query()->whereIn('id', $projectIds)->get(['id', 'title', 'currency'])->keyBy('id');
+        $assignees = self::userSummaries(array_map(static fn ($task): int => (int) $task->assigned_to, $result['items']));
+
+        $result['items'] = array_map(
+            static function (CodeMartV1TaskModel $task) use ($milestones, $projects, $assignees): array {
+                $projectId = (int) ($milestones->get((int) $task->milestone_id)?->project_id ?? 0);
+                $project = $projects->get($projectId);
+
+                return [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'status' => $task->status,
+                    'priority' => $task->priority,
+                    'milestone_id' => $task->milestone_id,
+                    'project_id' => $projectId > 0 ? $projectId : null,
+                    'project_title' => $project?->title,
+                    'assignee' => $assignees[(int) $task->assigned_to] ?? null,
+                    'budget_allocation' => $task->budget_allocation !== null ? (string) $task->budget_allocation : null,
+                    'currency' => $project?->currency,
+                    'due_date' => self::iso($task->due_date),
+                    'created_at' => self::iso($task->created_at),
+                ];
+            },
             $result['items']
         );
 
