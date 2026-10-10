@@ -1,6 +1,6 @@
 import { stableHash } from '../utils/stableHash';
 import { CapDatabase, type CapCollection } from './CapDatabase';
-import { CapLargeCache, type CapDirectory } from './CapFilesystem';
+import { CapLargeCache, type CapDirectory, type CapLegacyFolder } from './CapFilesystem';
 
 export type CapResourceRefreshMode = 'stale' | 'always' | 'never';
 
@@ -55,8 +55,8 @@ export interface CapResourceAssetCacheOptions {
   dir: string;
   /** Where the files live (default: the app cache folder, which the OS may purge). */
   directory?: CapDirectory;
-  /** The directory the files lived in before; they move over instead of being fetched again. */
-  legacyDirectory?: CapDirectory;
+  /** The folders the files lived in before; they move over instead of being fetched again. */
+  legacy?: readonly CapLegacyFolder[];
   budget: () => number | Promise<number>;
   extractUrls?: (payload: unknown) => Iterable<string>;
   keyFor?: (url: string) => string;
@@ -171,7 +171,7 @@ export class CapResourceAssetCache {
           dir: this.options.dir,
           maxBytes: this.configuredBudgetBytes,
           directory: this.options.directory,
-          legacyDirectory: this.options.legacyDirectory,
+          legacy: this.options.legacy,
         });
       }).catch((error) => {
         this.cachePromise = null;

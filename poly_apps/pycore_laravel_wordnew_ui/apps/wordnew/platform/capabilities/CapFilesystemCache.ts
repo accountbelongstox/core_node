@@ -351,14 +351,31 @@ export class CapBlobStore {
     if (safeIsNative()) await this.trackNative(sanitizeKey(key), true);
   }
 
+  /** Both stores name the same folder. */
+  sameFolder(other: CapBlobStore): boolean {
+    return other.directory === this.directory && other.dir === this.dir;
+  }
+
   /**
-   * Native: move a file this store does not hold yet from another folder of the same app (a store that
-   * changed directory keeps its files instead of fetching them again), under `targetKey` (default: the
-   * same key). Nothing is overwritten. False when nothing was moved.
+   * Move a file this store does not hold yet from another folder of the same app (a store that changed
+   * folder keeps its files instead of fetching them again), under `targetKey` (default: the same key).
+   * Native renames; the web copies the OPFS file and removes the source. Nothing is overwritten. False
+   * when nothing was moved.
    */
   async adoptFrom(source: CapBlobStore, key: string, targetKey = key): Promise<boolean> {
-    if (!safeIsNative() || (source.directory === this.directory && source.dir === this.dir)) return false;
+    if (this.sameFolder(source)) return false;
     if (!(await source.has(key)) || await this.has(targetKey)) return false;
+    if (!safeIsNative()) {
+      const blob = await source.getBlob(key);
+      if (!blob || blob.size === 0) return false;
+      try {
+        await this.putBlob(targetKey, blob);
+      } catch {
+        return false;
+      }
+      await source.delete(key);
+      return true;
+    }
     const name = sanitizeKey(targetKey);
     try {
       await capFs.ensureDir(this.dir, this.directory);
@@ -407,12 +424,15 @@ export class CapBlobStore {
   }
 
   /**
-   * Native: move every file of another storage directory that this store does not hold yet
-   * (one sweep after a directory change; nothing is replaced or fetched again). Returns the moved count.
+   * Move every file of another folder that this store does not hold yet (one sweep after a folder
+   * change; nothing is replaced or fetched again). Returns the moved count.
    */
   async adoptAllFrom(source: CapBlobStore): Promise<number> {
-    if (!safeIsNative() || source.directory === this.directory) return 0;
-    const names = [...await source.nativeIndex().catch(() => new Set<string>())];
+    if (this.sameFolder(source)) return 0;
+    const listed = safeIsNative()
+      ? [...await source.nativeIndex().catch(() => new Set<string>())]
+      : await source.keys().catch(() => [] as string[]);
+    const names = listed.filter((name) => !name.endsWith('.download'));
     let moved = 0;
     for (const name of names) {
       if (await this.has(name)) continue;
@@ -774,16 +794,21 @@ export class CapBlobStore {
  * A quota-aware LARGE cache for the 10-100 GB media use case. Wraps CapBlobStore
  * with a byte budget that only stops NEW downloads (a held file is never evicted,
  * only `remove` / `clear` delete), and a getOrFetch that downloads-on-miss
- * straight to disk/OPFS. `legacyDirectory`: the directory the files lived in
- * before (they move over on first use instead of being fetched again).
+ * straight to disk/OPFS. `legacy`: the folders the files lived in before (they
+ * move over on first use and in one background sweep instead of being fetched again).
  *
  *   const cache = new CapLargeCache({ dir: 'audio', maxBytes: 20 * 1024 ** 3 }); // 20 GB
  *   const url = await cache.getOrFetchUrl('w-42', () => `${cdn}/w-42.mp3`);
  */
+export interface CapLegacyFolder {
+  dir: string;
+  directory: CapDirectory;
+}
+
 export class CapLargeCache {
   private static readonly swept = new Set<string>();
   private readonly store: CapBlobStore;
-  private readonly legacy: CapBlobStore | null;
+  private readonly legacy: CapBlobStore[];
   private readonly maxBytes: number;
   private readonly inFlight = new Map<string, Promise<string | null>>();
   private generation = 0;
@@ -795,15 +820,39 @@ export class CapLargeCache {
   private ledgerLoading: Promise<Map<string, number>> | null = null;
   private ledgerBytes = 0;
 
-  constructor(options: { dir?: string; maxBytes?: number; directory?: CapDirectory; legacyDirectory?: CapDirectory } = {}) {
+  constructor(options: { dir?: string; maxBytes?: number; directory?: CapDirectory; legacy?: readonly CapLegacyFolder[] } = {}) {
     const dir = options.dir ?? 'large-cache';
     this.store = new CapBlobStore(dir, options.directory ?? Directory.Cache);
-    this.legacy = options.legacyDirectory === undefined ? null : new CapBlobStore(dir, options.legacyDirectory);
+    this.legacy = (options.legacy ?? [])
+      .map((folder) => new CapBlobStore(folder.dir, folder.directory))
+      .filter((folder) => !this.store.sameFolder(folder));
     this.maxBytes = Math.max(0, Math.floor(options.maxBytes ?? 2 * 1024 * 1024 * 1024));
-    if (this.legacy && !CapLargeCache.swept.has(dir)) {
+    if (this.legacy.length > 0 && !CapLargeCache.swept.has(dir)) {
       CapLargeCache.swept.add(dir);
-      void this.store.adoptAllFrom(this.legacy).catch(() => 0);
+      void (async () => {
+        for (const folder of this.legacy) {
+          if (await this.store.adoptAllFrom(folder).catch(() => 0) > 0) this.dropLedger();
+        }
+      })();
     }
+  }
+
+  /** The ledger is read again from the store on next use (files arrived outside put / getOrFetchUrl). */
+  private dropLedger(): void {
+    this.ledger = null;
+    this.ledgerLoading = null;
+    this.ledgerBytes = 0;
+  }
+
+  /** The key is held here, or moved over from a legacy folder now. */
+  private async holdsOrAdopts(key: string): Promise<boolean> {
+    if (await this.store.has(key)) return true;
+    for (const folder of this.legacy) {
+      if (!(await this.store.adoptFrom(folder, key))) continue;
+      await this.record(key, await this.store.size(key));
+      return true;
+    }
+    return false;
   }
 
   /** The underlying blob store (for direct ops). */
@@ -823,11 +872,11 @@ export class CapLargeCache {
    * (served as it is when the rename fails) instead of being fetched again.
    */
   async getOrFetchUrl(key: string, urlFor: () => string | Promise<string>, mime?: string, alternates: readonly string[] = []): Promise<string | null> {
-    if (await this.store.has(key) || (this.legacy && await this.store.adoptFrom(this.legacy, key))) {
+    if (await this.holdsOrAdopts(key)) {
       return this.store.getServableUrl(key, mime);
     }
     for (const alternate of alternates) {
-      if (!(await this.store.has(alternate)) && !(this.legacy && await this.store.adoptFrom(this.legacy, alternate))) continue;
+      if (!(await this.holdsOrAdopts(alternate))) continue;
       if (!(await this.store.rename(alternate, key))) return this.store.getServableUrl(alternate, mime);
       await this.record(alternate, null);
       await this.record(key, await this.store.size(key));
@@ -884,12 +933,13 @@ export class CapLargeCache {
     const ledger = await this.loadLedger();
     return { files: ledger.size, bytes: this.ledgerBytes };
   }
-  clear(): Promise<void> {
+  async clear(): Promise<void> {
     this.generation += 1;
     this.ledger = new Map();
     this.ledgerLoading = null;
     this.ledgerBytes = 0;
-    return this.store.clear().then(() => this.legacy?.clear());
+    await this.store.clear();
+    for (const folder of this.legacy) await folder.clear();
   }
 
   private loadLedger(): Promise<Map<string, number>> {
