@@ -749,6 +749,8 @@ function New-ProgramDrivePartition {
     $sizeMB = 0
     $diskNumber = $null
     $partition = $null
+    $sourcePartition = $null
+    $minimumMB = 0
 
     if (Get-PSDrive -Name $targetLetter -PSProvider FileSystem -ErrorAction SilentlyContinue) {
         return $false
@@ -761,11 +763,17 @@ function New-ProgramDrivePartition {
         return $false
     }
     Write-ColorMessage -Message ("{0}: can shrink by {1} MB; giving {2} MB to {3}:" -f $sourceLetter, $shrinkableMB, $sizeMB, $targetLetter) -Type "Info"
-    $diskNumber = (Get-Partition -DriveLetter $sourceLetter).DiskNumber
-    Set-Content -LiteralPath $scriptPath -Value @(("select volume {0}" -f $sourceLetter), ("shrink desired={0}" -f $sizeMB)) -Encoding Ascii
+    $sourcePartition = Get-Partition -DriveLetter $sourceLetter
+    $diskNumber = $sourcePartition.DiskNumber
+    $minimumMB = [math]::Min($sizeMB, $Global:CN_PROGRAM_DRIVE_CREATE_MIN_MB)
+    Set-Content -LiteralPath $scriptPath -Value @(("select volume {0}" -f $sourceLetter), ("shrink desired={0} minimum={1}" -f $sizeMB, $minimumMB)) -Encoding Ascii
     & $script:DISK_DISKPART_EXE /s $scriptPath | Out-Host
     Remove-Item -LiteralPath $scriptPath -Force
     Update-HostStorageCache
+    if ((Get-Partition -DriveLetter $sourceLetter).Size -ge $sourcePartition.Size) {
+        Write-ColorMessage -Message ("{0}: could not be shrunk; run NTFS repair after Linux for {0}: and then this step again" -f $sourceLetter) -Type "Warning"
+        return $false
+    }
     $partition = New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $targetLetter -ErrorAction Stop
     Format-Volume -Partition $partition -FileSystem NTFS -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_CREATE_LABEL -Confirm:$false -ErrorAction Stop | Out-Null
     Write-ColorMessage -Message ("Program drive {0}: created ({1} GB)" -f $targetLetter, [math]::Round($partition.Size / 1GB, 1)) -Type "Success"
