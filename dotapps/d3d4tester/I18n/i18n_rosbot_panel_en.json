@@ -124,6 +124,7 @@
       "debug_battlenet_ui": "Debug (Battle.net UI JSON)",
       "debug_rosbot": "Debug ROSBOT",
       "debug_game_status": "Debug: refresh Battle.net/D3/D4 status",
+      "debug_bounty_map": "Debug: open D3 map (bounty progress check)",
       "test_pause_resume": "Test Pause & Resume",
       "update_rosbot": "Update ROSBOT",
       "update_dialog_title": "ROSBOT Update",

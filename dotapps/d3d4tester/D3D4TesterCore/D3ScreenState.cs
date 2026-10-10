@@ -17,6 +17,43 @@ public static class D3ScreenState
 
     private static readonly D3StatesMatch NoStates = new(false, false, false, false);
 
+    /// <summary>D3 map key (M). 1:1 Python VK_M.</summary>
+    private const ushort VkMap = 0x4D;
+    /// <summary>Wait after M before the capture. 1:1 Python D3_GAME_TOOL_AFTER_M_DELAY_SEC.</summary>
+    private const int AfterMapKeyMs = 2000;
+    /// <summary>M presses at most (a second press when the first toggled an already open map shut). 1:1 Python C7 rounds.</summary>
+    private const int MapKeyRounds = 2;
+
+    /// <summary>Bounty progress (act medallions) visible = the map is open. 1:1 Python step_c7a_verify_bounty_progress.</summary>
+    public static bool IsBountyMapOpen() => D3TemplateProbe.CaptureAndMatchAny(true, D3TemplateNames.D3BountyProgress) != null;
+
+    /// <summary>
+    /// Open the map and confirm it by the bounty progress template: already open -> nothing pressed; otherwise up to two rounds of
+    /// M + 2 s + check. True when the map is confirmed open. 1:1 Python _ensure_map_open_then_c7b_teleport (without the teleport,
+    /// which the CoreNodeBridge plugin does).
+    /// </summary>
+    public static bool EnsureBountyMapOpen()
+    {
+        if (IsBountyMapOpen())
+        {
+            ColorPrinter.Green("[D3ScreenState] map already open (bounty progress)");
+            return true;
+        }
+        for (int round = 1; round <= MapKeyRounds; round++)
+        {
+            if (!D3.SendKeyToWindow(VkMap)) return false;
+            Thread.Sleep(AfterMapKeyMs);
+            if (IsBountyMapOpen())
+            {
+                ColorPrinter.Green($"[D3ScreenState] map open after M round {round} (bounty progress)");
+                return true;
+            }
+            ColorPrinter.Gray($"[D3ScreenState] M round {round}: no bounty progress");
+        }
+        ColorPrinter.Yellow("[D3ScreenState] map not confirmed after two M rounds");
+        return false;
+    }
+
     private static D3Manager D3 => D3Manager.Instance;
 
     /// <summary>

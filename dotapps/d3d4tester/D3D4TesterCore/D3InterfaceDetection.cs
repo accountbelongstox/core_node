@@ -63,6 +63,10 @@ public static class D3InterfaceDetection
         return new InterfaceDetectionResult(null, details);
     }
 
+    /// <summary>Kanai recipe panel shown: its "recipe" header or the fill-materials bar with the page arrows.</summary>
+    public static bool IsKanaiRecipePanelOpened(Bitmap image) =>
+        D3TemplateProbe.MatchAny(image, D3TemplateNames.KanaiRightPanelOpenedIndicator, D3TemplateNames.KanaiRightPageIndicator) != null;
+
     /// <summary>True iff centerX is in the left ratio of image width. 1:1 Python is_match_center_in_left_region.</summary>
     public static bool IsMatchCenterInLeftRegion(int centerX, int imageWidth, double ratio = D3InterfaceConstants.LeftRegionRatio)
     {

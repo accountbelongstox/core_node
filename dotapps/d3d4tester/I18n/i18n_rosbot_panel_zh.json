@@ -93,6 +93,7 @@
       "debug_battlenet_ui": "调试(战网UI JSON)",
       "debug_rosbot": "调试 ROSBOT",
       "debug_game_status": "调试：刷新战网/D3/D4状态",
+      "debug_bounty_map": "调试：打开 D3 地图（悬赏进度检测）",
       "test_pause_resume": "调试：暂停/恢复",
       "update_rosbot": "更新ROSBOT",
       "update_dialog_title": "ROSBOT 更新",
