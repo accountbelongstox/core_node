@@ -404,32 +404,6 @@ export const cmZh: CmTranslationDict = {
         body: '为交付物打分并给出评审建议。',
       },
       wallet: {
-    paymentCreate: {
-      toggle: '发起付款',
-      lead: '直接向另一位 CodeMart 用户付款。钱包付款立即到账；其他方式只记录为待处理，直到支付网关结算。',
-      payee: '收款用户编号',
-      payeeInvalid: '请输入收款用户的数字编号。',
-      project: '项目编号',
-      description: '备注',
-      submit: '发送付款',
-      sentWallet: '付款 #{{id}} 已从你的钱包发出。',
-      sentPending: '付款 #{{id}} 已记录，结算前保持待处理。',
-      replayed: '付款 #{{id}} 已创建过，没有重复付款。',
-      gatewayHint: '该方式不会自动结算，付款会保持待处理。',
-      failed: '付款创建失败。',
-    },
-    paymentDetail: {
-      open: '详情',
-      title: '付款 #{{id}}',
-      payer: '付款人',
-      payee: '收款人',
-      loadFailed: '无法加载这笔付款。',
-    },
-    depositStatus: {
-      check: '查看状态',
-      result: '保证金 #{{id}} 当前状态：{{status}}。',
-      failed: '无法获取保证金状态。',
-    },
         title: '钱包',
         body: '余额、保证金、付款、发票、退款和提现。',
       },
@@ -780,6 +754,32 @@ export const cmZh: CmTranslationDict = {
     acceptFailed: '无法承接该项目。',
   },
   wallet: {
+    paymentCreate: {
+      toggle: '发起付款',
+      lead: '直接向另一位 CodeMart 用户付款。钱包付款立即到账；其他方式只记录为待处理，直到支付网关结算。',
+      payee: '收款用户编号',
+      payeeInvalid: '请输入收款用户的数字编号。',
+      project: '项目编号',
+      description: '备注',
+      submit: '发送付款',
+      sentWallet: '付款 #{{id}} 已从你的钱包发出。',
+      sentPending: '付款 #{{id}} 已记录，结算前保持待处理。',
+      replayed: '付款 #{{id}} 已创建过，没有重复付款。',
+      gatewayHint: '该方式不会自动结算，付款会保持待处理。',
+      failed: '付款创建失败。',
+    },
+    paymentDetail: {
+      open: '详情',
+      title: '付款 #{{id}}',
+      payer: '付款人',
+      payee: '收款人',
+      loadFailed: '无法加载这笔付款。',
+    },
+    depositStatus: {
+      check: '查看状态',
+      result: '保证金 #{{id}} 当前状态：{{status}}。',
+      failed: '无法获取保证金状态。',
+    },
     topUp: {
       title: '充值',
       lead: '通过银行转账为钱包充值，用于向项目托管注资。按下方显示的附言完成转账后，管理员确认到账，金额就会计入余额。',
@@ -1311,6 +1311,11 @@ export const cmZh: CmTranslationDict = {
       keys: {
         android: '安卓',
         ios: 'iOS',
+        bank_name: '开户银行',
+        account_name: '户名',
+        account_number: '账号',
+        branch: '开户支行',
+        swift_code: 'SWIFT 代码',
       },
       options: {
         allowed_image_types: {
@@ -1422,6 +1427,10 @@ export const cmZh: CmTranslationDict = {
           label: '提现方式',
           hint: '用户申请提现时可选的方式。',
         },
+        deposit_bank_transfer: {
+          label: '银行转账信息',
+          hint: '用户通过银行转账缴纳保证金或充值钱包时看到的收款账户。留空的项不会显示。',
+        },
         project_min_budget: {
           label: '项目最低预算',
           hint: '客户为项目设置预算时允许的最低金额。',
@@ -1465,6 +1474,18 @@ export const cmZh: CmTranslationDict = {
         password_min_length: {
           label: '密码最小长度',
           hint: '注册新账号时密码的最小长度。',
+        },
+        otp_expiry_minutes: {
+          label: '手机验证码有效期（分钟）',
+          hint: '手机验证码从发送起保持有效的时间。',
+        },
+        otp_max_attempts: {
+          label: '手机验证码尝试次数',
+          hint: '输错多少次后必须重新获取验证码。',
+        },
+        email_change_ttl_hours: {
+          label: '修改邮箱链接有效期（小时）',
+          hint: '新邮箱的确认链接保持有效的时间。',
         },
         max_attachment_size_kb: {
           label: '附件大小上限（KB）',
@@ -2493,6 +2514,12 @@ export const cmZh: CmTranslationDict = {
     title: '项目估价',
     lead: '根据本站配置的计价政策，快速算出预算、工期和团队区间。',
     complexity: '项目复杂度',
+    currencyLabel: '币种',
+    currencyNames: {
+      CNY: '人民币（CNY）',
+      USD: '美元（USD）',
+      EUR: '欧元（EUR）',
+    },
     complexities: {
       simple: '简单',
       medium: '中等',

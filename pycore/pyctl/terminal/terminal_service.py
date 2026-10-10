@@ -46,6 +46,7 @@ from pycore.pyctl.terminal.terminal_window_views import assign_short_titles
 from pycore.pyctl.terminal.terminal_snapshot_collector import (
     TerminalSnapshotCollector,
 )
+from pycore.pyctl.terminal.terminal_state_keys import LOG_SOURCES
 from pycore.pyctl.terminal.terminal_state_repository import (
     TerminalStateRepository,
     terminal_state_repository,
@@ -678,6 +679,31 @@ class TerminalService:
         )
         self._collector.collect()
         return removed
+
+    def delete_logs(
+        self,
+        terminal_number: int,
+        log_ids: Sequence[str],
+        delete_all: bool,
+        source: str,
+    ) -> Dict[str, Any]:
+        """Delete submission history entries: the given ids, or every entry (of one source)."""
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        if not delete_all and not log_ids:
+            return self._failure("terminal_log_ids_required")
+        if source and source not in LOG_SOURCES:
+            return self._failure("terminal_log_source_invalid")
+        deleted = self._state_repository.delete_logs(terminal_number, log_ids, delete_all, source)
+        if not deleted.get("success"):
+            return deleted
+        terminal_activity_log.info(
+            "terminal.logs_deleted",
+            terminal_number=terminal_number,
+            deleted_count=len(deleted["deleted_log_ids"]),
+        )
+        self._collector.collect()
+        return deleted
 
     def save_preview_expanded(
         self,
