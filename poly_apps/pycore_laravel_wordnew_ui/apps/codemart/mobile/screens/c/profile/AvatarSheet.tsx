@@ -25,7 +25,9 @@ export const AvatarSheet: React.FC<AvatarSheetProps> = ({ open, onClose }) => {
   };
 
   const upload = async (): Promise<void> => {
-    await avatar.upload();
+    if (!(await avatar.upload())) return;
+    clear();
+    onClose();
   };
 
   const fileError = (avatar.wrongType && t('settings.avatar.wrongType')) || (avatar.tooLarge && t('settings.avatar.tooLarge', { size: avatar.maxSizeMb })) || null;

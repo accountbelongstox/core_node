@@ -28,6 +28,9 @@ final class ServiceContract
     private const RULE_NEGATION_PREFIX = 'not ';
     private const POSIX_SEPARATOR = '/';
     private const WINDOWS_SEPARATOR = '\\';
+    // The shell installers rewrite the web access file in place; a read that lands mid-write is retried.
+    private const WEB_ACCESS_READ_ATTEMPTS = 5;
+    private const WEB_ACCESS_READ_RETRY_MICROSECONDS = 100000;
 
     private static ?array $document = null;
 
@@ -293,18 +296,24 @@ final class ServiceContract
     public static function webAccessDocument(): array
     {
         $path = self::globalVarDirectory().DIRECTORY_SEPARATOR.self::file('web_access_config');
-        $json = FileSystemManager::readFile($path, false);
-        $document = is_string($json) ? json_decode($json, true) : null;
-        $prefix = is_array($document) ? ($document['apiRegionPrefix'] ?? null) : null;
 
-        if (!is_array($document)
-            || !is_string($prefix)
-            || preg_match('/^[a-z0-9][a-z0-9-]{0,30}$/', $prefix) !== 1
-        ) {
-            throw new RuntimeException("Unable to load web access config: {$path}");
+        for ($attempt = 1; $attempt <= self::WEB_ACCESS_READ_ATTEMPTS; $attempt++) {
+            $json = FileSystemManager::readFile($path, false);
+            $document = is_string($json) ? json_decode($json, true) : null;
+            $prefix = is_array($document) ? ($document['apiRegionPrefix'] ?? null) : null;
+
+            if (is_array($document)
+                && is_string($prefix)
+                && preg_match('/^[a-z0-9][a-z0-9-]{0,30}$/', $prefix) === 1
+            ) {
+                return $document;
+            }
+            if ($attempt < self::WEB_ACCESS_READ_ATTEMPTS) {
+                usleep(self::WEB_ACCESS_READ_RETRY_MICROSECONDS);
+            }
         }
 
-        return $document;
+        throw new RuntimeException("Unable to load web access config: {$path}");
     }
 
     public static function webAccessStringList(string $name): array

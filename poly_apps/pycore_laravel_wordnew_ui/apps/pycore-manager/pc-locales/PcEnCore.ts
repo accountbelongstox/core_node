@@ -373,6 +373,7 @@ systemBars: {
     title: 'Host usage',
     loading: 'Loading usage…',
     unavailable: 'Usage unavailable',
+    retry: 'Retry',
     threads: '{{count}} threads',
     battery: 'Battery',
     charging: 'charging',

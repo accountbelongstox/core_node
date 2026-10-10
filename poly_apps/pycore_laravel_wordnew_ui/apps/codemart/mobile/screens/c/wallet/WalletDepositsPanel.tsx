@@ -114,7 +114,7 @@ export const WalletDepositsPanel: React.FC<WalletDepositsPanelProps> = ({ onChan
           ? <MobileButton variant="primary" block onClick={closeCreate}>{t('mobile.c.done')}</MobileButton>
           : <MobileButton variant="primary" block loading={deposits.busy} disabled={!deposits.canSubmit} onClick={() => void createDeposit()}>{deposits.busy ? t('common.saving') : t('wallet.depositCreate')}</MobileButton>}
       >
-        {deposits.bankInfo ? <WalletBankInstructions info={deposits.bankInfo} currency={currency} /> : (
+        {deposits.bankInfo ? <WalletBankInstructions untitled info={deposits.bankInfo} currency={currency} /> : (
           <div className="cmmc-form">
             <MobileField label={t('wallet.columnRole')}>
               <select className="cmm-input" value={deposits.roleType} onChange={(event) => deposits.setRoleType(event.target.value)}>

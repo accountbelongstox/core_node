@@ -168,7 +168,7 @@ export interface CmAvatarUploadModel {
   wrongType: boolean;
   progress: number | null;
   canUpload: boolean;
-  upload: () => Promise<void>;
+  upload: () => Promise<boolean>;
 }
 
 /** Account picture upload (`POST /profile/avatar`); the server re-encodes it through the shared avatar pipeline. */
@@ -195,8 +195,8 @@ export function useCmAvatarUpload(feedback: CmFeedback): CmAvatarUploadModel {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const upload = async (): Promise<void> => {
-    if (!file || !canUpload) return;
+  const upload = async (): Promise<boolean> => {
+    if (!file || !canUpload) return false;
     feedback.clear();
     setProgress(0);
     const response = await cmApi.uploadAvatar(file, setProgress);
@@ -205,9 +205,10 @@ export function useCmAvatarUpload(feedback: CmFeedback): CmAvatarUploadModel {
       setFile(null);
       feedback.success(t('settings.avatar.updated'));
       await refresh();
-    } else {
-      feedback.error(cmErrorMessage(t, response, 'settings.avatar.failed'));
+      return true;
     }
+    feedback.error(cmErrorMessage(t, response, 'settings.avatar.failed'));
+    return false;
   };
 
   return {

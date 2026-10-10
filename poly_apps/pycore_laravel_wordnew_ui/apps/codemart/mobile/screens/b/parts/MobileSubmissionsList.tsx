@@ -4,7 +4,7 @@ import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import type { CmSubmission } from '../../../../api/CmApiTypes';
 import { cmUserLabel, useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmTaskSubmissions } from '../../../../shared/useCmTaskSubmissions';
-import { MobileButton, MobileListState, MobilePager, MobileStatusBadge, useMobileFeedback } from '../../../ui';
+import { MobileButton, MobileErrorState, MobilePager, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback } from '../../../ui';
 import { MobileDecisionSheet } from './MobileDecisionSheet';
 import { MobileReviewHistory } from './MobileReviewHistory';
 import { MobileSubmissionFiles } from './MobileSubmissionFiles';
@@ -30,36 +30,35 @@ export const MobileSubmissionsList: React.FC<MobileSubmissionsListProps> = ({ ta
 
   return (
     <>
-      <MobileListState
-        loading={list.loading && list.items.length === 0}
-        error={list.error}
-        empty={list.items.length === 0}
-        emptyTitle={t('submissions.empty')}
-        onRetry={list.retryable ? () => void list.reload() : undefined}
-        skeletonRows={2}
-      >
-        <div className="cmm-stack-tight">
-          {list.items.map((submission) => (
-            <article key={submission.id} className="cmm-subcard">
-              <div className="cmm-entity__head">
-                <h3>{t('reviews.submissionTitle', { id: submission.id })}</h3>
-                <MobileStatusBadge group="submission" status={submission.status} />
-              </div>
-              <div className="cmm-entity__meta">
-                <span>{cmUserLabel(submission.submitter, t('common.unavailable'))}</span>
-                <span>{format.dateTime(submission.created_at)}</span>
-              </div>
-              {submission.submission_note && <p className="cmm-prose">{submission.submission_note}</p>}
-              <MobileSubmissionFiles submissionId={submission.id} files={submission.files} />
-              <MobileReviewHistory reviews={submission.reviews} />
-              {canDecide(submission) && (
-                <MobileButton variant="primary" block icon={<Gavel aria-hidden="true" />} onClick={() => setDecidingSubmission(submission)}>{t('submissions.decisionTitle')}</MobileButton>
-              )}
-            </article>
-          ))}
-        </div>
-        <MobilePager page={list.page} totalPages={list.totalPages} disabled={list.loading} onChange={(page) => void list.load(page)} />
-      </MobileListState>
+      {list.loading && list.items.length === 0 ? <MobileSkeletonBlock height={72} /> : list.error ? (
+        <MobileErrorState message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />
+      ) : list.items.length === 0 ? (
+        <p className="cmm-hint">{t('submissions.empty')}</p>
+      ) : (
+        <>
+          <div className="cmm-stack-tight">
+            {list.items.map((submission) => (
+              <article key={submission.id} className="cmm-subcard">
+                <div className="cmm-entity__head">
+                  <h3>{t('reviews.submissionTitle', { id: submission.id })}</h3>
+                  <MobileStatusBadge group="submission" status={submission.status} />
+                </div>
+                <div className="cmm-entity__meta">
+                  <span>{cmUserLabel(submission.submitter, t('common.unavailable'))}</span>
+                  <span>{format.dateTime(submission.created_at)}</span>
+                </div>
+                {submission.submission_note && <p className="cmm-prose">{submission.submission_note}</p>}
+                <MobileSubmissionFiles submissionId={submission.id} files={submission.files} />
+                <MobileReviewHistory reviews={submission.reviews} />
+                {canDecide(submission) && (
+                  <MobileButton variant="primary" block icon={<Gavel aria-hidden="true" />} onClick={() => setDecidingSubmission(submission)}>{t('submissions.decisionTitle')}</MobileButton>
+                )}
+              </article>
+            ))}
+          </div>
+          <MobilePager page={list.page} totalPages={list.totalPages} disabled={list.loading} onChange={(page) => void list.load(page)} />
+        </>
+      )}
       <MobileDecisionSheet open={pendingDecision !== null} submissionId={pendingDecision?.id ?? null} busy={deciding} onClose={() => setDecidingSubmission(null)} onSubmit={submitDecision} />
     </>
   );

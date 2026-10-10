@@ -35,7 +35,7 @@ export const WalletTopUpSheet: React.FC<WalletTopUpSheetProps> = ({ open, curren
         ? <MobileButton variant="primary" block onClick={close}>{t('mobile.c.done')}</MobileButton>
         : <MobileButton variant="primary" block loading={topUp.busy} disabled={!topUp.canSubmit} onClick={() => void topUp.submit()}>{topUp.busy ? t('common.saving') : t('wallet.topUp.submit')}</MobileButton>}
     >
-      {topUp.bankInfo ? <WalletBankInstructions info={topUp.bankInfo} currency={currency} /> : (
+      {topUp.bankInfo ? <WalletBankInstructions untitled info={topUp.bankInfo} currency={currency} /> : (
         <div className="cmmc-form">
           <p className="cmm-muted">{t('wallet.topUp.lead')}</p>
           <MobileField

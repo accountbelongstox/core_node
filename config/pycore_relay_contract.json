@@ -553,6 +553,12 @@
     },
     {
       "match": "exact",
+      "value": "ui/system_resources/system_resources",
+      "profile": "general_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
       "value": "ui/network_router/status",
       "profile": "general_read",
       "methods": [ "POST" ]

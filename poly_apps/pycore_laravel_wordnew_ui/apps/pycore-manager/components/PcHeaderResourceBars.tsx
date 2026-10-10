@@ -1,11 +1,14 @@
-/** Top-bar CPU / memory / GPU / battery bars of the active pycore host, polled every 2 s. */
+/** Top-bar CPU / memory / GPU / battery bars of the machine selected in the terminal node tabs, polled every 2 s. */
 import React, { useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import type { SystemResources } from '@/apps/pycore-manager/api';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useSelectedPycoreNode, type SelectedPycoreNode } from '../hooks/useSelectedPycoreNode';
 
 const POLL_INTERVAL_MS = 2000;
+const REQUEST_CEILING_MS = 10_000;
 const PERCENT_MAX = 100;
 const MB_PER_GB = 1024;
 /** Load curves keep the last 20 minutes, in memory only (gone on reload). */
@@ -34,15 +37,20 @@ interface HistoryPoint {
   percent: number;
 }
 
-/** Module-level so the curves survive the panel closing and the top bar re-mounting. */
+/** Module-level so the curves survive the panel closing and the top bar re-mounting; keyed per machine. */
 const loadHistory = new Map<string, HistoryPoint[]>();
 
-function recordHistory(bars: ResourceBar[], at: number): void {
+function historyKey(nodeKey: string, barKey: string): string {
+  return `${nodeKey}:${barKey}`;
+}
+
+function recordHistory(nodeKey: string, bars: ResourceBar[], at: number): void {
   const cutoff = at - HISTORY_WINDOW_MS;
   for (const bar of bars) {
-    const points = (loadHistory.get(bar.key) ?? []).filter((point) => point.at >= cutoff);
+    const key = historyKey(nodeKey, bar.key);
+    const points = (loadHistory.get(key) ?? []).filter((point) => point.at >= cutoff);
     points.push({ at, percent: bar.percent });
-    loadHistory.set(bar.key, points);
+    loadHistory.set(key, points);
   }
 }
 
@@ -86,13 +94,20 @@ const LoadCurve: React.FC<{ points: HistoryPoint[]; colorClass: string; now: num
 };
 
 const PcHeaderResourceBars: React.FC = () => {
+  const node = useSelectedPycoreNode();
+  return <PcHeaderNodeResourceBars key={node.key} node={node} />;
+};
+
+const PcHeaderNodeResourceBars: React.FC<{ node: SelectedPycoreNode }> = ({ node }) => {
   const { t } = useTranslation('pc');
   const isMobile = useIsMobile();
   const [resources, setResources] = useState<SystemResources | null>(null);
   const [failed, setFailed] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [sampledAt, setSampledAt] = useState(() => Date.now());
+  const [retryVersion, setRetryVersion] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const { http } = node.client;
 
   useEffect(() => {
     let alive = true;
@@ -100,7 +115,7 @@ const PcHeaderResourceBars: React.FC = () => {
     const poll = () => {
       if (inFlight || document.visibilityState === 'hidden') return;
       inFlight = true;
-      pycoreApi.getSystemResources()
+      http.requestPycoreHttp(PYCORE_HTTP_ROUTES.systemResourcesSystemResources, {}, REQUEST_CEILING_MS)
         .then((result) => {
           if (!alive) return;
           if (result && typeof result.cpu_percent === 'number' && result.mem) {
@@ -122,7 +137,7 @@ const PcHeaderResourceBars: React.FC = () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', poll);
     };
-  }, []);
+  }, [http, retryVersion]);
 
   useEffect(() => {
     if (!detailsOpen) return undefined;
@@ -172,7 +187,7 @@ const PcHeaderResourceBars: React.FC = () => {
   ];
 
   useEffect(() => {
-    if (resources) recordHistory(bars, sampledAt);
+    if (resources) recordHistory(node.key, bars, sampledAt);
     // Record once per sample; `bars` is derived from `resources`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sampledAt]);
@@ -180,14 +195,15 @@ const PcHeaderResourceBars: React.FC = () => {
   const summary = resources
     ? bars.map((bar) => `${bar.label} ${Math.round(bar.percent)}%`).join(' · ')
     : t(failed ? 'systemBars.unavailable' : 'systemBars.loading');
+  const heading = node.label ? `${t('systemBars.title')} · ${node.label}` : t('systemBars.title');
 
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setDetailsOpen((value) => !value)}
-        title={`${t('systemBars.title')}: ${summary}`}
-        aria-label={`${t('systemBars.title')}: ${summary}`}
+        title={`${heading}: ${summary}`}
+        aria-label={`${heading}: ${summary}`}
         aria-expanded={detailsOpen}
         className={`flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/60 bg-slate-100/40 px-2 transition hover:bg-slate-200/50 dark:border-white/5 dark:bg-white/[0.02] dark:hover:bg-white/[0.05] ${
           failed && !resources ? 'opacity-50' : ''
@@ -212,9 +228,9 @@ const PcHeaderResourceBars: React.FC = () => {
       </button>
       {detailsOpen && (
         <div className={`${isMobile ? 'fixed inset-x-2 top-14' : 'absolute left-0 top-full mt-2 w-80'} z-50 rounded-xl border border-slate-200/80 bg-white p-2.5 text-[11px] shadow-xl dark:border-white/10 dark:bg-slate-900`}>
-          <p className="mb-2 flex items-center justify-between font-bold text-slate-500 dark:text-slate-400">
-            {t('systemBars.title')}
-            <span className="font-normal text-[10px] text-slate-400">{t('systemBars.window')}</span>
+          <p className="mb-2 flex items-center justify-between gap-2 font-bold text-slate-500 dark:text-slate-400">
+            <span className="min-w-0 truncate">{heading}</span>
+            <span className="shrink-0 font-normal text-[10px] text-slate-400">{t('systemBars.window')}</span>
           </p>
           {resources ? (
             <ul className="space-y-2.5">
@@ -226,12 +242,24 @@ const PcHeaderResourceBars: React.FC = () => {
                     <span className="min-w-0 flex-1 truncate text-[10px] text-slate-400" title={bar.detail}>{bar.detail}</span>
                     <span className="shrink-0 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">{Math.round(bar.percent)}%</span>
                   </div>
-                  <LoadCurve points={loadHistory.get(bar.key) ?? []} colorClass={RESOURCE_COLORS[bar.kind].text} now={sampledAt} />
+                  <LoadCurve points={loadHistory.get(historyKey(node.key, bar.key)) ?? []} colorClass={RESOURCE_COLORS[bar.kind].text} now={sampledAt} />
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-slate-500">{summary}</p>
+            <div className="flex items-center justify-between gap-2 text-slate-500">
+              <p>{summary}</p>
+              {failed && (
+                <button
+                  type="button"
+                  onClick={() => { setFailed(false); setRetryVersion((value) => value + 1); }}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-500/10 px-2 py-1 font-semibold text-indigo-500 hover:bg-indigo-500/20"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  {t('systemBars.retry')}
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
