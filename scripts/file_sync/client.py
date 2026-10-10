@@ -221,7 +221,7 @@ def _excluded(rel_unix: str, patterns: Iterable[str]) -> bool:
         for part in parts:
             if fnmatch.fnmatch(part, pat):
                 return True
-        # match path prefix (e.g. "pyapps/d3-check" matches "pyapps/d3-check/foo/bar.py")
+        # match path prefix (e.g. "pyapps/GameAISDK" matches "pyapps/GameAISDK/foo/bar.py")
         if "/" in pat:
             pat_normalized = pat.replace("\\", "/").strip("/")
             if rel == pat_normalized or rel.startswith(pat_normalized + "/"):
