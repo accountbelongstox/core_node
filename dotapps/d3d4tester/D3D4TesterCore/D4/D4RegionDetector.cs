@@ -36,6 +36,7 @@ public sealed class D4RegionDetector
 
         var teamHealth = DetectTeamHealth(data, frame, debug);
         var smallMap = DetectSmallMap(data, frame, debug);
+        var minimapRoute = D4MinimapRouteDetector.Instance.DetectMinimapRoute(data, frame, debug);
         bool windowed = data.IsWindowedMode();
         var size = data.GameWindowSize;
         ColorPrinter.Blue($"{LogPrefix} Detecting regions and updating data...");
@@ -49,7 +50,7 @@ public sealed class D4RegionDetector
         ColorPrinter.Blue($"{LogPrefix} Finished extracting all regions to share");
         if (success) ColorPrinter.Green($"{LogPrefix} Region detection successful");
         else ColorPrinter.Yellow($"{LogPrefix} Region detection failed");
-        return new D4RegionDetectionResult(success, teamHealth, smallMap, regions, data.RegionImageCount);
+        return new D4RegionDetectionResult(success, teamHealth, smallMap, regions, data.RegionImageCount, MinimapRoute: minimapRoute);
     }
 
     /// <summary>Crop every region and point square into the shared region images (skipped while paused). 1:1 _extract_all_regions_to_share.</summary>

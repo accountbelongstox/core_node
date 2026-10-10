@@ -57,6 +57,7 @@ Python d3-check is deprecated and its tree `pyapps/d3-check` is deleted; the cod
 | `ui/utils/tk_variables`, `ui/components/bottom_bar_options_block` | tkinter-only (tk.Variable factory; per-tab empty strips); WPF binding replaces them |
 | `providor/common_imports`, `providor/app_constants`, `d3utils/i18n_manager`, `d3utils/rosbot_flow_f3_history_baseline` | No live importer (`app_constants` only in `scripts/`) |
 | `d4utils/d4_red_portal_detector` | Ported but unused (no caller in Python) |
+| `scripts/analysis/d4_minimap_path.py` (prototype outside py_d3check) | dotcore `DotCore.MinimapPath`; `Core/D4/D4MinimapRouteDetector` (D4 tuning `D4Constants.MinimapRoute`), run in step 2 by `D4RegionDetector`, result in `D4InterfaceData.MinimapRoute` |
 
 ## DOT deviations from Python (deliberate)
 
