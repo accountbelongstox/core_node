@@ -53,6 +53,7 @@ export const lmZhUiServer = {
       view_status_detail: "查看详细状态",
       available: "可用 {{size}}",
       mounted_on: "挂载点：{{path}}",
+      col_pid: "进程号",
       col_user: "用户",
       col_cpu: "CPU %",
       col_memory: "内存 %",

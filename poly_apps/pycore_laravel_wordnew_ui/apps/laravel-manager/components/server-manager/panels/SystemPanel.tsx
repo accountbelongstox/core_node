@@ -235,7 +235,7 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="text-left p-2">PID</th>
+                  <th className="text-left p-2">{tu('uiServer.system_panel.col_pid')}</th>
                   <th className="text-left p-2">{tu('uiServer.system_panel.col_user')}</th>
                   <th className="text-right p-2">{tu('uiServer.system_panel.col_cpu')}</th>
                   <th className="text-right p-2">{tu('uiServer.system_panel.col_memory')}</th>

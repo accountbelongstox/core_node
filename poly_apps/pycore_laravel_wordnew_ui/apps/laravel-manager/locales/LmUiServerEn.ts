@@ -53,6 +53,7 @@ export const lmEnUiServer = {
       view_status_detail: "View detailed status",
       available: "{{size}} available",
       mounted_on: "Mounted on: {{path}}",
+      col_pid: "PID",
       col_user: "User",
       col_cpu: "CPU %",
       col_memory: "Memory %",
