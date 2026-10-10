@@ -498,8 +498,8 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                   type="button"
                   onClick={() => recorderInputRef.current?.click()}
                   disabled={!hasWindow}
-                  title={t('terminal.voice.systemRecorder')}
-                  aria-label={t('terminal.voice.systemRecorder')}
+                  title={t('terminal.voice.audioFile')}
+                  aria-label={t('terminal.voice.audioFile')}
                   className={iconButton}
                 >
                   <FileMusic className="h-4 w-4" />
