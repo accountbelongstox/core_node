@@ -77,8 +77,8 @@ export const CmAdminTasksPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-        <CmPager page={list.page} totalPages={list.totalPages} disabled={list.loading} onChange={(next) => void list.load(next)} />
       </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
     </main>
   );
 };
