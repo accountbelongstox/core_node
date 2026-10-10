@@ -604,7 +604,8 @@ public sealed class HvmVirtualOperandResolver
         {
             references = targetModule.GetImportedMemberReferences().ToArray();
             exact = references.FirstOrDefault(item => item.FullName == fullName);
-            if (exact != null) return exact;
+            if (exact != null && runtimeMemberName.IndexOf("[[", StringComparison.Ordinal) < 0)
+                return exact;
             definitionMatches = new List<MemberReference>();
             foreach (MemberReference reference in references)
             {

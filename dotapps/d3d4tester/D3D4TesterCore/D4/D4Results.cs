@@ -1,4 +1,6 @@
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
+using DotCore.MinimapPath;
+
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>Location from the minimap template (Python location_type "Town" / "Dungeon").</summary>
@@ -126,7 +128,8 @@ public sealed record D4RegionDetectionResult(
     D4SmallMapResult? SmallMap,
     D4WindowRegionResult? WindowRegions,
     int RegionImageCount,
-    string? Error = null);
+    string? Error = null,
+    MinimapRouteResult? MinimapRoute = null);
 
 /// <summary>Map name OCR attempt (map_name_recognizer.recognize_map_name).</summary>
 public sealed record D4MapNameResult(

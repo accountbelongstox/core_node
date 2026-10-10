@@ -2,6 +2,7 @@
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/map_name_utils.py
 using System.Drawing;
 using DotCore.Foundations;
+using DotCore.MinimapPath;
 using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;
 
@@ -46,6 +47,9 @@ public sealed class D4InterfaceData
     public D4SmallMapResult? SmallMap { get; set; }
     public DateTime? SmallMapDetectionTimestamp { get; set; }
     public string? LastSmallMapDebugPath { get; set; }
+
+    /// <summary>Pinned route on the minimap (D4MinimapRouteDetector); null before the first detection.</summary>
+    public MinimapRouteResult? MinimapRoute { get; set; }
 
     public bool GameRunning { get; set; }
     public bool ExpFarmingRunning { get; set; }
@@ -200,6 +204,7 @@ public sealed class D4InterfaceData
         SmallMap = null;
         SmallMapDetectionTimestamp = null;
         LastSmallMapDebugPath = null;
+        MinimapRoute = null;
         GameRunning = false;
         ExpFarmingRunning = false;
         WindowDetected = false;

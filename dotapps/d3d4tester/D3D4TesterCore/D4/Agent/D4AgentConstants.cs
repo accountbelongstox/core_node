@@ -116,5 +116,9 @@ public static class D4AgentConstants
     public const int PreviewIntervalMs = 200;
     public const int PreviewMaxWidth = 960;
     public const int LiveNoWindowWaitMs = 1000;
-    public const int MaxLoggedReasons = 1;
+    public const int MenuKeyIntervalMs = 1000;
+
+    /// <summary>The death-screen saturation is measured on a frame downscaled to this size.</summary>
+    public const int SaturationSampleWidth = 160;
+    public const int SaturationSampleHeight = 90;
 }

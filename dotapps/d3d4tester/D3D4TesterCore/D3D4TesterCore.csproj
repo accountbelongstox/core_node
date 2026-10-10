@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\..\dotcore\DotCore.TemplateMatcher\DotCore.TemplateMatcher.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.Utils.ImageColor\DotCore.Utils.ImageColor.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.Utils.ImagePreprocess\DotCore.Utils.ImagePreprocess.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.MinimapPath\DotCore.MinimapPath.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.YoloDetect\DotCore.YoloDetect.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.YoloTrain\DotCore.YoloTrain.csproj" />

@@ -1,9 +1,12 @@
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d4.py
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/providor_index.py
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/share/coordinate_helper.py
+// PY-REF: scripts/analysis/d4_minimap_path.py
 using DotCore.Common;
 using DotCore.Common.Geometry;
+using DotCore.MinimapPath;
 using DotCore.TemplateMatcher;
+using DotCore.Utils.ImageColor;
 using OpenCvSharp;
 
 namespace DotApps.d3d4tester.Core.D4;
@@ -96,6 +99,32 @@ public static class D4Constants
     public const TemplateMatchMethod SmallMapMatchMethod = TemplateMatchMethod.Sift;
     public const string SmallMapRegionName = "minimap";
     public const string RegionSourceFullImage = "full_image";
+
+    public const string MinimapRouteDebugPrefix = "minimap_route_";
+
+    /// <summary>
+    /// Minimap route (pinned navigation dot line) recognition: white-core dots with a dark outline on the parchment minimap.
+    /// 1:1 Python scripts/analysis/d4_minimap_path.py constants (tuned on 1024x576 .. 1454x818 screenshots).
+    /// </summary>
+    public static readonly MinimapRouteOptions MinimapRoute = new()
+    {
+        DotHsv = new HsvRange(0, 179, 0, 90, 210, 255),
+        BackgroundHsv = new HsvRange(10, 40, 40, 200, 80, 255),
+        DotAreaMinRatio = 1e-5,
+        DotAreaMaxRatio = 8e-4,
+        DotOutlineContrast = 60,
+        DotRingKernel = 7,
+        TopStripRatio = 0.08,
+        BottomStripRatio = 0.15,
+        NearestMinRatio = 0.025,
+        NearestMaxRatio = 0.10,
+        LinkRatio = 0.10,
+        MinChainDots = 4,
+        SimplifyRatio = 0.02,
+        RoiSearchArea = (0.5, 0.0, 1.0, 0.5),
+        RoiCloseKernel = 15,
+        RoiMinAreaRatio = 0.005,
+    };
 
     /// <summary>Team health row scan (d4_team_health_detector): tolerance = int(255 * 0.1) per channel.</summary>
     public const double TeamHealthColorTolerance = 0.1;
