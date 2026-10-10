@@ -79,7 +79,7 @@ const MobileReviewsScreen: React.FC = () => {
   };
 
   return (
-    <MobileScreen title={canReview ? t('nav.reviews') : t('nav.reviewerApply')} onRefresh={canReview ? () => list.reload() : undefined}>
+    <MobileScreen title={canReview ? t('nav.reviews') : t('nav.reviewerApply')} onRefresh={canReview ? () => list.reload() : undefined} className={canReview ? '' : 'is-fill'}>
       {!canReview && <ReviewerApplication onPassed={onPassed} />}
       {canReview && (
         <MobileListState

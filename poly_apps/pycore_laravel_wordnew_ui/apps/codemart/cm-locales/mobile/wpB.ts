@@ -11,7 +11,7 @@ export const cmMobileWpB = defineMobileLocale(
       resubmitTitle: 'Resubmit your deliverable',
       projectTabs: {
         overview: 'Overview',
-        analysis: 'AI analysis',
+        analysis: 'AI',
         milestones: 'Milestones',
         tasks: 'Tasks',
         files: 'Files',
@@ -50,7 +50,7 @@ export const cmMobileWpB = defineMobileLocale(
       resubmitTitle: '重新提交交付物',
       projectTabs: {
         overview: '概览',
-        analysis: 'AI 需求分析',
+        analysis: 'AI 分析',
         milestones: '里程碑',
         tasks: '任务',
         files: '附件',

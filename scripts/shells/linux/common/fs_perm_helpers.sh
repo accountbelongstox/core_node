@@ -206,6 +206,40 @@ fs_perm_target_safety() {
     echo "safe"
 }
 
+# fs_perm_service_data_paths -> prints the data/log directories of every PostgreSQL
+# cluster, read from the data_directory/log_directory step 75_install_postgresql.sh
+# writes into /etc/postgresql/<ver>/<cluster>/postgresql.conf. The server refuses to
+# run when these are not postgres-owned, so no recursive walk may re-own them.
+fs_perm_service_data_paths() {
+    local conf=""
+    local key=""
+    local value=""
+
+    for conf in /etc/postgresql/*/*/postgresql.conf; do
+        [ -f "$conf" ] || continue
+        for key in data_directory log_directory; do
+            value="$(sed -n -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*'([^']*)'.*/\1/p" "$conf" 2>/dev/null | tail -n1)"
+            case "$value" in /*) printf '%s\n' "${value%/}" ;; esac
+        done
+    done
+}
+
+# fs_perm_service_prune_args -> fills FS_PERM_SERVICE_PRUNE with the find expression
+# `( -path A -o -path B ) -prune -o` (empty when no service data dir is configured),
+# to be placed right after the find start path.
+fs_perm_service_prune_args() {
+    local service_path=""
+    local path_match=()
+
+    FS_PERM_SERVICE_PRUNE=()
+    while IFS= read -r service_path; do
+        [ -n "$service_path" ] || continue
+        [ "${#path_match[@]}" -gt 0 ] && path_match+=(-o)
+        path_match+=(-path "$service_path")
+    done < <(fs_perm_service_data_paths)
+    [ "${#path_match[@]}" -gt 0 ] && FS_PERM_SERVICE_PRUNE=(\( "${path_match[@]}" \) -prune -o)
+}
+
 # repair_private_tree <absolute-path> [user] [group]
 # Owner-only secret store: directories 0700, decrypted files 0600, other files
 # (git-tracked encrypted copies) lose every group/other bit but keep the owner
@@ -317,8 +351,9 @@ repair_owned_tree_owner_only() {
         [ -n "$privilege_prefix" ] || return 1
         privilege_command=("$privilege_prefix")
     fi
+    fs_perm_service_prune_args
     mismatch_list="$(mktemp)" || return 1
-    "${privilege_command[@]}" find "$target_path" -xdev \( ! -user "$target_user" -o ! -group "$target_group" \) \
+    "${privilege_command[@]}" find "$target_path" -xdev "${FS_PERM_SERVICE_PRUNE[@]}" \( ! -user "$target_user" -o ! -group "$target_group" \) \
         -print0 > "$mismatch_list" 2>/dev/null || repair_status=$?
     "${privilege_command[@]}" xargs -0 -r chown -h "$target_user:$target_group" -- < "$mismatch_list" 2>/dev/null || repair_status=$?
     rm -f "$mismatch_list"
@@ -419,7 +454,8 @@ repair_owned_tree_777() {
 
     mismatch_list="$(mktemp)" || return 1
     protected_list="$(mktemp)" || { rm -f "$mismatch_list"; return 1; }
-    "${privilege_command[@]}" find "$target_path" \
+    fs_perm_service_prune_args
+    "${privilege_command[@]}" find "$target_path" "${FS_PERM_SERVICE_PRUNE[@]}" \
         \( "${prune_names[@]}" \) -prune -fprint0 "$protected_list" \
         -o \( -type d "${service_owned[@]}" \) -prune \
         -o \( -type d -o -type f \) ! "${service_owned[@]}" \

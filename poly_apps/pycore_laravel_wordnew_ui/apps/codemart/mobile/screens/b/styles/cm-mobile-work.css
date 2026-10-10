@@ -21,7 +21,7 @@
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 0;
   border-radius: 18px;
   background: transparent;
@@ -141,3 +141,7 @@
 
 .cmm-note-counter { font-size: 12px; color: var(--cmm-muted); text-align: right; }
 .cmm-note-counter.is-bad { color: var(--cmm-danger); }
+
+/* A form screen whose action bar sits at the bottom of the viewport even when the content is short. */
+.cmm-screen.is-fill { min-height: calc(100dvh - var(--cmm-appbar-h) - var(--cmm-tabbar-h) - var(--cmm-safe-top) - var(--cmm-safe-bottom) - 36px); }
+.cmm-screen.is-fill > .cmm-stickybar { margin-top: auto; }
