@@ -1,4 +1,5 @@
 // PY-REF: none (DOT-only)
+using System.Text.Json.Serialization;
 using DotApps.d3d4tester.Core.Planner;
 
 namespace DotApps.d3d4tester.Core.Kanai;
@@ -58,7 +59,10 @@ public enum KanaiUpgradeOutcome
 /// <summary>A wanted item: the planned item (build gear or cube power), minimum ancient rank and the affix codes it must have.</summary>
 public sealed record KanaiUpgradeTarget(PlannerItem Item, int MinAncientRank, IReadOnlyList<string> RequiredStats)
 {
-    public string Key => Item.Slot + "|" + Item.ItemId;
+    public string Key => KeyOf(Item);
+
+    /// <summary>Stable key of a planned item within its gear set (slot + item id).</summary>
+    public static string KeyOf(PlannerItem item) => item.Slot + "|" + item.ItemId;
 
     public IEnumerable<PlannerStat> Required => Item.Stats.Where(s => RequiredStats.Contains(s.Code, StringComparer.Ordinal));
 }
@@ -100,9 +104,9 @@ public sealed record KanaiUpgradeProduct(DateTime Utc, int Row, int Col, string 
 public sealed record KanaiUpgradeRun(DateTime StartUtc, DateTime EndUtc, string Build, string Profile, int Transmutes,
     IReadOnlyList<KanaiUpgradeProduct> Products, KanaiUpgradeOutcome Outcome, IReadOnlyList<string> TargetsReached)
 {
-    public KanaiMaterials Consumed => KanaiMaterials.UpgradeRareCost.Times(Transmutes);
+    [JsonIgnore] public KanaiMaterials Consumed => KanaiMaterials.UpgradeRareCost.Times(Transmutes);
 
-    public TimeSpan Elapsed => EndUtc - StartUtc;
+    [JsonIgnore] public TimeSpan Elapsed => EndUtc - StartUtc;
 }
 
 /// <summary>Progress line of a run (UI log): time, kind (i18n stage key suffix) and detail.</summary>
