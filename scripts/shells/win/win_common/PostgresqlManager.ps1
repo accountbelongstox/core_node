@@ -342,7 +342,7 @@ function Install-PgBinaries {
 
 function Initialize-PgCluster {
     # initdb the data dir if not already initialized (PG_VERSION marker). Idempotent.
-    param([string]$BinDir, [string]$Password, [string]$DataDir = $Global:PG_DATA_DIR)
+    param([string]$BinDir, [string]$Password, [string]$DataDir = $Global:PG_DATA_DIR, [string[]]$ExtraArgs = @())
     $versionFile = Join-Path $DataDir "PG_VERSION"
     if (Test-Path $versionFile) {
         Write-PgLog "Data dir already initialized: $DataDir (idempotent)" "Success"
@@ -355,7 +355,7 @@ function Initialize-PgCluster {
     [System.IO.File]::WriteAllText($pwFile, $Password)
     try {
         $initdb = Join-Path $BinDir "initdb.exe"
-        & $initdb --pgdata=$DataDir --username=$Global:PG_USER --pwfile=$pwFile --encoding=UTF8 --auth=scram-sha-256 --auth-host=scram-sha-256 | Out-Null
+        & $initdb --pgdata=$DataDir --username=$Global:PG_USER --pwfile=$pwFile --encoding=UTF8 --auth=scram-sha-256 --auth-host=scram-sha-256 @ExtraArgs | Out-Null
         return (Test-Path $versionFile)
     } finally {
         Remove-Item $pwFile -Force -ErrorAction SilentlyContinue
@@ -519,6 +519,7 @@ function Invoke-PgMajorUpgrade {
     $previousVersion = ""
     $previousPassword = $env:PGPASSWORD
     $exitCode = 1
+    $initArgs = @()
 
     if (-not $oldBin) {
         if ($Global:PG_PREVIOUS_MAJORS.PSObject.Properties[$DataMajor]) { $previousVersion = [string]$Global:PG_PREVIOUS_MAJORS.$DataMajor }
@@ -536,7 +537,11 @@ function Invoke-PgMajorUpgrade {
     if (Test-Path $Global:PG_UPGRADE_STAGE_DIR) {
         Rename-Item -Path $Global:PG_UPGRADE_STAGE_DIR -NewName (Get-PgAsideName -Path $Global:PG_UPGRADE_STAGE_DIR -Suffix "failed")
     }
-    if (-not (Initialize-PgCluster -BinDir $newBin -Password $Password -DataDir $Global:PG_UPGRADE_STAGE_DIR)) {
+    # pg_upgrade requires matching checksum settings; initdb enables checksums by default since PG 18.
+    if (-not (Test-PgDataChecksums -BinDir $oldBin) -and [int](Get-PgBinMajor -BinDir $newBin) -ge $Global:PG_CHECKSUM_DEFAULT_MAJOR) {
+        $initArgs = @('--no-data-checksums')
+    }
+    if (-not (Initialize-PgCluster -BinDir $newBin -Password $Password -DataDir $Global:PG_UPGRADE_STAGE_DIR -ExtraArgs $initArgs)) {
         Write-PgLog "initdb of the upgrade target failed: $Global:PG_UPGRADE_STAGE_DIR" "Error"
         return $false
     }
@@ -545,7 +550,7 @@ function Invoke-PgMajorUpgrade {
     $env:PGPASSWORD = $Password
     try {
         & (Join-Path $newBin "pg_upgrade.exe") --old-bindir=$oldBin --new-bindir=$newBin --old-datadir=$Global:PG_DATA_DIR `
-            --new-datadir=$Global:PG_UPGRADE_STAGE_DIR --username=$Global:PG_USER --old-port=$Global:PG_UPGRADE_PORT --new-port=$Global:PG_UPGRADE_PORT
+            --new-datadir=$Global:PG_UPGRADE_STAGE_DIR --username=$Global:PG_USER --old-port=$Global:PG_UPGRADE_PORT --new-port=$Global:PG_UPGRADE_PORT | Out-Host
         $exitCode = $LASTEXITCODE
     } finally {
         $env:PGPASSWORD = $previousPassword
