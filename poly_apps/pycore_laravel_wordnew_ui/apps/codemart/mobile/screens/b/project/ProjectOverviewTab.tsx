@@ -5,7 +5,7 @@ import type { CmProjectDetail } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { CM_STACK_FIELDS } from '../../../../shared/cmProjectForm';
 import { CM_FUNDING_PENDING_STATUS, type CmProjectDetailModel } from '../../../../shared/useCmProjectDetail';
-import { MobileButton, MobileCard, MobileSectionHeader, MobileStatusBadge } from '../../../ui';
+import { MobileButton, MobileCard, MobileSectionHeader } from '../../../ui';
 import { MobileKeyValue } from '../parts/MobileKeyValue';
 import { MobileTagList } from '../parts/MobileTagList';
 import { MobileTransitionActions } from '../parts/MobileTransitionActions';
@@ -25,13 +25,11 @@ export const ProjectOverviewTab: React.FC<{ project: CmProjectDetail; detail: Cm
     <>
       {isOwner && project.status === CM_FUNDING_PENDING_STATUS && <FundingCard project={project} onFunded={detail.reloadAll} />}
       <MobileCard>
-        <h3 className="cmm-card-title">{t('projectDetail.overviewTitle')}</h3>
         <p className="cmm-prose">{project.description}</p>
       </MobileCard>
       <MobileCard>
         <MobileKeyValue
           items={[
-            { label: t('projectDetail.statusLabel'), value: <MobileStatusBadge group="project" status={project.status} /> },
             access && { label: t('projectDetail.yourRole'), value: t(`projectDetail.accessRoles.${access.role}`, { defaultValue: access.role }) },
             { label: t('projectDetail.budgetLabel'), value: `${project.budget ? format.money(project.budget, project.currency) : t('common.unavailable')}${project.budget_type ? ` · ${t(`projectCreate.budgetTypes.${project.budget_type}`, { defaultValue: project.budget_type })}` : ''}` },
             project.complexity && { label: t('projectCreate.complexity'), value: t(`estimate.complexities.${project.complexity}`, { defaultValue: project.complexity }) },

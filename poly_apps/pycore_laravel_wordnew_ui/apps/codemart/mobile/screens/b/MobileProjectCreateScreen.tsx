@@ -67,7 +67,7 @@ const MobileProjectCreateScreen: React.FC = () => {
   };
 
   return (
-    <MobileScreen title={t('projectCreate.title')}>
+    <MobileScreen title={t('projectCreate.title')} className="is-fill">
       {!canCreate && <MobileNotice>{t('projectCreate.noCapability')}</MobileNotice>}
       <div className="cmm-stack-tight">
         <div className="cmm-steps" role="list" aria-label={t('mobile.work.create.stepsLabel')}>
@@ -113,10 +113,10 @@ const MobileProjectCreateScreen: React.FC = () => {
               </MobileField>
             </div>
             <div className="cmm-field-pair">
-              <MobileField label={`${t('projectCreate.startDate')} (${t('common.optional')})`}>
+              <MobileField label={t('projectCreate.startDate')}>
                 <input className="cmm-input" type="date" value={form.startDate} onChange={(event) => update({ startDate: event.target.value })} />
               </MobileField>
-              <MobileField label={`${t('projectCreate.endDate')} (${t('common.optional')})`} error={showError('endDate')}>
+              <MobileField label={t('projectCreate.endDate')} error={showError('endDate')}>
                 <input className="cmm-input" type="date" value={form.endDate} min={form.startDate || undefined} onChange={(event) => update({ endDate: event.target.value })} aria-invalid={Boolean(showError('endDate'))} />
               </MobileField>
             </div>
@@ -124,8 +124,9 @@ const MobileProjectCreateScreen: React.FC = () => {
         )}
         {step === 'stack' && (
           <>
+            <p className="cmm-hint">{t('projectCreate.listPlaceholder')}</p>
             {CM_STACK_FIELDS.map((field) => (
-              <MobileField key={field} label={`${t(`projectCreate.${field}`)} (${t('common.optional')})`} hint={t('projectCreate.listPlaceholder')}>
+              <MobileField key={field} label={t(`projectCreate.${field}`)}>
                 <input className="cmm-input" value={form.stack[field]} onChange={(event) => updateStack(field, event.target.value)} placeholder={t(`projectCreate.placeholders.${field}`)} />
               </MobileField>
             ))}

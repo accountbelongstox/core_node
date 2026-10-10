@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { ImageUp, KeyRound, LogOut, Mail, ShieldCheck, UserRound } from 'lucide-react';
 import { useTranslation } from '../../../../../core/i18n/UiI18n';
 import { useCmSignOut } from '../../../auth/useCmSignOut';
