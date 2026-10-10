@@ -48,6 +48,54 @@ export interface CmAdminPolicy {
   admin_project_target_statuses: string[];
   max_kyc_image_size_kb: number;
   max_attachment_size_kb: number;
+  settings: CmAdminPolicySettings;
+  defaults: CmAdminPolicySettings;
+  overridden: string[];
+  schema: Record<string, CmAdminPolicySchemaEntry>;
+  groups: string[];
+}
+
+export type CmAdminPolicySettings = Record<string, unknown>;
+
+export type CmAdminPolicyFieldType = 'int' | 'float' | 'string' | 'list' | 'map' | 'exam' | 'downloads';
+
+export interface CmAdminPolicySchemaEntry {
+  group: string;
+  type: CmAdminPolicyFieldType;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
+  keys?: string[];
+  platforms?: string[];
+}
+
+export interface CmAdminExamQuestion {
+  code_snippet_id: number;
+  code: string;
+  expected_ratings: { quality: number; readability: number; efficiency: number };
+}
+
+export interface CmAdminAppDownload {
+  platform: string;
+  version: string;
+  url: string;
+  min_os: string;
+}
+
+export interface CmAdminTaskRow {
+  id: number;
+  title: string;
+  status: string;
+  priority: string | null;
+  milestone_id: number | null;
+  project_id: number | null;
+  project_title: string | null;
+  assignee: CmAdminUserSummary | null;
+  budget_allocation: string | null;
+  currency: string | null;
+  due_date: string | null;
+  created_at: string | null;
 }
 
 export interface CmAdminUserRow {

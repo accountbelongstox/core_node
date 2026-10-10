@@ -41,6 +41,8 @@ export const CM_ADMIN_ROUTE = {
   withdrawals: '/codemart/admin/withdrawals',
   payments: '/codemart/admin/payments',
   projects: '/codemart/admin/projects',
+  tasks: '/codemart/admin/tasks',
+  policy: '/codemart/admin/policy',
   testimonials: '/codemart/admin/testimonials',
   reviewerApplications: '/codemart/admin/reviewer-applications',
   contactMessages: '/codemart/admin/contact-messages',
