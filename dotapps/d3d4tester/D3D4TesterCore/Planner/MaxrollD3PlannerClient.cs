@@ -92,7 +92,8 @@ public static class MaxrollD3PlannerClient
             .Select(kv => (kv.Key, Text(kv.Value?["name"]), Text(zh?["passives"]?[cls]?[kv.Key]?["name"]))).ToList();
     }
 
-    private static (JsonNode? Data, JsonNode? Zh) GameData(string cacheDir) => CachedGameData.GetOrAdd(cacheDir, dir =>
+    /// <summary>Cached game data and Chinese locale patch of a planner cache dir (read once; nulls when not downloaded yet).</summary>
+    internal static (JsonNode? Data, JsonNode? Zh) GameData(string cacheDir) => CachedGameData.GetOrAdd(cacheDir, dir =>
     {
         JsonNode? Read(string path) => File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
         return (Read(DataPath(dir)), Read(LocaleZhPath(dir))?["patch"]);

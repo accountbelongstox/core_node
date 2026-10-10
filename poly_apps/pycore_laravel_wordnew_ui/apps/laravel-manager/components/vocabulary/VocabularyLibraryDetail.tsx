@@ -363,7 +363,7 @@ const VocabularyLibraryDetail: React.FC<Props> = ({
   // the Portal's z-[1000] modal container (above the page backdrop), so a local
   // fixed layer is sufficient; the backdrop class lives on the parent container.
   const shell = fullscreen
-    ? 'fixed inset-0 z-[1000] bg-white dark:bg-slate-900 flex flex-col'
+    ? 'shell-safe-area fixed inset-0 z-[1000] bg-white dark:bg-slate-900 flex flex-col'
     : 'relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-700/80';
 
   return (

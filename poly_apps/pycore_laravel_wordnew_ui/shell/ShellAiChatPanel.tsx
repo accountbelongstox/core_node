@@ -30,7 +30,7 @@ export const ShellAiChatPanel: React.FC = () => {
       />
       {/* Panel */}
       <aside
-        className={`fixed top-0 right-0 h-full w-full max-w-md z-[71] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col transition-transform duration-300 ${chatOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`shell-safe-area fixed top-0 right-0 h-full w-full max-w-md z-[71] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col transition-transform duration-300 ${chatOpen ? 'translate-x-0' : 'translate-x-full'}`}
         aria-hidden={!chatOpen}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700">

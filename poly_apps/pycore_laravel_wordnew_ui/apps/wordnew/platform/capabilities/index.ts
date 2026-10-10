@@ -378,8 +378,8 @@ export { acquireForegroundSync } from './CapForegroundSync';
 export type { CapForegroundSyncLease } from './CapForegroundSync';
 export { currentLanInfo } from '../../../../core/network/LanInfo';
 export type { CapLanAddress, CapLanInfo } from '../../../../core/network/LanInfo';
-export { appUpdateSupported, capAppUpdate, updateErrorCode } from './CapAppUpdate';
-export type { CapInstalledApp, CapUpdateErrorCode, CapUpdateProgress } from './CapAppUpdate';
+export { appUpdateSupported, capAppUpdate, updateErrorCode } from '../../../../shared/app-update/CapAppUpdate';
+export type { CapInstalledApp, CapUpdateErrorCode, CapUpdateProgress } from '../../../../shared/app-update/CapAppUpdate';
 
 // --- Web Speech synthesis in the native shell (TTS plugin backed) ---------
 export { installNativeSpeechSynthesis } from './CapSpeechSynthesisPolyfill';

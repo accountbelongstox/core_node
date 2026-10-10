@@ -5,9 +5,10 @@ using OpenCvSharp;
 namespace DotCore.TemplateMatcher;
 
 /// <summary>
-/// An icon with transparent surroundings (item / gem art) for matching on a game background: BGR art cut to the bounding box of its
-/// visible pixels and a 3-channel mask of them (alpha >= <see cref="AlphaVisible"/>; images without alpha: any channel above
-/// <see cref="DarkLevel"/>). Resized copies are cached per height; thread-safe. Loaded files are cached by path (<see cref="Load"/>).
+/// An icon with transparent surroundings (item / gem art) for matching on a game background: the BGR canvas (its layout is the
+/// layout of the art in an inventory cell: 64x128 for a two-cell item, 64x64 for a one-cell item) and a 3-channel mask of its visible
+/// pixels (alpha >= <see cref="AlphaVisible"/>; images without alpha or with a uniform alpha: any channel above <see cref="DarkLevel"/>).
+/// Resized copies are cached per height; thread-safe. Loaded files are cached by path (<see cref="Load"/>).
 /// </summary>
 public sealed class MaskedIcon : IDisposable
 {
@@ -33,8 +34,11 @@ public sealed class MaskedIcon : IDisposable
 
     public int Rows => _bgr.Rows;
 
-    /// <summary>Height / width of the visible art (about 2 for weapons and armor, about 1 for rings, amulets, belts, gems).</summary>
+    /// <summary>Height / width of the canvas (2 for two-cell items such as weapons and armor, 1 for rings, amulets, belts, gems).</summary>
     public double Aspect => _bgr.Rows / (double)_bgr.Cols;
+
+    /// <summary>Share of the canvas that is visible art (0..1).</summary>
+    public double Coverage { get; private init; }
 
     /// <summary>Visible art and mask resized to the given height (aspect kept, INTER_AREA), created once.</summary>
     public (Mat Bgr, Mat Mask) Sized(int height) => _sized.GetOrAdd(height, h => new Lazy<(Mat, Mat)>(() =>
@@ -61,15 +65,27 @@ public sealed class MaskedIcon : IDisposable
 
     private static MaskedIcon? Cut(Mat image, string name)
     {
-        using var bgr = ScaledTemplate.ToBgr(image);
-        using var alpha = image.Channels() == 4 ? image.ExtractChannel(3) : VisibleByBrightness(bgr);
+        var bgr = ScaledTemplate.ToBgr(image);
+        using var alpha = HasAlphaShape(image) ? image.ExtractChannel(3) : VisibleByBrightness(bgr);
         using var visible = alpha.Threshold(AlphaVisible - 1, 255, ThresholdTypes.Binary);
         var box = Cv2.BoundingRect(visible);
-        if (box.Width < MinSidePx || box.Height < MinSidePx) return null;
-        using var mask1 = new Mat(visible, box);
+        if (box.Width < MinSidePx || box.Height < MinSidePx)
+        {
+            bgr.Dispose();
+            return null;
+        }
         var mask = new Mat();
-        Cv2.Merge(new[] { mask1, mask1, mask1 }, mask);
-        return new MaskedIcon(name, new Mat(bgr, box).Clone(), mask);
+        Cv2.Merge(new[] { visible, visible, visible }, mask);
+        return new MaskedIcon(name, bgr, mask) { Coverage = Cv2.CountNonZero(visible) / (double)(visible.Rows * visible.Cols) };
+    }
+
+    /// <summary>Alpha channel that outlines the art (not one value everywhere, as in icons saved with their background).</summary>
+    private static bool HasAlphaShape(Mat image)
+    {
+        if (image.Channels() != 4) return false;
+        using var alpha = image.ExtractChannel(3);
+        Cv2.MinMaxLoc(alpha, out double min, out double max);
+        return max - min >= AlphaVisible;
     }
 
     private static Mat VisibleByBrightness(Mat bgr)
@@ -105,8 +121,8 @@ public sealed class MaskedIcon : IDisposable
 /// </summary>
 public static class MaskedIconMatcher
 {
-    /// <summary>Icon size / its fitted size in the region tried by default (the art fills most of an inventory cell).</summary>
-    public static readonly IReadOnlyList<double> DefaultFitRatios = new[] { 0.72, 0.8, 0.88, 0.96 };
+    /// <summary>Icon canvas size / its fitted size in the region tried by default (the canvas covers the cell; the region has a margin).</summary>
+    public static readonly IReadOnlyList<double> DefaultFitRatios = new[] { 0.84, 0.9, 0.96, 1.0 };
 
     /// <summary>Best masked score of one icon on the region (BGR); -1 when the icon does not fit at any tried size.</summary>
     public static double Score(Mat region, MaskedIcon icon, IReadOnlyList<double>? fitRatios = null)
@@ -128,18 +144,35 @@ public static class MaskedIconMatcher
         return best;
     }
 
-    /// <summary>Candidates ranked by score (best first), at most <paramref name="top"/>; candidates without an icon are skipped.</summary>
+    /// <summary>Region scale and fit ratio of the coarse pass of <see cref="Rank{T}"/> (one size on a half-size region).</summary>
+    public const double CoarseScale = 0.5;
+    private static readonly IReadOnlyList<double> CoarseFitRatios = new[] { 0.92 };
+
+    /// <summary>
+    /// Candidates ranked by score (best first), at most <paramref name="top"/>; candidates without an icon are skipped. With more than
+    /// <paramref name="coarseKeep"/> candidates a coarse pass (half-size region, one size) keeps that many for the full pass.
+    /// </summary>
     public static IReadOnlyList<(T Item, double Score)> Rank<T>(Mat region, IEnumerable<T> candidates, Func<T, MaskedIcon?> icon, int top = 3,
-        IReadOnlyList<double>? fitRatios = null)
+        IReadOnlyList<double>? fitRatios = null, int coarseKeep = 48)
     {
         using var bgr = ScaledTemplate.ToBgr(region);
-        var scored = new ConcurrentBag<(T Item, double Score)>();
-        Parallel.ForEach(candidates, c =>
+        var list = candidates.Select(c => (Item: c, Icon: icon(c))).Where(c => c.Icon != null).ToList();
+        if (list.Count > coarseKeep && coarseKeep > 0)
         {
-            if (icon(c) is not { } i) return;
-            double s = Score(bgr, i, fitRatios);
-            if (s > -1) scored.Add((c, s));
+            using var small = bgr.Resize(new Size(Math.Max(1, (int)(bgr.Cols * CoarseScale)), Math.Max(1, (int)(bgr.Rows * CoarseScale))), 0, 0, InterpolationFlags.Area);
+            list = ScoreAll(small, list, CoarseFitRatios).Take(coarseKeep).Select(s => (s.Item, (MaskedIcon?)icon(s.Item))).ToList();
+        }
+        return ScoreAll(bgr, list, fitRatios).Take(Math.Max(1, top)).ToList();
+    }
+
+    private static List<(T Item, double Score)> ScoreAll<T>(Mat bgr, List<(T Item, MaskedIcon? Icon)> list, IReadOnlyList<double>? fitRatios)
+    {
+        var scored = new ConcurrentBag<(T Item, double Score)>();
+        Parallel.ForEach(list, c =>
+        {
+            double s = Score(bgr, c.Icon!, fitRatios);
+            if (s > -1) scored.Add((c.Item, s));
         });
-        return scored.OrderByDescending(s => s.Score).Take(Math.Max(1, top)).ToList();
+        return scored.OrderByDescending(s => s.Score).ToList();
     }
 }

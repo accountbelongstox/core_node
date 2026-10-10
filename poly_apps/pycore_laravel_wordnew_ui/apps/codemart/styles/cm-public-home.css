@@ -76,7 +76,7 @@
 .cm-public-header {
   position: absolute;
   z-index: 40;
-  top: 20px;
+  top: calc(20px + var(--wf-safe-top, 0px));
   right: 0;
   left: 0;
   height: 70px;
