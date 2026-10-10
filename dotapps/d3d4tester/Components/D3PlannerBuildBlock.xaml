@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme"
              xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
-  <!-- maxroll d3planner build: URL + load, gear set, notify switches, paper dolls (worn in game | planned), planned items with their best copy in game -->
+  <!-- maxroll d3planner build: URL + load, cache folder, gear set, notify switches, paper dolls (worn in game | planned), then gear / skills / follower -->
   <DockPanel Margin="4">
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
       <Button x:Name="BtnLoad" DockPanel.Dock="Right" Style="{StaticResource PrimaryButtonStyle}" Margin="6,0,0,0" Click="BtnLoad_Click"/>
@@ -20,6 +20,10 @@
       <CheckBox x:Name="ChkEquipInTown" VerticalAlignment="Center" Margin="0,0,10,4"/>
       <CheckBox x:Name="ChkGambleUnaligned" VerticalAlignment="Center" Margin="0,0,0,4"/>
     </WrapPanel>
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+      <Button x:Name="BtnOpenCache" DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" Content="&#xE838;" Margin="6,0,0,0" Click="BtnOpenCache_Click"/>
+      <TextBlock x:Name="TxtCacheDir" Style="{StaticResource CaptionTextStyle}" FontFamily="{StaticResource MonoFontFamily}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+    </DockPanel>
     <TextBlock x:Name="TxtStatus" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
     <TextBlock x:Name="TxtAlignment" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
     <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
@@ -37,20 +41,65 @@
       <comp:D3PaperDoll x:Name="DollGame" Grid.Row="1"/>
       <comp:D3PaperDoll x:Name="DollPlan" Grid.Row="1" Grid.Column="2"/>
     </Grid>
-    <ListView x:Name="LstItems" MinHeight="60">
-      <ListView.ItemContainerStyle>
-        <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
-          <Setter Property="ToolTip" Value="{Binding Detail}"/>
-        </Style>
-      </ListView.ItemContainerStyle>
-      <ListView.View>
-        <GridView>
-          <GridViewColumn x:Name="ColSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
-          <GridViewColumn x:Name="ColItem" Width="130" DisplayMemberBinding="{Binding Item}"/>
-          <GridViewColumn x:Name="ColHave" Width="120" DisplayMemberBinding="{Binding Have}"/>
-          <GridViewColumn x:Name="ColAffixes" Width="260" DisplayMemberBinding="{Binding Affixes}"/>
-        </GridView>
-      </ListView.View>
-    </ListView>
+    <TabControl x:Name="TabsBuild" MinHeight="80">
+      <!-- Hero gear (incl. Kanai's Cube) with the best copy in game -->
+      <TabItem x:Name="TabGear">
+        <ListView x:Name="LstItems" MinHeight="60">
+          <ListView.ItemContainerStyle>
+            <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+              <Setter Property="ToolTip" Value="{Binding Detail}"/>
+            </Style>
+          </ListView.ItemContainerStyle>
+          <ListView.View>
+            <GridView>
+              <GridViewColumn x:Name="ColSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
+              <GridViewColumn x:Name="ColItem" Width="130" DisplayMemberBinding="{Binding Item}"/>
+              <GridViewColumn x:Name="ColHave" Width="120" DisplayMemberBinding="{Binding Have}"/>
+              <GridViewColumn x:Name="ColGems" Width="120" DisplayMemberBinding="{Binding Gems}"/>
+              <GridViewColumn x:Name="ColAffixes" Width="260" DisplayMemberBinding="{Binding Affixes}"/>
+            </GridView>
+          </ListView.View>
+        </ListView>
+      </TabItem>
+      <!-- Skill bar with runes, passives, Kanai's Cube powers, paragon level -->
+      <TabItem x:Name="TabSkills">
+        <DockPanel Margin="2,4,2,2">
+          <TextBlock x:Name="TxtPassives" DockPanel.Dock="Bottom" TextWrapping="Wrap" Margin="0,6,0,0"/>
+          <TextBlock x:Name="TxtKanai" DockPanel.Dock="Bottom" TextWrapping="Wrap" Margin="0,4,0,0"/>
+          <TextBlock x:Name="TxtParagon" DockPanel.Dock="Bottom" Style="{StaticResource CaptionTextStyle}" Margin="0,4,0,0"/>
+          <ListView x:Name="LstSkills">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn x:Name="ColSkillSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
+                <GridViewColumn x:Name="ColSkillName" Width="160" DisplayMemberBinding="{Binding Skill}"/>
+                <GridViewColumn x:Name="ColSkillRune" Width="180" DisplayMemberBinding="{Binding Rune}"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+        </DockPanel>
+      </TabItem>
+      <!-- Follower: type, skills, gear -->
+      <TabItem x:Name="TabFollower">
+        <DockPanel Margin="2,4,2,2">
+          <TextBlock x:Name="TxtFollower" DockPanel.Dock="Top" Style="{StaticResource BodyStrongTextStyle}" Margin="0,0,0,2"/>
+          <TextBlock x:Name="TxtFollowerSkills" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <ListView x:Name="LstFollowerItems">
+            <ListView.ItemContainerStyle>
+              <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+                <Setter Property="ToolTip" Value="{Binding Detail}"/>
+              </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.View>
+              <GridView>
+                <GridViewColumn x:Name="ColFollowerSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
+                <GridViewColumn x:Name="ColFollowerItem" Width="150" DisplayMemberBinding="{Binding Item}"/>
+                <GridViewColumn x:Name="ColFollowerGems" Width="120" DisplayMemberBinding="{Binding Gems}"/>
+                <GridViewColumn x:Name="ColFollowerAffixes" Width="260" DisplayMemberBinding="{Binding Affixes}"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
   </DockPanel>
 </UserControl>

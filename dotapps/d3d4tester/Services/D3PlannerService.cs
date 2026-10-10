@@ -31,8 +31,11 @@ public sealed record PlannerAlignment(IReadOnlyList<PlannerItem> Unaligned, IRea
 }
 
 /// <summary>
-/// maxroll d3planner builds matched against the game. LoadAsync(url) adds a build (or refreshes the one with the same id), keeps the
-/// list in the user data folder and writes the bridge plugin's item watch (GBIDs, item ids and checkable affix attributes of every
+/// maxroll d3planner builds matched against the game. Every planner download (raw build answers, game data, the parsed build list)
+/// lives in <see cref="CacheDir"/>: dotapps/d3d4tester/PlannerData in the source tree, so it is versioned and travels with the code
+/// (the user data folder only without a source tree). At startup the list is loaded, every cached raw build is parsed again from disk
+/// (no network; a profiles/&lt;id&gt;.json added by hand or by another machine joins the list), and builds from the old user-folder cache are
+/// moved in once. LoadAsync(url) adds a build (or refreshes the one with the same id) and writes the bridge plugin's item watch (GBIDs, item ids and checkable affix attributes of every
 /// gear set of every build). Every CheckEveryTicks seconds (TickDriver) it reads the plugin state: a ground item of any build not seen
 /// before raises a "dropped" alert, a new pickup of one a "picked up" alert (Monitor log, Alert event for the tray, optional push).
 /// The selected build / gear set drive the Build tab: Status() pairs its planned items with the best carried (else ground) copy.
@@ -41,6 +44,9 @@ public static class D3PlannerService
 {
     private const string LogTag = "[D3Planner]";
     private const string CacheDirName = "d3planner";
+    /// <summary>Planner cache folder in the app source tree (versioned with the code).</summary>
+    private const string SourceCacheDirName = "PlannerData";
+    private const string ProfileSearchPattern = "*" + MaxrollD3PlannerClient.ProfileFileExtension;
     private const string LegacyBuildFileName = "build.json";
     private const string BuildsFileName = "builds.json";
     private const int CheckEveryTicks = 2;
@@ -56,6 +62,7 @@ public static class D3PlannerService
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private static readonly object Lock = new();
+    private static readonly SemaphoreSlim SaveGate = new(1, 1);
     private static readonly HashSet<string> SeenGround = new(StringComparer.Ordinal);
     private static List<PlannerBuild> _builds = new();
     private static RosbotBridgeState? _state;
@@ -72,7 +79,11 @@ public static class D3PlannerService
 
     public static event Action<PlannerAlert>? Alert;
 
-    public static string CacheDir => Path.Combine(ConfigPaths.CurrentUserDataPath, CacheDirName);
+    /// <summary>Planner cache: PlannerData in the app source tree, else the user data folder.</summary>
+    public static string CacheDir { get; } = SourcePaths.AppSourceDir is { } src ? Path.Combine(src, SourceCacheDirName) : UserCacheDir;
+
+    /// <summary>Per-machine planner folder in the user data dir (old cache location; machine-specific files such as backups).</summary>
+    public static string UserCacheDir => Path.Combine(ConfigPaths.CurrentUserDataPath, CacheDirName);
 
     public static IReadOnlyList<PlannerBuild> Builds => _builds;
 
@@ -92,17 +103,84 @@ public static class D3PlannerService
     public static void Initialize()
     {
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
+        _builds = ReadBuildList(CacheDir) ?? ReadBuildList(UserCacheDir) ?? new();
+        MonitorLog.Info($"{LogTag} planner cache {CacheDir}: {_builds.Count} build(s)");
+        TickDriver.Instance.RegisterEveryTick(OnTick);
+        _ = Task.Run(RefreshFromCacheAsync);
+    }
+
+    /// <summary>builds.json (or the single-build legacy build.json) of a folder; null when it has none.</summary>
+    private static List<PlannerBuild>? ReadBuildList(string dir)
+    {
         try
         {
-            string path = Path.Combine(CacheDir, BuildsFileName), legacy = Path.Combine(CacheDir, LegacyBuildFileName);
-            if (File.Exists(path)) _builds = JsonSerializer.Deserialize<List<PlannerBuild>>(File.ReadAllText(path), JsonOptions) ?? new();
-            else if (File.Exists(legacy) && JsonSerializer.Deserialize<PlannerBuild>(File.ReadAllText(legacy), JsonOptions) is { } old) _builds = new() { old };
+            string path = Path.Combine(dir, BuildsFileName), legacy = Path.Combine(dir, LegacyBuildFileName);
+            if (File.Exists(path)) return JsonSerializer.Deserialize<List<PlannerBuild>>(File.ReadAllText(path), JsonOptions) ?? new();
+            if (File.Exists(legacy) && JsonSerializer.Deserialize<PlannerBuild>(File.ReadAllText(legacy), JsonOptions) is { } old) return new() { old };
         }
         catch (Exception ex) when (ex is IOException or JsonException or NotSupportedException)
         {
-            ColorPrinter.Yellow($"{LogTag} cached build not readable: {ex.Message}");
+            ColorPrinter.Yellow($"{LogTag} cached builds in {dir} not readable: {ex.Message}");
         }
-        TickDriver.Instance.RegisterEveryTick(OnTick);
+        return null;
+    }
+
+    /// <summary>
+    /// Startup: move the old user-folder game data in when the cache has none, parse every cached raw build again (fills fields added
+    /// since it was saved; new files join the list), save the list into the cache and notify the UI. Builds without a raw answer are kept.
+    /// </summary>
+    private static async Task RefreshFromCacheAsync()
+    {
+        try
+        {
+            Directory.CreateDirectory(CacheDir);
+            if (CacheDir != UserCacheDir)
+            {
+                CopyIfMissing(Path.Combine(UserCacheDir, MaxrollD3PlannerClient.DataCacheName), MaxrollD3PlannerClient.DataPath(CacheDir));
+                CopyIfMissing(Path.Combine(UserCacheDir, MaxrollD3PlannerClient.LocaleZhCacheName), MaxrollD3PlannerClient.LocaleZhPath(CacheDir));
+            }
+            string profilesDir = Path.Combine(CacheDir, MaxrollD3PlannerClient.ProfilesDirName);
+            var files = Directory.Exists(profilesDir) ? Directory.GetFiles(profilesDir, ProfileSearchPattern) : Array.Empty<string>();
+            var parsed = new List<PlannerBuild>();
+            foreach (var file in files)
+            {
+                try
+                {
+                    string? url = _builds.FirstOrDefault(b => b.Id.ToString(CultureInfo.InvariantCulture) == Path.GetFileNameWithoutExtension(file))?.Url;
+                    parsed.Add(await MaxrollD3PlannerClient.LoadCachedAsync(file, CacheDir, url).ConfigureAwait(false));
+                }
+                catch (Exception ex) when (ex is IOException or JsonException or ArgumentException or InvalidOperationException or System.Net.Http.HttpRequestException)
+                {
+                    ColorPrinter.Yellow($"{LogTag} cached build {file} not parsed: {ex.Message}");
+                }
+            }
+            lock (Lock)
+            {
+                var builds = _builds.ToList();
+                foreach (var build in parsed)
+                {
+                    int index = builds.FindIndex(b => b.Id == build.Id);
+                    if (index >= 0) builds[index] = build with { LoadedUtc = builds[index].LoadedUtc };
+                    else builds.Add(build);
+                }
+                _builds = builds;
+                _watchWritten = false;
+            }
+            await SaveAsync().ConfigureAwait(false);
+            MonitorLog.Info($"{LogTag} planner cache {CacheDir}: {_builds.Count} build(s), {parsed.Count} parsed from cached raw data");
+            BuildChanged?.Invoke();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            ColorPrinter.Yellow($"{LogTag} planner cache {CacheDir} not refreshed: {ex.Message}");
+        }
+    }
+
+    private static void CopyIfMissing(string source, string target)
+    {
+        if (!File.Exists(source) || File.Exists(target)) return;
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(source, target);
     }
 
     /// <summary>Add the build behind a maxroll d3planner URL (or id), or refresh it when already listed, select it and watch it. Throws when unreadable.</summary>
@@ -164,8 +242,16 @@ public static class D3PlannerService
 
     private static async Task SaveAsync()
     {
-        Directory.CreateDirectory(CacheDir);
-        await File.WriteAllTextAsync(Path.Combine(CacheDir, BuildsFileName), JsonSerializer.Serialize(_builds, JsonOptions)).ConfigureAwait(false);
+        await SaveGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            Directory.CreateDirectory(CacheDir);
+            await File.WriteAllTextAsync(Path.Combine(CacheDir, BuildsFileName), JsonSerializer.Serialize(_builds, JsonOptions)).ConfigureAwait(false);
+        }
+        finally
+        {
+            SaveGate.Release();
+        }
     }
 
     public static void SelectProfile(int index)

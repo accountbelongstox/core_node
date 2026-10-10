@@ -52,7 +52,7 @@ public static class RosbotGambleSettings
     private static string? _applied;
     private static bool _missingLogged;
 
-    private static string BackupPath => Path.Combine(D3PlannerService.CacheDir, BackupFileName);
+    private static string BackupPath => Path.Combine(D3PlannerService.UserCacheDir, BackupFileName);
 
     /// <summary>ROSBOT gamble key for a planned item; null for slots Kadala does not sell.</summary>
     public static string? KeyFor(PlannerItem item, PlannerProfile profile, string buildClass)

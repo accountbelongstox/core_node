@@ -403,18 +403,12 @@ public partial class RosbotBridgePanel : UserControl
             else Send(RosbotPluginConstants.BridgeActionStandby, value: RosbotPluginConstants.BridgeStandbyOff);
             return;
         }
-        if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
-        {
-            TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
-            return;
-        }
         BtnStandby.IsEnabled = false;
         TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
         try
         {
-            long? id = await RosbotBridgePluginService.EnterTownStandbyAsync();
-            TxtCommandResult.Text = id == null ? p.GetUiText(I18nKeys.RosbotBridgeCommandBusy)
-                : string.Format(p.GetUiText(I18nKeys.RosbotBridgeCommandSent), RosbotPluginConstants.BridgeActionStandby);
+            bool sent = await RosbotBridgePluginService.EnterTownStandbyAsync();
+            TxtCommandResult.Text = string.Format(p.GetUiText(sent ? I18nKeys.RosbotBridgeStandbySent : I18nKeys.RosbotBridgeStandbyNotSent), BridgeTownPortal.Key);
         }
         finally
         {
@@ -431,8 +425,7 @@ public partial class RosbotBridgePanel : UserControl
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
             return;
         }
-        if (GameActions.Contains(action) && ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault)
-            && !RosbotFlowState.Instance.Paused)
+        if (GameActions.Contains(action) && ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
             await RosbotBridgePluginService.TakeControlAsync();

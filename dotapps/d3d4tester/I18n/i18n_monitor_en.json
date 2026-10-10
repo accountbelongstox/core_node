@@ -269,7 +269,7 @@
         "take_screenshot": "Saves the D3 window to the folder (empty uses the default folder).",
         "game_speed": "Sets the speed factor through the speed bridge by combat state: the plugin's combat flag while it is live, else the ROSBOT cursor color.",
         "town_portal": "Sends the town portal key to D3 after the delay.",
-        "town_standby": "Pauses monitoring and ROSBOT (game kept), the CoreNodeBridge plugin brings the hero to town and stands by; Resume monitoring hands control back.",
+        "town_standby": "Pauses monitoring and ROSBOT (game kept), then presses the town portal key at once (no position check) and stands by; Resume monitoring hands control back.",
         "quick_quit": "Runs the quick quit tool with an optional delay in ms.",
         "unstuck_move": "Pauses ROSBOT, presses the movement skill and drags mouse circles to get unstuck, then resumes ROSBOT; limited by the interval.",
         "execute_command": "Runs an external program or command.",

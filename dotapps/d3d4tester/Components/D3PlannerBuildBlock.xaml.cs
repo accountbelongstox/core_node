@@ -10,14 +10,17 @@ using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Planner;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Components;
 
 /// <summary>
 /// Build sub-tab of the bridge panel: load a maxroll d3planner build by URL, pick its gear set, switch drop / pickup alerts, two
 /// paper dolls in D3 character-screen layout (left = what the hero wears, from the bridge plugin; right = the maxroll gear set; same
-/// item = match, different / missing = mismatch), and every planned item (slot, name, required ancient rank, affixes) next to its best
-/// copy in game (carried or on the ground, affixes ok / checked). Refreshed every RefreshInterval while visible (D3PlannerService).
+/// item = match, different / missing = mismatch), then three sub-tabs: gear (every planned item: slot, name, required ancient rank,
+/// gems, affixes, next to its best copy in game), skills (skill bar with runes, passives, Kanai's Cube, paragon level) and follower
+/// (type, skills, gear). The planner cache folder (versioned with the code) is shown with an open button. Refreshed every
+/// RefreshInterval while visible (D3PlannerService).
 /// </summary>
 public partial class D3PlannerBuildBlock : UserControl
 {
@@ -31,6 +34,8 @@ public partial class D3PlannerBuildBlock : UserControl
     private const string KanaiSlotPrefix = "kanai.";
     private const string ValueFormat = "0.##";
     private const string SlotSeparator = ", ";
+    private const string NameSeparator = " · ";
+    private const string LabelSeparator = ": ";
 
     private readonly DispatcherTimer _timer = new() { Interval = RefreshInterval };
     private bool _bound;
@@ -84,6 +89,19 @@ public partial class D3PlannerBuildBlock : UserControl
         ColItem.Header = T(I18nKeys.RosbotBridgeBuildColItem);
         ColHave.Header = T(I18nKeys.RosbotBridgeBuildColHave);
         ColAffixes.Header = new TextBlock { Text = T(I18nKeys.RosbotBridgeBuildColAffixes), ToolTip = T(I18nKeys.RosbotBridgeBuildHint) };
+        ColGems.Header = ColFollowerGems.Header = T(I18nKeys.RosbotBridgeBuildColGems);
+        TabGear.Header = T(I18nKeys.RosbotBridgeBuildTabGear);
+        TabSkills.Header = T(I18nKeys.RosbotBridgeBuildTabSkills);
+        TabFollower.Header = T(I18nKeys.RosbotBridgeBuildTabFollower);
+        ColSkillSlot.Header = ColSlot.Header;
+        ColSkillName.Header = T(I18nKeys.RosbotBridgeBuildColSkill);
+        ColSkillRune.Header = T(I18nKeys.RosbotBridgeBuildColRune);
+        ColFollowerSlot.Header = T(I18nKeys.RosbotBridgeBuildColSlot);
+        ColFollowerItem.Header = T(I18nKeys.RosbotBridgeBuildColItem);
+        ColFollowerAffixes.Header = T(I18nKeys.RosbotBridgeBuildColAffixes);
+        BtnOpenCache.ToolTip = T(I18nKeys.RosbotBridgeBuildOpenCache);
+        TxtCacheDir.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildCacheDir), D3PlannerService.CacheDir);
+        TxtCacheDir.ToolTip = D3PlannerService.CacheDir;
         RefreshBuild();
     }
 
@@ -111,7 +129,42 @@ public partial class D3PlannerBuildBlock : UserControl
         CmbProfile.ItemsSource = build?.Profiles.Select(p => p.Name).ToList();
         CmbProfile.SelectedIndex = D3PlannerService.ProfileIndex;
         _loadingProfiles = false;
+        RefreshSkills();
         RefreshItems();
+    }
+
+    /// <summary>Skills and follower sub-tabs from the selected gear set (static build data, refreshed when the build changes).</summary>
+    private void RefreshSkills()
+    {
+        var profile = D3PlannerService.Profile;
+        LstSkills.ItemsSource = profile?.Skills.Select(s => new SkillRow(
+            T(I18nKeys.RosbotBridgeBuildSkillSlotPrefix + s.SlotIndex.ToString(CultureInfo.InvariantCulture)),
+            Pick(s.NameEn, s.NameZh), Pick(s.RuneNameEn, s.RuneNameZh))).ToList();
+        TxtPassives.Text = T(I18nKeys.RosbotBridgeBuildPassives) + LabelSeparator + JoinNames(profile?.Passives);
+        TxtKanai.Text = T(I18nKeys.RosbotBridgeBuildKanai) + LabelSeparator
+            + string.Join(NameSeparator, profile?.Kanai.Select(i => $"{SlotLabel(i.Slot)} {D3PlannerService.ItemName(i)}") ?? Array.Empty<string>());
+        TxtParagon.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildParagon), profile?.ParagonLevel ?? 0);
+        TxtFollower.Text = T(I18nKeys.RosbotBridgeBuildFollower) + LabelSeparator
+            + (profile?.Follower is { } f ? Pick(f.NameEn, f.NameZh) : T(I18nKeys.RosbotBridgeBuildHaveNone));
+        TxtFollowerSkills.Text = T(I18nKeys.RosbotBridgeBuildFollowerSkills) + LabelSeparator + JoinNames(profile?.FollowerSkills);
+        LstFollowerItems.ItemsSource = profile?.FollowerItems.Select(i => new FollowerRow(D3PlannerService.SlotName(i), PlannedText(i),
+            GemsText(i), string.Join(StatSeparator, i.Stats.Select(StatText)), AffixDetail(i, null))).ToList();
+    }
+
+    private static string Pick(string en, string zh) => D3PlannerService.UseChineseNames && zh.Length > 0 ? zh : en;
+
+    private static string JoinNames(IEnumerable<PlannerNamed>? names) =>
+        string.Join(NameSeparator, names?.Select(n => Pick(n.NameEn, n.NameZh)) ?? Array.Empty<string>());
+
+    private static string GemsText(PlannerItem item) => JoinNames(item.Gems);
+
+    private static string StatText(PlannerStat st) =>
+        $"{D3PlannerService.StatName(st)} {st.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)}{(st.Percent ? PercentSuffix : "")}";
+
+    private void BtnOpenCache_Click(object sender, RoutedEventArgs e)
+    {
+        System.IO.Directory.CreateDirectory(D3PlannerService.CacheDir);
+        ShellOpen.OpenDir(D3PlannerService.CacheDir);
     }
 
     private void RefreshItems()
@@ -200,7 +253,7 @@ public partial class D3PlannerBuildBlock : UserControl
         var results = s.Match?.Stats.ToDictionary(r => r.Stat, r => r) ?? new Dictionary<PlannerStat, PlannerStatResult>();
         string Stat(PlannerStat st) => $"{D3PlannerService.StatName(st)} {st.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)}{(st.Percent ? PercentSuffix : "")}";
         string Mark(PlannerStat st) => results.TryGetValue(st, out var r) ? r.Ok switch { true => MarkOk, false => MarkMissing, _ => MarkUnchecked } : "";
-        return new BuildRow(slot, name, have,
+        return new BuildRow(slot, name, have, GemsText(item),
             string.Join(StatSeparator, item.Stats.Select(Stat)),
             string.Join(LineSeparator, item.Stats.Select(st => Mark(st) + Stat(st))));
     }
@@ -246,5 +299,9 @@ public partial class D3PlannerBuildBlock : UserControl
         if (!_loadingProfiles && CmbProfile.SelectedIndex >= 0) D3PlannerService.SelectProfile(CmbProfile.SelectedIndex);
     }
 
-    private sealed record BuildRow(string Slot, string Item, string Have, string Affixes, string Detail);
+    private sealed record BuildRow(string Slot, string Item, string Have, string Gems, string Affixes, string Detail);
+
+    private sealed record SkillRow(string Slot, string Skill, string Rune);
+
+    private sealed record FollowerRow(string Slot, string Item, string Gems, string Affixes, string Detail);
 }

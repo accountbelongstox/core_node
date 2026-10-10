@@ -391,7 +391,8 @@
       "Bash(bun *)",
       "WebFetch(domain:d4.blizzard.cn)",
       "WebFetch(domain:news.17173.com)",
-      "Bash(dotnet build *)"
+      "Bash(dotnet build *)",
+      "Bash(rg -l \"// PY-REF: pyapps/d3-check\" -g '*.cs' -g '!dotapps/d3d4tester/reference/**' -g '!**/bin/**' -g '!**/obj/**')"
     ],
     "deny": [],
     "ask": []

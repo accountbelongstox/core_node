@@ -54,6 +54,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         }
         RosbotFlowHost.Current = this;
         RosbotFlowController.InstallHooks();
+        RosbotFlowRunner.InstallPauseGuard();
         StartLogWatching();
         WindowMonitorService.Instance.SetFullStatusRefresh(RunFullStatusRefresh);
         var driver = TickDriver.Instance;
@@ -151,8 +152,8 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         RequestStatusRefresh();
     }
 
-    /// <summary>Pause monitoring: flow halted, ROSBOT paused with its pause key when botting.</summary>
-    public Task RequestPauseFlow()
+    /// <summary>Pause monitoring: flow halted, ROSBOT paused with its pause key when botting (checked again when already paused); true when a key was sent.</summary>
+    public Task<bool> RequestPauseFlow()
     {
         var task = RosbotFlowRunner.Pause();
         RequestStatusRefresh();
@@ -181,7 +182,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     public void OnUserPauseKey()
     {
         var s = GameInterfaceData.Instance.GetStateSnapshot();
-        if (!s.RosbotFlowMasterEnabled || !RosbotDetection.IsOnline(s.RosbotExtendedStatus) || !AcceptToggle()) return;
+        if ((!s.RosbotFlowMasterEnabled && !s.RosbotFlowPaused) || !RosbotDetection.IsOnline(s.RosbotExtendedStatus) || !AcceptToggle()) return;
         if (s.RosbotFlowPaused) RosbotFlowRunner.ResumeByUserKey();
         else RosbotFlowRunner.PauseByUserKey(RosbotDetection.IsBotting(s));
         RequestStatusRefresh();
