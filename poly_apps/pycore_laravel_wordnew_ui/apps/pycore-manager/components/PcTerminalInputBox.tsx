@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ClipboardPaste, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
+import { Camera, ClipboardPaste, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
@@ -17,7 +17,7 @@ const IME_PROCESS_KEY_CODE = 229;
 
 type DraftStatus = 'saved' | 'saving' | 'error';
 type ComposerMode = 'text' | 'voice';
-type PullHint = '' | 'empty' | 'permission' | 'unsupported';
+type PullHint = '' | 'pull.empty' | 'pull.permission' | 'pull.unsupported' | 'liveScreenshot.failed';
 
 const PULL_HINT_MS = 4000;
 
@@ -42,6 +42,8 @@ interface PcTerminalInputBoxProps {
   /** Centered in the toolbar row, between the voice controls and the actions. */
   sendButton?: React.ReactNode;
   session?: PcTerminalInputSession;
+  /** Live screenshot of the selected terminal window, null when it could not be captured. */
+  pullScreenshot?: () => Promise<File | null>;
 }
 
 function attachmentFiles(list: FileList | null | undefined): File[] {
@@ -68,7 +70,7 @@ function formatDuration(seconds: number): string {
  * recording is sent as a file path with optional images and text.
  */
 export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
-  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, leading, sendButton, session,
+  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, leading, sendButton, session, pullScreenshot,
 }) => {
   const { t } = useTranslation('pc');
   const pickerRef = useRef<HTMLInputElement | null>(null);
@@ -78,6 +80,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const [mode, setMode] = useState<ComposerMode>(readComposerMode);
   const [pullHint, setPullHint] = useState<PullHint>('');
   const [pulling, setPulling] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const pullHintTimer = useRef<number | undefined>(undefined);
   const isMobile = useIsMobile();
   const toggleMode = () => {
@@ -109,7 +112,16 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
       return;
     }
     if (isMobile || isNativeAppShell()) pickerRef.current?.click();
-    else showPullHint(read.status === 'ok' ? 'empty' : read.status);
+    else showPullHint(read.status === 'ok' ? 'pull.empty' : `pull.${read.status}`);
+  };
+  const pullLiveScreenshot = async () => {
+    if (!pullScreenshot) return;
+    showPullHint('');
+    setCapturing(true);
+    const file = await pullScreenshot().catch(() => null);
+    setCapturing(false);
+    if (file) images.addFiles([file]);
+    else showPullHint('liveScreenshot.failed');
   };
   const { elementRef, cancelRestore } = usePcTextInputSession({
     slot: session?.slot ?? '',
@@ -196,7 +208,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           {recorder.error
             ? t(VOICE_ERROR_KEYS[recorder.error])
             : pullHint
-              ? t(`terminal.images.pull.${pullHint}`)
+              ? t(`terminal.images.${pullHint}`)
               : hasWindow
               ? t(draftStatus === 'error' ? 'terminal.draftSaveFailed' : draftStatus === 'saving' ? 'terminal.draftSaving' : 'terminal.draftSaved')
               : ''}
@@ -333,6 +345,18 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           >
             {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardPaste className="h-4 w-4" />}
           </button>
+          {pullScreenshot && (
+            <button
+              type="button"
+              onClick={() => { void pullLiveScreenshot(); }}
+              disabled={!hasWindow || capturing}
+              title={t('terminal.images.liveScreenshot.action')}
+              aria-label={t('terminal.images.liveScreenshot.action')}
+              className={iconButton}
+            >
+              {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            </button>
+          )}
           <input
             ref={pickerRef}
             type="file"

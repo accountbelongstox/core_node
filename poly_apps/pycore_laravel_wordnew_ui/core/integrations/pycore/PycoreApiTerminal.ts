@@ -605,6 +605,12 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { window_id: windowId, digest },
       timeoutMs,
     ) as Promise<PycoreHttpBinaryResult>,
+    /** Frame of one terminal window that pycore grabs for this request (not the newest leased frame). */
+    getTerminalLiveScreenshot: (windowId: string, timeoutMs?: number) => requestPycoreHttpBinary(
+      PYCORE_HTTP_ROUTES.terminalLiveScreenshot,
+      { window_id: windowId, t: String(Date.now()) },
+      timeoutMs,
+    ) as Promise<PycoreHttpBinaryResult>,
     /** OCR text of one frame; the UI shows it instead of the image when it succeeds. */
     getTerminalScreenshotText: (
       windowId: string,

@@ -24,6 +24,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_INPUT,
     UI_TERMINAL_VOICE,
     UI_TERMINAL_KEY,
+    UI_TERMINAL_LIVE_SCREENSHOT,
     UI_TERMINAL_LAUNCHER_KILL,
     UI_TERMINAL_LAUNCHER_LAUNCH,
     UI_TERMINAL_LAUNCHER_RESTART,
@@ -154,6 +155,31 @@ def register_terminal_routes(server) -> None:
 
         return run_terminal_action(
             "desktop_screenshot",
+            request_id,
+            read_response,
+            quiet=True,
+        )
+
+    def live_screenshot_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+
+        def read_response():
+            resource = terminal_service.capture_live_screenshot(window_id)
+            if resource is None:
+                return Response(status_code=404)
+            return Response(
+                content=resource["body"],
+                status_code=200,
+                headers={
+                    "Cache-Control": "no-store",
+                    "X-Screenshot-Width": str(resource["width"]),
+                    "X-Screenshot-Height": str(resource["height"]),
+                },
+                media_type=str(resource["mime"]),
+            )
+
+        return run_terminal_action(
+            "live_screenshot",
             request_id,
             read_response,
             quiet=True,
@@ -660,3 +686,4 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_LOGS_SEARCH, handler=logs_search_handler)
     server.post(path=UI_TERMINAL_MESH_SEARCH, handler=mesh_search_handler)
     server.get(path=UI_TERMINAL_DESKTOP_SCREENSHOT, handler=desktop_screenshot_handler)
+    server.get(path=UI_TERMINAL_LIVE_SCREENSHOT, handler=live_screenshot_handler)

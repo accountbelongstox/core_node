@@ -4,7 +4,8 @@
 .DESCRIPTION
     One idempotent action per NTFS drive: reset TxF, chkdsk /f when the read-only check
     finds errors (at restart if busy), restore the USN journal, consolidate free space
-    for shrinking. Run it again after a restart to continue.
+    for shrinking, rewrite Linux-written shrink blockers through Windows until all free space
+    is shrinkable, then open Disk Management. Run it again after a restart to continue.
 #>
 
 #region Variable Declarations
