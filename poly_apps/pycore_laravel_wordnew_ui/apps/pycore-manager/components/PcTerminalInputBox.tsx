@@ -433,8 +433,8 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
         className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
-      <div className="grid grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)] items-center gap-1.5 px-1.5 pb-1.5">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 px-1.5 pb-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {leading}
           {mode === 'voice' && (
             <>
@@ -469,7 +469,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           )}
         </div>
         {sendButton ?? <span />}
-        <div className="flex min-w-0 items-center justify-end gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={toggleMode}

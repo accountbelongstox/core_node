@@ -41,6 +41,23 @@ function signatureBytes(address) {
     }
 }
 
+function signatureDetails(address) {
+    const signaturePointer = safeReadPointer(address.add(0x48));
+    const signatureLength = safeReadUInt32(address.add(0x50));
+    let data = "";
+    try {
+        if (signaturePointer.toString(16) !== "0" && signatureLength > 0) {
+            data = Array.from(host.memory.readMemoryValues(signaturePointer,
+                Math.min(signatureLength, 64), 1),
+                value => Number(value).toString(16).padStart(2, "0")).join("");
+        }
+    } catch (_) {
+        data = "";
+    }
+    return { SignaturePointer: pointerText(signaturePointer), SignatureLength: signatureLength,
+        SignatureData: data };
+}
+
 function parsePosition(value) {
     if (value === "Min Position") return [0, 0];
     if (value === "Max Position") return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
@@ -93,12 +110,18 @@ function invokeScript() {
     const classes = [];
     const failures = [];
     const signatures = [];
+    const methodSignatures = [];
 
     for (const range of ranges) {
         try {
             jitCalls[range.Index].TimeStart.SeekTo();
             range.LocalsSignatureInfo = pointerText(host.currentThread.Registers.User.r8.add(0x98));
             range.SignatureBytes = signatureBytes(host.currentThread.Registers.User.r8.add(0x98));
+            methodSignatures.push({ JitCallIndex: range.Index,
+                LocalsSignatureInfo: range.LocalsSignatureInfo, Bytes: range.SignatureBytes,
+                Details: signatureDetails(host.currentThread.Registers.User.r8.add(0x98)),
+                JitInterface: pointerText(host.currentThread.Registers.User.rdx),
+                JitInterfaceVtable: pointerText(safeReadPointer(host.currentThread.Registers.User.rdx)) });
         } catch (error) {
             failures.push({ JitCallIndex: range.Index, Message: error.message });
         }
@@ -117,7 +140,8 @@ function invokeScript() {
             if (signatureInfo !== range.LocalsSignatureInfo) {
                 const observed = signatureBytes(registers.rdx);
                 signatures.push({ Kind: "Type", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
-                    Expected: range.SignatureBytes, Observed: observed });
+                    Expected: range.SignatureBytes, Observed: observed,
+                    Details: signatureDetails(registers.rdx) });
                 if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
             }
             const argumentPointer = registers.r8;
@@ -158,7 +182,8 @@ function invokeScript() {
             if (signatureInfo !== range.LocalsSignatureInfo) {
                 const observed = signatureBytes(registers.rdx);
                 signatures.push({ Kind: "Class", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
-                    Expected: range.SignatureBytes, Observed: observed });
+                    Expected: range.SignatureBytes, Observed: observed,
+                    Details: signatureDetails(registers.rdx) });
                 if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
             }
             const argumentPointer = registers.r8;
@@ -185,6 +210,6 @@ function invokeScript() {
     }
 
     writeText(outputPath, JSON.stringify({ Locals: records, Classes: classes, Failures: failures,
-        Signatures: signatures }, null, 2));
+        Signatures: signatures, MethodSignatures: methodSignatures }, null, 2));
     host.diagnostics.debugLog(`Finished HVM local extraction: ${records.length} types, ${classes.length} classes, ${failures.length} failures.\n`);
 }
