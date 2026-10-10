@@ -530,7 +530,7 @@
       "Paddle.Runtime.win_x64/3.3.0.1": {
         "type": "package",
         "build": {
-          "build/_._": {}
+          "build/Paddle.Runtime.win_x64.targets": {}
         }
       },
       "PaddleOCRSharp/6.1.0": {
@@ -2615,7 +2615,8 @@
       "Microsoft.Extensions.Configuration.Json >= 8.0.0",
       "Microsoft.Extensions.DependencyInjection >= 8.0.0",
       "Microsoft.Extensions.Options >= 8.0.0",
-      "Newtonsoft.Json >= 13.0.1"
+      "Newtonsoft.Json >= 13.0.1",
+      "Paddle.Runtime.win_x64 >= 3.3.0.1"
     ]
   },
   "packageFolders": {
@@ -2735,6 +2736,10 @@
           "Newtonsoft.Json": {
             "target": "Package",
             "version": "[13.0.1, )"
+          },
+          "Paddle.Runtime.win_x64": {
+            "target": "Package",
+            "version": "[3.3.0.1, )"
           }
         },
         "imports": [

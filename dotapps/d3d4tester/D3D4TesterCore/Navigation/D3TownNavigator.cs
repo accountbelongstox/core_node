@@ -24,6 +24,17 @@ public static class D3TownTargets
     public static readonly string[] All = { Blacksmith, KanaiCube, Stash, Waypoint, Jeweler, Mystic, Kadala, Obelisk, Armory, CainBook };
 }
 
+/// <summary>People and markers of the town model: own hero, other NPCs / followers, party banners, party portraits (top-left, slots 1-4).</summary>
+public static class D3TownActors
+{
+    public const string Player = "player";
+    public const string Npc = "npc";
+    public const string Banner = "banner";
+    public const string PartyPortrait = "party_portrait";
+    public const int MaxPartySlots = 4;
+    public static readonly string[] All = { Player, Npc, Banner, PartyPortrait };
+}
+
 /// <summary>NPC interface classes of the town model: open panels, their tabs and buttons, and the enchant affix text area (read by OCR).</summary>
 public static class D3TownUi
 {
@@ -38,11 +49,18 @@ public static class D3TownUi
     public const string MysticTabEnchant = "mystic_tab_enchant";
     public const string MysticEnchantButton = "mystic_enchant_button";
     public const string EnchantText = "enchant_text";
+    public const string BlacksmithTabWeapon = "bs_tab_weapon";
+    public const string BlacksmithTabArmor = "bs_tab_armor";
+    public const string BlacksmithTabTrain = "bs_tab_train";
+    public const string MysticTabTransmog = "mystic_tab_transmog";
+    public const string MysticTabDye = "mystic_tab_dye";
+    public const string MysticTabTrain = "mystic_tab_train";
     public static readonly string[] Panels = { BlacksmithRepair, BlacksmithSalvage, MysticEnchant };
     public static readonly string[] All =
     {
         BlacksmithRepair, BlacksmithSalvage, BlacksmithTabRepair, BlacksmithTabSalvage, BlacksmithRepairAll, BlacksmithSalvageItem, BlacksmithSalvageAll,
         MysticEnchant, MysticTabEnchant, MysticEnchantButton, EnchantText,
+        BlacksmithTabWeapon, BlacksmithTabArmor, BlacksmithTabTrain, MysticTabTransmog, MysticTabDye, MysticTabTrain,
     };
 }
 

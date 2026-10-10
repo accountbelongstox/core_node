@@ -22,6 +22,13 @@ public sealed record D3Box(
 
 public sealed record D3Point([property: JsonPropertyName("x")] int X, [property: JsonPropertyName("y")] int Y);
 
+/// <summary>Party portrait: slot 1-4 from the top of the left column.</summary>
+public sealed record D3PartyMember(
+    [property: JsonPropertyName("slot")] int Slot,
+    [property: JsonPropertyName("confidence")] double Confidence,
+    [property: JsonPropertyName("box")] D3Box Box,
+    [property: JsonPropertyName("screen")] D3Point Screen);
+
 public sealed record D3RecognizedText(
     [property: JsonPropertyName("text")] string Text,
     [property: JsonPropertyName("center")] D3Point Center,
@@ -37,6 +44,9 @@ public sealed record D3Recognition(
     [property: JsonPropertyName("window")] D3Box Window,
     [property: JsonPropertyName("panel")] string? Panel,
     [property: JsonPropertyName("objects")] IReadOnlyList<D3RecognizedObject> Objects,
+    [property: JsonPropertyName("player")] D3RecognizedObject? Player,
+    [property: JsonPropertyName("party")] IReadOnlyList<D3PartyMember> Party,
+    [property: JsonPropertyName("banners")] int Banners,
     [property: JsonPropertyName("enchant_lines")] IReadOnlyList<D3RecognizedText> EnchantLines,
     [property: JsonPropertyName("capture_ms")] double CaptureMs,
     [property: JsonPropertyName("detect_ms")] double DetectMs)
@@ -58,8 +68,12 @@ public sealed record D3Recognition(
             .Select(d => new D3RecognizedObject(d.ClassName, Math.Round(d.Confidence, 3), new D3Box(d.Box.X, d.Box.Y, d.Box.Width, d.Box.Height),
                 new D3Point(d.Center.X, d.Center.Y), Screen(d.Center.X, d.Center.Y)))
             .ToList();
+        var player = objects.Where(o => o.ClassName == D3TownActors.Player).MaxBy(o => o.Confidence);
+        var party = objects.Where(o => o.ClassName == D3TownActors.PartyPortrait).OrderByDescending(o => o.Confidence).Take(D3TownActors.MaxPartySlots)
+            .OrderBy(o => o.Box.Y).Select((o, i) => new D3PartyMember(i + 1, o.Confidence, o.Box, o.Screen)).ToList();
+        int banners = Math.Min(D3TownActors.MaxPartySlots, objects.Count(o => o.ClassName == D3TownActors.Banner));
         var lines = reading.EnchantLines.Select(l => new D3RecognizedText(l.Text, new D3Point(l.Center.X, l.Center.Y), Screen(l.Center.X, l.Center.Y))).ToList();
-        return new D3Recognition(DateTime.Now, model, new D3Box(offset.X, offset.Y, width, height), reading.Panel, objects, lines,
+        return new D3Recognition(DateTime.Now, model, new D3Box(offset.X, offset.Y, width, height), reading.Panel, objects, player, party, banners, lines,
             Math.Round(captureMs, 1), Math.Round(detectMs, 1));
     }
 }
