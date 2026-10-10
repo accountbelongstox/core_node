@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ACTIVATE,
+    UI_TERMINAL_AGENT_CLOSE,
+    UI_TERMINAL_AGENT_CREATE,
     UI_TERMINAL_BACKUPS_DELETE,
     UI_TERMINAL_BACKUPS_LIST,
     UI_TERMINAL_BACKUPS_OPEN,
@@ -218,6 +220,27 @@ def register_terminal_routes(server) -> None:
             request_id,
             lambda: launcher_control_service.restart_all(mode),
         )
+
+    def agent_create_handler(params, request_id, _context):
+        kind = str(params.get("kind") or "").strip().lower()
+        return run_terminal_action(
+            "agent_create",
+            request_id,
+            lambda: terminal_service.create_virtual(kind),
+        )
+
+    def agent_close_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+
+        def close():
+            result = terminal_service.close_virtual(window_id)
+            if result.get("success"):
+                result["removed_schedule_count"] = terminal_scheduler.drop_terminals(
+                    result["removed_terminal_numbers"],
+                )
+            return result
+
+        return run_terminal_action("agent_close", request_id, close)
 
     def commands_handler(_params, request_id, _context):
         return run_terminal_action(
@@ -570,6 +593,8 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_LAUNCHER_LAUNCH, handler=launcher_launch_handler)
     server.post(path=UI_TERMINAL_LAUNCHER_KILL, handler=launcher_kill_handler)
     server.post(path=UI_TERMINAL_LAUNCHER_RESTART, handler=launcher_restart_handler)
+    server.post(path=UI_TERMINAL_AGENT_CREATE, handler=agent_create_handler)
+    server.post(path=UI_TERMINAL_AGENT_CLOSE, handler=agent_close_handler)
     server.post(path=UI_TERMINAL_PERMISSION_MODE, handler=permission_mode_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)

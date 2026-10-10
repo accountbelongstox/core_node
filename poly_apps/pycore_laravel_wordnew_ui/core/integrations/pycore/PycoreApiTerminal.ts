@@ -162,7 +162,35 @@ export type TerminalControlMode =
   | 'xwayland'
   | 'gnome_bridge'
   | 'portal'
+  | 'virtual'
   | 'none';
+
+/** AI CLIs a virtual agent window can run (headless turns resumed by conversation id; no desktop needed). */
+export type TerminalAgentKind = 'claudeteam' | 'codexyolo' | 'deepseek' | 'agyyolo';
+
+export interface TerminalAgentKindInfo {
+  kind: TerminalAgentKind;
+  binary: string;
+  /** The CLI is installed on the pycore machine. */
+  available: boolean;
+}
+
+/** State of a virtual agent window; its transcript arrives as the window text. */
+export interface TerminalVirtualAgent {
+  kind: TerminalAgentKind;
+  conversation_id: string;
+  status: 'idle' | 'running';
+  turn_count: number;
+  created_at: string;
+}
+
+export interface TerminalAgentResult {
+  success: boolean;
+  error_code?: string | null;
+  window_id?: string;
+  kind?: TerminalAgentKind;
+  removed_terminal_numbers?: number[];
+}
 
 /** AI agent recognized in the terminal by the scan text rules or the window title. */
 export interface TerminalAiAgent {
@@ -208,6 +236,8 @@ export interface TerminalWindowInfo {
   agent_scanned?: boolean;
   agent_activity?: TerminalAgentActivity | null;
   permission_mode?: TerminalPermissionMode | null;
+  /** Present on a virtual agent window (no desktop window behind it). */
+  virtual?: TerminalVirtualAgent | null;
   state_updated_at?: string;
   last_seen_at?: string;
 }
@@ -283,6 +313,8 @@ export interface TerminalSnapshot {
   online_count: number;
   stored_count: number;
   windows: TerminalWindowInfo[];
+  /** Kinds of virtual agent windows this machine can create. */
+  agent_kinds?: TerminalAgentKindInfo[];
   refreshed_at: number;
 }
 
@@ -718,6 +750,15 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { mode },
       TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
     ) as Promise<TerminalLauncherResult>,
+    createTerminalAgent: (kind: TerminalAgentKind) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalAgentCreate,
+      { kind },
+    ) as Promise<TerminalAgentResult>,
+    /** Stops the running turn, forgets the conversation and removes the window's stored state. */
+    closeTerminalAgent: (windowId: string) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalAgentClose,
+      { window_id: windowId },
+    ) as Promise<TerminalAgentResult>,
     runTerminalDesktopIntegration: (
       action: TerminalDesktopIntegrationAction,
       timeoutMs = TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,

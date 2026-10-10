@@ -3114,13 +3114,19 @@ const PcTerminalNodeView: React.FC<{
 };
 
 // Node tabs on top: this machine first, then every other online pycore; the view below is the same for all.
+// The sent-message search covers every machine: a hit on another machine switches to its tab first.
 const PcTerminalPage: React.FC = () => {
   const [nodeUrl, setNodeUrl] = useState<string | null>(readPcUiSessionTerminalNodeUrl);
+  const [sentPick, setSentPick] = useState<PcSentSearchHit | null>(null);
   const selectNode = useCallback((url: string | null) => {
     setNodeUrl(url);
     updatePcUiSessionTerminalNodeUrl(url);
   }, []);
-  const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
+  const pickSentHit = useCallback((hit: PcSentSearchHit) => {
+    setSentPick(hit);
+    selectNode(hit.node.url);
+  }, [selectNode]);
+  const clearSentPick = useCallback(() => setSentPick(null), []);
 
   return (
     <>
@@ -3128,12 +3134,14 @@ const PcTerminalPage: React.FC = () => {
         <div className="min-w-0 max-w-[50%] shrink-0">
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
-        <div ref={setSearchSlot} className="min-w-0 flex-1" />
+        <div className="min-w-0 flex-1">
+          <PcTerminalSentSearch formatDate={formatLogDate} onPick={pickSentHit} />
+        </div>
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>
-          <PcTerminalNodeView searchSlot={searchSlot} nodeUrl={nodeUrl} />
+          <PcTerminalNodeView nodeUrl={nodeUrl} sentPick={sentPick} onSentPickApplied={clearSentPick} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
     </>

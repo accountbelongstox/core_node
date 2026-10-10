@@ -243,7 +243,7 @@ class VirtualAgentTerminals:
         parsed = parse_turn_output(session["kind"], stdout)
         if parsed.conversation_id:
             session["conversation_id"] = parsed.conversation_id
-        turn["reply"] = parsed.reply
+        turn["reply"] = parsed.reply.strip()
         error = parsed.error
         if not error and return_code != 0:
             error = f"{ERROR_CLI_FAILED} ({return_code})"
