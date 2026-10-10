@@ -49,6 +49,7 @@ public sealed class CoreNodeBridge : IPlugin
     private FollowMode _follow;
     private CombatAssist _assist;
     private readonly CombatProbe _probe = new();
+    private ReviveHelper _assistRevive;
     private TownHold _townHold;
     private TownStandby _standby;
     private PulseHold _hold;
@@ -97,6 +98,7 @@ public sealed class CoreNodeBridge : IPlugin
         _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
         _townHold = new TownHold(_dir, Log);
         _assist = new CombatAssist(Log);
+        _assistRevive = new ReviveHelper(Log, "assist");
         _follow = new FollowMode(Log) { TownHold = _townHold, Assist = _assist };
         _standby = new TownStandby(Log) { TownHold = _townHold };
         _hold = new PulseHold(Log, () => _writeStartedUtc, () => _writeThread);
@@ -200,17 +202,25 @@ public sealed class CoreNodeBridge : IPlugin
 
     /// <summary>
     /// Combat assist outside follow (follow scans and steps itself): only while the app controls the hero (hold or standby) and it is
-    /// alive in game; idle under the hold it steps to the fight, standby and running commands only scan (they own the movement).
+    /// in game; dead under the hold it revives (ReviveHelper; standby revives itself); idle under the hold it steps to the fight,
+    /// standby and running commands only scan (they own the movement).
     /// </summary>
     private void TickAssist()
     {
         if (!_assist.Enabled || _follow.Enabled) return;
         bool control = _standby.Enabled || _hold.State == PulseHold.StateHolding;
-        if (!control || !WorldScanner.Safe(() => LocalPlayer.IsValid && LocalPlayer.IsInGame && !LocalPlayer.IsDead, false))
+        if (!control || !WorldScanner.Safe(() => LocalPlayer.IsValid && LocalPlayer.IsInGame, false))
         {
             _assist.Clear();
             return;
         }
+        if (WorldScanner.Safe(() => LocalPlayer.IsDead, false))
+        {
+            _assist.Clear();
+            if (!_standby.Enabled) _assistRevive.Tick();
+            return;
+        }
+        _assistRevive.Reset();
         var monster = _assist.Scan(WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()), null);
         if (monster != null && !_standby.Enabled && !_commands.Busy) _assist.Step(monster, null);
     }
