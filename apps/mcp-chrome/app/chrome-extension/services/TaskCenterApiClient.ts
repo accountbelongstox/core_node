@@ -6,7 +6,7 @@ import {
   TASK_LIST_PATH,
   VALIDITY_PATHS,
 } from '@/utils/api-paths';
-import type { QueueLiveCounts, TaskRow, TaskStatus } from '@/utils/queue-center-contract';
+import type { QueueLiveCounts, TaskRow, QueueTaskStatus } from '@/utils/queue-center-contract';
 
 interface TaskListPayload {
   tasks?: TaskRow[];
@@ -98,7 +98,7 @@ const READ_OPTIONS = {
 const INDICATOR_TIMEOUT_MS = 10000;
 
 export class TaskCenterApiClient extends BaseApiClient {
-  async listTasks(limit: number, status?: TaskStatus): Promise<TaskRow[]> {
+  async listTasks(limit: number, status?: QueueTaskStatus): Promise<TaskRow[]> {
     const response = await this.get<TaskListPayload>(
       TASK_LIST_PATH,
       { limit, status },

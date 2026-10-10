@@ -4,6 +4,9 @@ Build Orchestrator - Build configuration script
 Handles cross-platform path and UI configuration for the shell launchers.
 """
 
+import argparse
+import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -18,6 +21,13 @@ from build_vars import BuildVars
 from pycore.pyfoundations.service_contract import value as contract_value
 
 NATIVE_HOST_MANIFEST_NAME = f"{contract_value('mcp_chrome.native_host_name')}.json"
+SOURCE_STAMP_FILE = contract_value("mcp_chrome.source_stamp_file")
+SOURCE_STAMP_CURRENT = "current"
+SOURCE_STAMP_STALE = "stale"
+# Build inputs: package sources, workspace manifests and the repository contracts they import.
+SOURCE_INPUT_PATHS = ("app/chrome-extension", "app/native-server", "packages/shared", "package.json", "bun.lock")
+CONTRACT_INPUT_PATHS = ("config/service_contract.json", "config/queue_center_contract.json")
+SOURCE_EXCLUDED_DIRS = {"node_modules", "dist", ".wxt", ".output", ".turbo", "logs", "__pycache__"}
 
 
 class BuildOrchestrator:
@@ -35,6 +45,56 @@ class BuildOrchestrator:
         self.extension_path = self.build_output_dir / contract_value("mcp_chrome.extension_dir")
         self.native_path = self.project_root / "app" / "native-server" / "dist"
         self.shared_path = self.project_root / "packages" / "shared" / "dist"
+        self.source_stamp_path = self.build_output_dir / SOURCE_STAMP_FILE
+        self.build_artifacts = (
+            self.shared_path / "index.js",
+            self.native_path / "index.js",
+            self.extension_path / "manifest.json",
+        )
+
+    def _source_files(self):
+        input_path = None
+        file_path = None
+
+        for input_path in [self.project_root / name for name in SOURCE_INPUT_PATHS] + [REPOSITORY_ROOT / name for name in CONTRACT_INPUT_PATHS]:
+            if input_path.is_file():
+                yield input_path
+                continue
+            for file_path in sorted(input_path.rglob("*")):
+                if file_path.is_file() and not SOURCE_EXCLUDED_DIRS.intersection(file_path.relative_to(input_path).parts):
+                    yield file_path
+
+    def source_fingerprint(self) -> str:
+        """Content hash of every build input; identical sources give an identical build."""
+        digest = hashlib.sha256()
+        file_path = None
+
+        for file_path in self._source_files():
+            digest.update(file_path.relative_to(REPOSITORY_ROOT).as_posix().encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(file_path.read_bytes())
+            digest.update(b"\0")
+        return digest.hexdigest()
+
+    def source_stamp_status(self) -> str:
+        """current when every artifact exists and was built from the present sources."""
+        stamp = None
+
+        if not all(artifact.is_file() for artifact in self.build_artifacts) or not self.source_stamp_path.is_file():
+            return SOURCE_STAMP_STALE
+        try:
+            stamp = json.loads(self.source_stamp_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return SOURCE_STAMP_STALE
+        return SOURCE_STAMP_CURRENT if stamp.get("fingerprint") == self.source_fingerprint() else SOURCE_STAMP_STALE
+
+    def write_source_stamp(self) -> str:
+        """Record the present sources after a build whose artifacts all exist."""
+        if not all(artifact.is_file() for artifact in self.build_artifacts):
+            return SOURCE_STAMP_STALE
+        self.source_stamp_path.parent.mkdir(parents=True, exist_ok=True)
+        self.source_stamp_path.write_text(json.dumps({"fingerprint": self.source_fingerprint()}), encoding="utf-8")
+        return SOURCE_STAMP_CURRENT
 
     def detect_environment(self):
         """Detect environment and save to variables"""
@@ -182,11 +242,22 @@ class BuildOrchestrator:
 
 def main():
     """Main function"""
+    parser = argparse.ArgumentParser()
+    args = None
     # Get project root directory (parent of script directory)
     script_dir = Path(__file__).parent.resolve()
     project_root = script_dir.parent
 
+    parser.add_argument("--source-stamp", choices=["status", "write"])
+    args = parser.parse_args()
     orchestrator = BuildOrchestrator(str(project_root))
+    # Prints only "current" or "stale" so the shell launchers can read the state.
+    if args.source_stamp == "status":
+        print(orchestrator.source_stamp_status())
+        return
+    if args.source_stamp == "write":
+        print(orchestrator.write_source_stamp())
+        return
     exit_code = orchestrator.run()
 
     sys.exit(exit_code)

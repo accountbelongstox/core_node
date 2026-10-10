@@ -2442,6 +2442,30 @@
     "message": "Install MCP Chrome as a background service (starts at logon, hot reload)?",
     "description": "start.ps1 prompt asking whether to install the background logon task"
   },
+  "startSourcesUnchanged": {
+    "message": "Sources unchanged since the last build; dependency install and compile skipped.",
+    "description": "start.ps1 notice that the build inputs match the last successful build"
+  },
+  "startServiceEnsured": {
+    "message": "Background service $TASK$ is running with hot reload; nothing to build.",
+    "description": "start.ps1 -Ensure notice that the background logon task is already running",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceStartedNow": {
+    "message": "Background service $TASK$ was stopped; started it (hot reload rebuilds changed sources).",
+    "description": "start.ps1 -Ensure notice that the stopped background logon task was started",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
   "startServiceInstalled": {
     "message": "Background service $TASK$ is installed; it is paused for this build and converged afterwards.",
     "description": "start.ps1 notice that the background logon task already exists",

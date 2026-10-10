@@ -23,7 +23,7 @@ import contractDocument from '../../../../../config/queue_center_contract.json';
 
 export type ProcessorType = string;
 export type WorkerCapability = string;
-export type TaskStatus = string;
+export type QueueTaskStatus = string;
 export type TaskOrdering = 'queue_position' | 'priority';
 export type ChromeCapabilityKey = keyof typeof contractDocument.task_contract.chrome_capability_switches;
 
@@ -59,7 +59,7 @@ export interface TaskRow {
   app_name: string;
   task_type: string;
   execution_type: ProcessorType;
-  status: TaskStatus;
+  status: QueueTaskStatus;
   progress: number;
   assigned_to: string | null;
   created_at: string | null;
@@ -127,7 +127,7 @@ export interface TaskResult {
   task_id: string;
   worker_id: string;
   attempt?: number;
-  status: TaskStatus;
+  status: QueueTaskStatus;
   progress?: number;
   result?: Record<string, any>;
   error?: string;
@@ -177,7 +177,7 @@ export interface WorkerRegistration {
 }
 
 export interface WorkerSubmitOutcome {
-  status: TaskStatus;
+  status: QueueTaskStatus;
   stored_count: number;
   failed_count: number;
   synced_to_dict?: boolean;
@@ -329,7 +329,7 @@ interface ContractDocument {
   capability_claimants: Record<string, Array<'pycore' | 'chrome'>>;
   task_contract: {
     statuses: {
-      values: Record<string, TaskStatus>;
+      values: Record<string, QueueTaskStatus>;
       all: string[];
       live: string[];
       terminal: string[];
@@ -435,7 +435,7 @@ export const LIBRARY_COVER_TASK_TYPES = LIBRARY_COVER_CONTRACT.task_types;
 export const DELIVERY_RECEIPT = QUEUE_CENTER_CONTRACT.delivery_receipt;
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
 export const TASK_STATUS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.statuses.values;
-const taskStatusesForRoles = (roles: string[]): TaskStatus[] => (
+const taskStatusesForRoles = (roles: string[]): QueueTaskStatus[] => (
   roles.map((role) => TASK_STATUS_BY_ROLE[role] ?? role)
 );
 export const TASK_STATUSES = taskStatusesForRoles(QUEUE_CENTER_CONTRACT.task_contract.statuses.all);
@@ -586,12 +586,12 @@ export function taskPromptText(taskType: unknown, payload: Record<string, unknow
   return '';
 }
 
-export function isTaskStatus(value: unknown): value is TaskStatus {
+export function isTaskStatus(value: unknown): value is QueueTaskStatus {
   return typeof value === 'string' && TASK_STATUSES.includes(value);
 }
 
 /** Resolve and validate a worker-reportable status from the central role map. */
-export function workerResultStatus(role: string): TaskStatus {
+export function workerResultStatus(role: string): QueueTaskStatus {
   const status = TASK_STATUS_BY_ROLE[role];
   if (!status || !WORKER_RESULT_STATUSES.includes(status)) {
     throw new Error(`Unsupported worker result status role: ${role}`);

@@ -2426,6 +2426,30 @@
     "message": "MCP Chrome을 백그라운드 서비스로 설치할까요(로그온 시 시작, 핫 리로드)?",
     "description": "start.ps1 prompt asking whether to install the background logon task"
   },
+  "startSourcesUnchanged": {
+    "message": "마지막 빌드 이후 소스 변경이 없어 의존성 설치와 컴파일을 건너뜁니다.",
+    "description": "start.ps1 notice that the build inputs match the last successful build"
+  },
+  "startServiceEnsured": {
+    "message": "백그라운드 서비스 $TASK$ 이(가) 핫 리로드로 실행 중입니다. 빌드할 것이 없습니다.",
+    "description": "start.ps1 -Ensure notice that the background logon task is already running",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceStartedNow": {
+    "message": "백그라운드 서비스 $TASK$ 이(가) 중지되어 있어 시작했습니다(핫 리로드가 변경된 소스를 다시 빌드합니다).",
+    "description": "start.ps1 -Ensure notice that the stopped background logon task was started",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
   "startServiceInstalled": {
     "message": "백그라운드 서비스 $TASK$이(가) 설치되어 있습니다. 이 빌드 동안 일시 중지되고 이후 정렬됩니다.",
     "description": "start.ps1 notice that the background logon task already exists",
