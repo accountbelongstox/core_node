@@ -83,6 +83,7 @@ export type {
   TerminalKeyAction,
   TerminalRenameResult,
   TerminalQuickCommand,
+  TerminalQuickCommandInterruptPolicy,
   TerminalQuickCommandPhase,
   TerminalQuickCommandRun,
   TerminalQuickCommandState,
