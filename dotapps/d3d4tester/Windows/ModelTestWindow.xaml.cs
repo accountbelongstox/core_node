@@ -156,7 +156,7 @@ public partial class ModelTestWindow : Window
         };
     }
 
-    private enum Source { Image, Screen, Video, Live }
+    private enum Source { Image, Screen, Video, Live, D3 }
 
     private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
 
@@ -307,6 +307,7 @@ public partial class ModelTestWindow : Window
         RadioScreen.Content = T(I18nKeys.ModelTestSourceScreen);
         RadioVideo.Content = T(I18nKeys.ModelTestSourceVideo);
         RadioLive.Content = T(I18nKeys.ModelTestSourceLive);
+        ApplyD3Texts();
         BtnOpenImage.Content = T(I18nKeys.ModelTestOpenImage);
         BtnOpenVideo.Content = T(I18nKeys.ModelTestOpenVideo);
         LblAnalysisStep.Text = T(I18nKeys.ModelTestAnalysisStep);
@@ -520,6 +521,8 @@ public partial class ModelTestWindow : Window
         RadioScreen.Checked += (_, _) => SwitchSource(Source.Screen);
         RadioVideo.Checked += (_, _) => SwitchSource(Source.Video);
         RadioLive.Checked += (_, _) => SwitchSource(Source.Live);
+        RadioD3.Checked += (_, _) => SwitchSource(Source.D3);
+        BindD3Events();
         BtnOpenImage.Click += async (_, _) => await OpenImageAsync();
         BtnOpenVideo.Click += async (_, _) => await OpenVideoAsync();
         BtnAnalyze.Click += async (_, _) => await ToggleAnalyzeAsync();
@@ -654,6 +657,7 @@ public partial class ModelTestWindow : Window
         BtnOpenVideo.IsEnabled = hasModel && !video && !analyzing && !exporting;
         BtnAnalyze.IsEnabled = analyzing || (hasModel && _video != null && !video && !exporting);
         BtnCaptureScreen.IsEnabled = hasModel && !_picking;
+        BtnD3Detect.IsEnabled = hasModel && !_picking;
         BtnPickRegion.IsEnabled = !_busy && !live && !_picking;
         BtnLiveStart.IsEnabled = hasModel && !live && !_picking;
         BtnLiveStop.IsEnabled = live;
@@ -690,6 +694,7 @@ public partial class ModelTestWindow : Window
         PanelCapture.Visibility = V(_source is Source.Screen or Source.Live);
         BtnCaptureScreen.Visibility = V(_source == Source.Screen);
         PanelLive.Visibility = V(_source == Source.Live);
+        PanelD3.Visibility = V(_source == Source.D3);
         PanelPlayback.Visibility = V(_source == Source.Video);
         BorderTimeline.Visibility = V(_source == Source.Video && ImgTimeline.Source != null);
         PanelExport.Visibility = V(_source == Source.Video);

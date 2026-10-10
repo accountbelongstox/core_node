@@ -917,7 +917,18 @@
       "export_cancel": "Cancel export",
       "export_progress": "Exporting {done} / {total}",
       "export_done": "Exported {count} frames to {dir} (unreviewed model pre-labels)",
-      "export_none": "No frames match"
+      "export_none": "No frames match",
+      "source_d3": "D3 client",
+      "d3_hint": "Uses the D3 library: brings the D3 game window to the front, captures it, detects with the selected model and outputs the open panel, every target in window and screen coordinates, and the enchant affix text (OCR).",
+      "d3_detect": "Test recognition (game client)",
+      "d3_show_shot": "Show screenshot and positions",
+      "d3_json": "Recognition result (JSON)",
+      "d3_copy_json": "Copy JSON",
+      "d3_history": "Recognition history (last {max})",
+      "d3_history_item": "{time} · {panel} · {count} targets · {lines} text lines",
+      "d3_no_panel": "no panel",
+      "d3_no_window": "D3 game window not found.",
+      "d3_no_shot": "This entry has no screenshot (\"Show screenshot and positions\" was off)."
     },
     "rosbot_bridge": {
       "title": "ROSBOT plugin: CoreNode Bridge (current map)",

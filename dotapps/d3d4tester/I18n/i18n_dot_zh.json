@@ -917,7 +917,18 @@
       "export_cancel": "取消导出",
       "export_progress": "导出中 {done} / {total}",
       "export_done": "已导出 {count} 帧到 {dir}（未审核的模型预标注）",
-      "export_none": "没有符合条件的帧"
+      "export_none": "没有符合条件的帧",
+      "source_d3": "D3 客户端",
+      "d3_hint": "复用 D3 类库：将 D3 游戏窗口置前并截图，用所选模型识别，输出打开的面板、每个目标的窗口坐标和屏幕坐标，以及附魔属性文字（OCR）。",
+      "d3_detect": "测试识别（游戏客户端）",
+      "d3_show_shot": "显示截图和识别位置",
+      "d3_json": "识别结果（JSON）",
+      "d3_copy_json": "复制 JSON",
+      "d3_history": "识别历史（最近 {max} 条）",
+      "d3_history_item": "{time} · {panel} · {count} 个目标 · {lines} 行文字",
+      "d3_no_panel": "无面板",
+      "d3_no_window": "未找到 D3 游戏窗口。",
+      "d3_no_shot": "这条记录没有保存截图（识别时未勾选“显示截图和识别位置”）。"
     },
     "rosbot_bridge": {
       "title": "ROSBOT 插件：CoreNode Bridge（当前地图）",
