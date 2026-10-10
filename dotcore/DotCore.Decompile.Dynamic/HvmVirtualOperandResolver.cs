@@ -217,6 +217,7 @@ public sealed class HvmVirtualOperandResolver
             {
                 method.CilMethodBody = originalBody;
                 rejectedMethods++;
+                unresolvedOperands += methodUnresolvedOperands;
                 rejectedOperands += methodUnresolvedOperands;
                 continue;
             }
