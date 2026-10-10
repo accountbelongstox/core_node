@@ -17,7 +17,7 @@
 1. **运行流程测试 `test:codemart:flows`**
    - 方式 A：本地启动 Laravel（`127.0.0.1:9000`），然后在 `poly_apps/pycore_laravel_wordnew_ui` 下执行 `npm run test:codemart:flows`。
    - 方式 B：针对线上服务器运行，需要设置 `CM_API=https://api.si.12gm.com`，并用 `CM_PASSWORD_FILE` 指向线上 demo 密码文件。注意：本地 `D:/www/wwwroot/laravel_db/.core_node_secrets/CODEMART_ADMIN_PASSWORD` 中的密码在线上会被拒绝（`AUTH_INVALID_PASSWORD`）。
-   - 禁止注册新的测试账号。
+   - 禁止在线上服务器注册新的测试账号（`flows.mjs` 会拒绝非本地服务器，除非设置 `CM_TEST_ALLOW_REGISTER=1`）。本地运行会注册 `cmtest_` 账号，因为钱包、角色状态、评审重试间隔和实名认证都是一次性状态，不能在七个 demo 账号上重复运行。
 2. **验证 `bootstrap` 新字段**：登录后请求 `GET /api/codemart/v1/bootstrap`，确认 `vocabulary.policy` 里有 `project_min_budget`、`review_comment_min_length`、`reviewer_retry_days`。
 3. **验证 `min_os`**：`GET /api/codemart/v1/public/app-downloads` 目前返回空列表。等有安装包条目后，确认每条都带 `min_os`，下载页的最低系统要求那一行也能正常显示。
 4. **在浏览器里检查界面**（Chrome MCP 本次连不上）：设置页的改密码卡片、钱包充值的支付方式下拉、仪表盘的未完成项、评审页的最少字数提示，中英文都要看。

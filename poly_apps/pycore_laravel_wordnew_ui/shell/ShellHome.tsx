@@ -3,6 +3,7 @@
  * an entry link. Pycore health is checked through the HTTP controller endpoint.
  */
 import React, { useEffect, useState } from 'react';
+import { ShellAppPackages } from './ShellAppPackages';
 import { Link } from 'react-router-dom';
 import { Server, Cpu, GraduationCap, ArrowRight, Coins, BriefcaseBusiness } from 'lucide-react';
 import { useTranslation } from '../core/i18n/UiI18n';
@@ -116,6 +117,9 @@ export const ShellHome: React.FC = () => {
               </Link>
             );
           })}
+        </div>
+        <div className="mt-8">
+          <ShellAppPackages />
         </div>
       </div>
     </div>

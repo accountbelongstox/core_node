@@ -52,17 +52,19 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
           <Menu className="h-5 w-5" />
         </button>
       )}
-      {/* Narrow screens scroll the widgets sideways instead of pushing them off-screen. */}
-      <div className="scrollbar-none flex-1 min-w-0 overflow-x-auto">
+      {/* Phones scroll the status widgets sideways instead of pushing them off-screen; sign-in and appearance stay pinned. */}
+      <div className={`flex-1 min-w-0 ${isMobile ? 'scrollbar-none overflow-x-auto' : ''}`}>
         <div className="ml-auto flex w-max items-center gap-1.5 sm:gap-3">
           <PcVersionChips />
           <PcHeaderResourceBars />
           <PcGitSyncStatus />
           <PcPycoreTargetSwitcher variant="header" />
           <PcLaravelEndpointSwitcher variant="header" />
-          <LaravelAuthChip />
-          <PcAppearanceControls />
         </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+        <LaravelAuthChip />
+        <PcAppearanceControls />
       </div>
     </header>
   );

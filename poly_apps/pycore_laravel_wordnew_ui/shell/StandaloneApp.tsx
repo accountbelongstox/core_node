@@ -39,6 +39,10 @@ const StandaloneRoutes: React.FC<{ buildFlavor: FlavorConfig }> = ({ buildFlavor
   // under it - identical URL semantics to shell mode and to the Capacitor WebView
   // (its local server serves index.html for any app path).
   const rootElement = <Navigate to={activeFlavor.rootRoute || '/'} replace />;
+  // The app owns the splat under its own root route, so its nested <Routes> resolve
+  // relative to that base exactly as in shell mode.
+  const appRootPath = (activeFlavor.rootRoute || '/').replace(/\/+$/, '');
+  const appRoutePath = appRootPath ? `${appRootPath}/*` : '*';
   const switcherVisible = Boolean(
     buildFlavor.standalone?.switcher?.enabled && buildFlavor.standalone.switcher.visible,
   );
@@ -56,7 +60,8 @@ const StandaloneRoutes: React.FC<{ buildFlavor: FlavorConfig }> = ({ buildFlavor
     <>
       <Routes>
         <Route path="/" element={rootElement} />
-        <Route path="*" element={appElement} />
+        <Route path={appRoutePath} element={appElement} />
+        <Route path="*" element={rootElement} />
       </Routes>
       {activeFlavor.id === 'pycore-manager' && <ShellControls />}
       <FlavorLaunchScreen flavor={buildFlavor} lang={lang} />

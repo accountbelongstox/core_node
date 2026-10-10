@@ -9,7 +9,7 @@ import { WfNewGlobalSearch } from './search/WfNewGlobalSearch';
 import { useShell } from '../../../shell/ShellContext';
 import { WfNewWordDetailModal } from './WfNewWordDetailModal';
 import { WfNewOnboarding } from '../pages/WfNewOnboarding';
-import { appUpdateSupported } from '../platform/capabilities/CapAppUpdate';
+import { appUpdateSupported } from '@/shared/app-update/CapAppUpdate';
 
 const WordNewUpdateBanner = lazy(() => import('./update/WordNewUpdateBanner'));
 

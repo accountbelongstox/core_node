@@ -1,0 +1,8 @@
+{
+ "success": true,
+ "provider": "cloudflare",
+ "model": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+ "mime": "image/png",
+ "latency_ms": 17387.4,
+ "error": null
+}
