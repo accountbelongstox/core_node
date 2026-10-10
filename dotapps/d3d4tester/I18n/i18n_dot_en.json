@@ -21,9 +21,6 @@
     "tabs": {
       "battlenet_management": "Battle.net"
     },
-    "auxiliary_panel": {
-      "ensure_battlenet_normal": "Keep Battle.net running"
-    },
     "battlenet_panel": {
       "guard_title": "Battle.net guard",
       "ensure_normal": "Keep Battle.net normal (log in at startup and keep running)",

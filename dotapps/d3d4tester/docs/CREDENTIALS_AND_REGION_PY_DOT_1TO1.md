@@ -46,14 +46,14 @@ Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/s
 
 | Item | PY | DOT |
 |------|----|-----|
-| Entry point | "Set account/password" button in ROSBOT page → `schedule_battlenet_credentials_dialog()` → `_show_credentials_dialog(default_region)` | `BtnSetAccountPassword` in RosbotPage → `CredentialsDialog(AsiaCredentialsService.RegionAsia)` modal |
+| Entry point | "Set account/password" button in ROSBOT page → `schedule_battlenet_credentials_dialog()` → `_show_credentials_dialog(default_region)` | Battle.net tab → "Region and account" only (`BattlenetAccountService`, active account mirrored to the region credentials); missing credentials switch to that sub-tab (`AsiaCredentialsService.ScheduleCredentialsPrompt`) |
 | Dialog content | Region dropdown (Asia/CN), Account (email) entry, Password entry; OK / Cancel | Same: ComboRegion (Asia/CN), TxtEmail, TxtPassword (PasswordBox), OK / Cancel |
 | On region change | `_load_credentials_into_vars(selected_region, var_email, var_password)` | `LoadRegionIntoFields(CurrentRegion)` via `AsiaCredentialsService.LoadCredentialsForUi(region)` |
 | On OK | `save_credentials(current_region, email, password)` then close | `AsiaCredentialsService.SaveCredentials(CurrentRegion, email, password)` then close |
 | i18n keys | `credentials.title`, `credentials.region_type`, `credentials.region_asia`, `credentials.region_cn`, `credentials.account`, `credentials.password` | `I18nKeys.CredentialsTitle` etc. (`ui.credentials.*`) |
 
 **Python:** `share/asia_credentials.py` (`_show_credentials_dialog`, `_load_credentials_into_vars`).  
-**DOT:** `Windows/CredentialsDialog.xaml` + `CredentialsDialog.xaml.cs`, `Pages/Rosbot/RosbotPage.xaml.cs` (BtnSetAccountPassword_Click).
+**DOT:** `Pages/Battlenet/BattlenetPage.xaml(.cs)` (region and accounts sub-tab), `Config/BattlenetAccountService.cs`, `Config/AsiaCredentialsService.cs`.
 
 ---
 

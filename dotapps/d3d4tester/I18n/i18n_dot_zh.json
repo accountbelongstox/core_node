@@ -21,9 +21,6 @@
     "tabs": {
       "battlenet_management": "战网管理"
     },
-    "auxiliary_panel": {
-      "ensure_battlenet_normal": "自动确保战网正常"
-    },
     "battlenet_panel": {
       "guard_title": "战网守护",
       "ensure_normal": "保证战网正常（启动即登录并保持运行）",

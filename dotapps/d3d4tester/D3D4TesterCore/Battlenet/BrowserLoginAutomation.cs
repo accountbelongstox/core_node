@@ -9,7 +9,7 @@ using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Web login step (B11) by UI Automation instead of OCR clicks and the Tampermonkey callback. Targets the Battle.net login window
+/// Web login step (B11) by UI Automation (Python peer: browser_login_ocr_flow). Targets the Battle.net login window
 /// account form (Phoenix::LoginWindow), the CN login popup (Phoenix::LoginPopupWindow) and external browser login windows.
 /// One poll: security check / verification code page -> NeedUser (never clicked; the code only reaches the user); success text
 /// -> Success; login form -> type the saved credentials, tick "Keep me logged in", submit; EULA -> tick; Agree / Login -> invoke.
