@@ -94,7 +94,7 @@ function Move-ScheduledTaskRoot {
         $actions = @()
         $changed = $false
         foreach ($action in @($task.Actions)) {
-            if (-not $action.Execute) {
+            if (-not $action.PSObject.Properties['Execute'] -or -not $action.Execute) {
                 $actions += $action
                 continue
             }
