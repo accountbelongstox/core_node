@@ -65,6 +65,12 @@ public sealed class OcrEngineRegistry
         }
     }
 
+    /// <summary>Drop every cached engine; the next request creates engines again (e.g. after the global OCR model changed).</summary>
+    public void Reset()
+    {
+        lock (_lock) _enginesByModel.Clear();
+    }
+
     /// <summary>Maps a model key to another model key that shares its engine. Clears the cached alias entry.</summary>
     public void SetModelAlias(string modelKey, string targetModelKey)
     {

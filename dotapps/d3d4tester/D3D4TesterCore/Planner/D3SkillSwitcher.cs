@@ -1,10 +1,10 @@
 // PY-REF: none (DOT-only)
-using System.Drawing;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.TemplateMatcher;
 using DotCore.Utils;
 using DotCore.Utils.Ocr;
+using DotCore.Utils.Text;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
@@ -14,7 +14,7 @@ namespace DotApps.d3d4tester.Core.Planner;
 public enum SkillSwitchMethod { Plugin, Image }
 
 /// <summary>Result of a switch run; Outcome drives the UI text, the counts the detail.</summary>
-public enum SkillSwitchOutcome { Done, Partial, NoGameWindow, LevelTooLow, ActionBarNotFound, SkillNotInList, PluginUnavailable, Stopped }
+public enum SkillSwitchOutcome { Done, Partial, NoGameWindow, LevelTooLow, ActionBarNotFound, ChooserNotOpen, SkillNotInList, PluginUnavailable, Stopped }
 
 /// <summary>Plugin skills_check answer: hero level (0 = unknown) and per target true / false / null (unknown) for skills (incl. rune) and passives.</summary>
 public sealed record SkillCheckResult(int Level, IReadOnlyList<bool?> Skills, IReadOnlyList<bool?> Passives);
@@ -24,11 +24,16 @@ public sealed record SkillSwitchResult(SkillSwitchOutcome Outcome, int SkillsCha
 /// <summary>
 /// Puts the hero's skill bar, runes and passives to a maxroll gear set through the D3 UI (ROSBOT has no skill API; both methods click
 /// the same way). Action bar: the class skill icons (planner cache) are matched in the bottom band of the window; six hits sorted
-/// left to right are the D3 bar order 1, 2, 3, 4, LMB, RMB (maxroll order LMB, RMB, 1-4). Per slot: click the bar slot (opens its skill
-/// list), match and click the planned skill icon, OCR the window for the planned rune name (Chinese or English) and the Accept button,
-/// click both. Passives: open the skill pane (S), match the class passive icons to find the equipped ones, replace each one not planned
-/// by a missing planned passive (click slot, match icon, Accept), close the pane. The skill list only offers every skill with D3's
-/// Elective Mode on; a planned skill not found there stops the run (SkillNotInList).
+/// left to right are the D3 bar order 1, 2, 3, 4, LMB, RMB (maxroll order LMB, RMB, 1-4). Per slot: click the bar slot, which opens
+/// the skill chooser (one skill category per page). Its two page arrows (templates in Templates/skill_switch) give the chooser and the
+/// icon row; geometry below the row is relative to the arrows (measured on a 642 px high window, scaled with the height). The planned
+/// icon is searched in that row only (the "assigned skill" box further down shows the current skill and must not be clicked); not on
+/// this page -> next page arrow, up to MaxPages. A gray-zone icon score is settled by the OCR'd skill name under it. Then the rune area
+/// is OCR'd on a 2x upscale and the rune name matched typo-tolerantly (regex normalize + LCS similarity, FuzzyText; OCR misreads
+/// characters such as 拳), the assigned box is checked for the planned icon and the Accept button (template) is clicked.
+/// Passives: open the skill pane (S), match the class passive icons to find the equipped ones, replace each one not planned by a missing
+/// planned passive (click slot, match icon, Accept), close the pane. Other categories are only offered with D3's Elective Mode on; a
+/// planned skill on no page stops the run (SkillNotInList).
 /// Plugin method: skills_check first (level 70 required; a slot is skipped when its bar icon is already the planned skill and the plugin
 /// reports that skill with the planned rune) and again at the end (mismatches). Image method: every slot is set (runes cannot be read
 /// from icons), passives from the pane icons, and the end check compares the bar icons.
@@ -62,7 +67,29 @@ public static class D3SkillSwitcher
     private const ushort VkS = 0x53;
     private const ushort VkEscape = 0x1B;
     private const ushort VkReturn = 0x0D;
-    private static readonly string[] AcceptWords = { "接受", "接收", "Accept" };
+    private const int MaxPages = 7;
+    private const int AfterPageClickMs = 400;
+    private const double ReferenceHeight = 642.0;
+    private const double TemplateScaleMin = 0.85;
+    private const double TemplateScaleStep = 0.05;
+    private const int TemplateScaleSteps = 7;
+    private const double ArrowThreshold = 0.85;
+    private const double AcceptThreshold = 0.90;
+    private const double IconGrayZone = 0.60;
+    /// <summary>Chooser geometry relative to the page arrows' center line, in window heights.</summary>
+    private const double RowAboveFrac = 0.05;
+    private const double RowBelowFrac = 0.065;
+    private const double RuneTopFrac = 0.12;
+    private const double RuneBottomFrac = 0.33;
+    private const double AssignedTopFrac = 0.37;
+    private const double AssignedBottomFrac = 0.48;
+    private const double OcrUpscale = 2.0;
+    private const double RuneMinSimilarity = 0.5;
+    private const string TemplateDir = "skill_switch";
+    private const string TemplatePagePrev = "skill_page_prev";
+    private const string TemplatePageNext = "skill_page_next";
+    private const string TemplateAccept = "skill_accept";
+    private static readonly string[] AcceptWords = { "接受", "Accept" };
 
     private sealed record Hit(string Key, Rect Box, double Score);
 
@@ -120,37 +147,147 @@ public static class D3SkillSwitcher
         return new SkillSwitchResult(outcome, skills, passives, mismatches, detail);
     }
 
-    /// <summary>Open the slot's skill list, click the planned skill, its rune (OCR) and Accept.</summary>
+    /// <summary>Open the slot's skill chooser, find the planned skill (page by page), click it, its rune and Accept.</summary>
     private static SkillSwitchOutcome SetSkill((int X, int Y) offset, Hit slot, PlannerSkill target, string cls, string cacheDir)
     {
         Click(offset, Center(slot.Box));
         Thread.Sleep(AfterBarClickMs);
-        if (Capture() is not { } shot) return SkillSwitchOutcome.NoGameWindow;
-        using var image = shot.Image;
         using var icon = LoadIcon(D3SkillIcons.SkillIconPath(cacheDir, cls, target.Id));
         if (icon == null) return SkillSwitchOutcome.SkillNotInList;
-        int listBottom = (int)(image.Rows * BarBandTopFrac);
-        using var list = new Mat(image, new Rect(0, 0, image.Cols, listBottom));
-        var match = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(list, icon, Widths(image.Rows, ListIconMinFrac, ListIconMaxFrac), ListMatchThreshold, target.Id);
-        if (!match.Success)
+        Shot? shot = null;
+        Chooser? chooser = null;
+        try
         {
-            ColorPrinter.Yellow($"{LogTag} {target.Id} not in the skill list (score {match.Score:F2}); turn on Elective Mode in D3's gameplay options");
-            WindowInputHelper.SendSystemKey(VkEscape);
-            return SkillSwitchOutcome.SkillNotInList;
+            for (int page = 0; page < MaxPages; page++)
+            {
+                shot?.Image.Dispose();
+                shot = Capture();
+                if (shot == null) return SkillSwitchOutcome.NoGameWindow;
+                chooser = FindChooser(shot.Image);
+                if (chooser == null)
+                {
+                    ColorPrinter.Yellow($"{LogTag} skill chooser did not open (page arrows not found)");
+                    return SkillSwitchOutcome.ChooserNotOpen;
+                }
+                if (FindInRow(shot.Image, chooser, icon, target) is { } at)
+                {
+                    Click(shot.Offset, at);
+                    break;
+                }
+                if (page == MaxPages - 1)
+                {
+                    ColorPrinter.Yellow($"{LogTag} {target.Id} on no chooser page; turn on Elective Mode in D3's gameplay options");
+                    WindowInputHelper.SendSystemKey(VkEscape);
+                    return SkillSwitchOutcome.SkillNotInList;
+                }
+                Click(shot.Offset, chooser.Next);
+                Thread.Sleep(AfterPageClickMs);
+            }
+            Thread.Sleep(AfterIconClickMs);
+            shot!.Image.Dispose();
+            shot = Capture();
+            if (shot == null) return SkillSwitchOutcome.NoGameWindow;
+            int h = shot.Image.Rows;
+            var runeArea = Band(shot.Image, chooser!, RuneTopFrac, RuneBottomFrac);
+            var runes = OcrArea(shot.Image, runeArea);
+            if (target.Rune.Length > 0)
+            {
+                if (FuzzyText.Best(runes, w => w.Text, new[] { target.RuneNameZh, target.RuneNameEn }, RuneMinSimilarity) is { } rune)
+                {
+                    ColorPrinter.Gray($"{LogTag} rune read '{rune.Item.Text}' ~ '{target.RuneNameZh}' ({rune.Score:F2})");
+                    Click(shot.Offset, rune.Item.Center);
+                    Thread.Sleep(AfterRuneClickMs);
+                }
+                else
+                    ColorPrinter.Yellow($"{LogTag} rune '{target.RuneNameZh}' / '{target.RuneNameEn}' not read in [{string.Join(", ", runes.Select(r => r.Text))}]");
+            }
+            var assigned = Band(shot.Image, chooser!, AssignedTopFrac, AssignedBottomFrac);
+            using (var box = new Mat(shot.Image, assigned))
+            {
+                var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(h, ListIconMinFrac, ListIconMaxFrac), ListMatchThreshold, target.Id);
+                if (!check.Success) ColorPrinter.Yellow($"{LogTag} assigned box does not show {target.Id} yet (score {check.Score:F2})");
+            }
+            Accept(shot);
+            ColorPrinter.Green($"{LogTag} slot {target.SlotIndex}: {target.NameEn} / {target.RuneNameEn}");
+            return SkillSwitchOutcome.Done;
         }
-        Click(shot.Offset, (match.CenterX, match.CenterY));
-        Thread.Sleep(AfterIconClickMs);
-        var words = Ocr();
-        if (FindWord(words, target.RuneNameZh, target.RuneNameEn) is { } rune)
+        finally
         {
-            Click(shot.Offset, rune);
-            Thread.Sleep(AfterRuneClickMs);
+            shot?.Image.Dispose();
         }
-        else if (target.Rune.Length > 0)
-            ColorPrinter.Yellow($"{LogTag} rune '{target.RuneNameZh}' / '{target.RuneNameEn}' not read on screen, skill set without it");
-        Accept(shot.Offset, words);
-        ColorPrinter.Green($"{LogTag} slot {target.SlotIndex}: {target.NameEn} / {target.RuneNameEn}");
-        return SkillSwitchOutcome.Done;
+    }
+
+    /// <summary>Open chooser: page arrows (templates) -> icon row center line and the two arrow points.</summary>
+    private sealed record Chooser(int RowY, int Left, int Right, (int X, int Y) Next);
+
+    private static Chooser? FindChooser(Mat image)
+    {
+        var prev = MatchTemplate(image, TemplatePagePrev, ArrowThreshold);
+        var next = MatchTemplate(image, TemplatePageNext, ArrowThreshold);
+        if (prev is not { } p || next is not { } n || n.CenterX <= p.CenterX) return null;
+        return new Chooser((p.CenterY + n.CenterY) / 2, p.X + p.Width, n.X, (n.CenterX, n.CenterY));
+    }
+
+    /// <summary>
+    /// The planned icon in the chooser's icon row (between the arrows); a gray-zone score is accepted when the OCR'd name under that
+    /// spot matches the planned skill name (typo-tolerant). Click point or null (not on this page).
+    /// </summary>
+    private static (int X, int Y)? FindInRow(Mat image, Chooser chooser, Mat icon, PlannerSkill target)
+    {
+        int h = image.Rows;
+        var row = new Rect(chooser.Left, Math.Max(0, chooser.RowY - (int)(h * RowAboveFrac)), chooser.Right - chooser.Left, (int)(h * (RowAboveFrac + RowBelowFrac)));
+        row = row.Intersect(new Rect(0, 0, image.Cols, h));
+        if (row.Width <= 0 || row.Height <= 0) return null;
+        using var band = new Mat(image, row);
+        var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(band, icon, Widths(h, ListIconMinFrac, ListIconMaxFrac), ListMatchThreshold, target.Id);
+        var point = (row.X + m.CenterX, row.Y + m.CenterY);
+        if (m.Success) return point;
+        if (m.Score < IconGrayZone) return null;
+        var labels = OcrArea(image, row);
+        if (FuzzyText.Best(labels, w => w.Text, new[] { target.NameZh, target.NameEn }) is { } label && Math.Abs(label.Item.Center.X - point.Item1) < m.Width)
+        {
+            ColorPrinter.Gray($"{LogTag} {target.Id}: icon {m.Score:F2} + name '{label.Item.Text}' ({label.Score:F2})");
+            return point;
+        }
+        return null;
+    }
+
+    /// <summary>Horizontal band of the chooser between the arrows, from / to fractions of the window height below the icon row.</summary>
+    private static Rect Band(Mat image, Chooser chooser, double topFrac, double bottomFrac)
+    {
+        int h = image.Rows;
+        var band = new Rect(chooser.Left, chooser.RowY + (int)(h * topFrac), chooser.Right - chooser.Left, (int)(h * (bottomFrac - topFrac)));
+        return band.Intersect(new Rect(0, 0, image.Cols, h));
+    }
+
+    private sealed record Word(string Text, (int X, int Y) Center);
+
+    /// <summary>OCR an area of the window on an OcrUpscale enlargement (small game text); words with centers in window coordinates.</summary>
+    private static List<Word> OcrArea(Mat image, Rect area)
+    {
+        if (area.Width <= 0 || area.Height <= 0 || OcrEngineRegistry.Instance.Default() is not { } engine) return new List<Word>();
+        using var crop = new Mat(image, area);
+        using var big = crop.Resize(new OpenCvSharp.Size(), OcrUpscale, OcrUpscale, InterpolationFlags.Cubic);
+        var words = new List<Word>();
+        foreach (var w in engine.Ocr(big)?.RawResult ?? Array.Empty<OcrWordBox>())
+        {
+            if (OcrBbox.FromPosition(w.Position) is not { } box) continue;
+            var (x, y) = OcrBbox.Center(box);
+            words.Add(new Word(w.Text, (area.X + (int)(x / OcrUpscale), area.Y + (int)(y / OcrUpscale))));
+        }
+        return words;
+    }
+
+    /// <summary>Template from Templates/skill_switch scaled with the window height; null below the threshold.</summary>
+    private static TemplateMatchResult? MatchTemplate(Mat image, string name, double threshold)
+    {
+        string path = Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension);
+        using var template = LoadIcon(path);
+        if (template == null) return null;
+        double k = image.Rows / ReferenceHeight;
+        var widths = Enumerable.Range(0, TemplateScaleSteps).Select(i => (int)Math.Round(template.Cols * k * (TemplateScaleMin + i * TemplateScaleStep))).ToList();
+        var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(image, template, widths, threshold, name);
+        return m.Success ? m : null;
     }
 
     /// <summary>Skill pane: replace every equipped passive that is not planned by a missing planned one; number replaced.</summary>
@@ -187,7 +324,8 @@ public static class D3SkillSwitcher
                 }
                 Click(list.Offset, (match.CenterX, match.CenterY));
                 Thread.Sleep(AfterIconClickMs);
-                Accept(list.Offset, Ocr());
+                using (var after = Capture()?.Image)
+                    if (after != null) Accept(list with { Image = after });
                 changed++;
                 ColorPrinter.Green($"{LogTag} passive {slot.Key} -> {key}");
             }
@@ -281,45 +419,20 @@ public static class D3SkillSwitcher
         using (bitmap) return new Shot(BitmapConverter.ToMat(bitmap), offset, hwnd);
     }
 
-    private static IReadOnlyList<OcrWordBox> Ocr()
+    /// <summary>Click Accept: its template, else an OCR'd "Accept" word (typo-tolerant), else Enter.</summary>
+    private static void Accept(Shot shot)
     {
-        var data = ScreenCaptureService.GetScreenshotProvider().Gen(new ScreenCaptureOptions
-        {
-            WindowTitles = D3WindowConstants.DiabloIIIWindowTitles,
-            WindowOnly = true,
-            FindWindows = _ => D3WindowFinder.FindWindows(),
-        });
-        if (data?.GameWindowImage is not { } bitmap) return Array.Empty<OcrWordBox>();
-        using (bitmap) return OcrHelper.GetResult(bitmap)?.RawResult ?? Array.Empty<OcrWordBox>();
-    }
-
-    /// <summary>Center (window coordinates) of the first OCR box containing one of the names (spaces ignored, case-insensitive).</summary>
-    private static (int X, int Y)? FindWord(IReadOnlyList<OcrWordBox> words, params string[] names)
-    {
-        var wanted = names.Select(Normalize).Where(n => n.Length > 0).ToList();
-        foreach (var w in words)
-        {
-            string text = Normalize(w.Text);
-            if (text.Length == 0 || !wanted.Any(n => text.Contains(n, StringComparison.Ordinal))) continue;
-            if (OcrBbox.FromPosition(w.Position) is not { } box) continue;
-            var (x, y) = OcrBbox.Center(box);
-            return ((int)x, (int)y);
-        }
-        return null;
-    }
-
-    private static void Accept((int X, int Y) offset, IReadOnlyList<OcrWordBox> words)
-    {
-        if (FindWord(words, AcceptWords) is { } accept) Click(offset, accept);
+        if (MatchTemplate(shot.Image, TemplateAccept, AcceptThreshold) is { } button)
+            Click(shot.Offset, (button.CenterX, button.CenterY));
+        else if (FuzzyText.Best(OcrArea(shot.Image, new Rect(0, shot.Image.Rows / 2, shot.Image.Cols, shot.Image.Rows / 2)), w => w.Text, AcceptWords) is { } word)
+            Click(shot.Offset, word.Item.Center);
         else
         {
-            ColorPrinter.Yellow($"{LogTag} Accept button not read on screen, pressing Enter");
+            ColorPrinter.Yellow($"{LogTag} Accept button not found, pressing Enter");
             WindowInputHelper.SendSystemKey(VkReturn);
         }
         Thread.Sleep(AfterAcceptMs);
     }
-
-    private static string Normalize(string s) => new string((s ?? "").Where(c => !char.IsWhiteSpace(c)).ToArray()).ToLowerInvariant();
 
     private static (int X, int Y) Center(Rect r) => (r.X + r.Width / 2, r.Y + r.Height / 2);
 

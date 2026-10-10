@@ -105,6 +105,8 @@ $Global:AiToolsCatalog = @{
         NativeBinDir = (Join-Path (Join-Path (Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "OpenAI") "Codex") "bin")
         NativeInstallerUrls = @("https://chatgpt.com/codex/install.ps1")
         NativeInstallerEnv = @{ CODEX_NON_INTERACTIVE = "1" }
+        # The installer only manages 'current' as a junction and refuses a plain copy of it.
+        NativeInstallerJunctionDirs = @(Join-Path (Join-Path (Join-Path $(if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) { Join-Path $env:USERPROFILE ".codex" } else { $env:CODEX_HOME }) "packages") "standalone") "current")
         NonNativePackage = "@openai/codex"
         WindowsPackageKey = "OpenAICodex"
         StepOnly = $null
