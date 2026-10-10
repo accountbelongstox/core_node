@@ -52,14 +52,17 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
           <Menu className="h-5 w-5" />
         </button>
       )}
-      <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-3">
-        <PcVersionChips />
-        <PcHeaderResourceBars />
-        <PcGitSyncStatus />
-        <PcPycoreTargetSwitcher variant="header" />
-        <PcLaravelEndpointSwitcher variant="header" />
-        <LaravelAuthChip />
-        <PcAppearanceControls />
+      {/* Narrow screens scroll the widgets sideways instead of pushing them off-screen. */}
+      <div className="scrollbar-none flex-1 min-w-0 overflow-x-auto">
+        <div className="ml-auto flex w-max items-center gap-1.5 sm:gap-3">
+          <PcVersionChips />
+          <PcHeaderResourceBars />
+          <PcGitSyncStatus />
+          <PcPycoreTargetSwitcher variant="header" />
+          <PcLaravelEndpointSwitcher variant="header" />
+          <LaravelAuthChip />
+          <PcAppearanceControls />
+        </div>
       </div>
     </header>
   );

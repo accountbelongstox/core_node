@@ -212,7 +212,9 @@ $pycoreServiceName = 'pycore'
 $pycoreLoginTaskName = 'PyCore_RPC_Server'
 $pycoreRpcContractPath = Join-Path $PSScriptRoot 'config\pycore_rpc_contract.json'
 $pycoreRestartRouteName = 'controlRestart'
-$pycoreRestartWaitSeconds = 90
+# Covers a full worker boot (models, PySide6, singleton takeover) under load; a shorter wait made
+# the logon-task instance exit mid-handoff and its 5-minute re-trigger kill the healthy successor.
+$pycoreRestartWaitSeconds = 300
 $pycoreRetireCommand = 'retire-service'
 $pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', 'status', $pycoreRetireCommand)
 $pycoreServiceNssmScript = Join-Path $winCommonDir 'NssmServiceManager.ps1'
