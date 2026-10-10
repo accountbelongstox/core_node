@@ -112,6 +112,9 @@ public static partial class TaskSetSynthesizer
         public required IReadOnlyList<HoldoutItem> Holdout { get; init; }
         public required IReadOnlyList<SegmentFrame> RealFrames { get; init; }
 
+        /// <summary>Classes of source-placed targets (fixed UI): their boxes are overlays that world objects never cover.</summary>
+        public required IReadOnlySet<string> OverlayClasses { get; init; }
+
         public List<Background> TargetPool(int targetIndex, YoloSplit split) =>
             Scenes[targetIndex].For(split).Concat(Common.For(split)).ToList();
 
@@ -159,6 +162,9 @@ public static partial class TaskSetSynthesizer
         public Point Origin { get; init; }
         public int VisibleCount { get; set; }
         public AnnotationBox? Box { get; set; }
+
+        /// <summary>Screen overlay (NPC window, its parts, HUD): world objects and distractors are never pasted over it.</summary>
+        public bool Overlay { get; init; }
 
         public void Dispose() => Visible.Dispose();
     }
@@ -470,6 +476,7 @@ public static partial class TaskSetSynthesizer
             Cache = new SynthesisBackgroundCache(s.BackgroundCacheSize, s.IsNative ? 0 : s.OutputMaxSide),
             Holdout = inspection.Holdout,
             RealFrames = inspection.RealFrames,
+            OverlayClasses = set.Targets.Where(t => t.PlacesAtSource).Select(t => t.Name.Trim()).ToHashSet(StringComparer.Ordinal),
         };
     }
 
@@ -593,7 +600,7 @@ public static partial class TaskSetSynthesizer
         var placed = new List<Placed>();
         try
         {
-            ApplyResourceBoxes(image, used, f, origin, ctx.Classes, placed, s);
+            ApplyResourceBoxes(image, used, f, origin, ctx.Classes, ctx.OverlayClasses, placed, s);
             var regions = MapRegions(used, f, origin, image.Size());
             double bgScale = used.Resource.EffectivePixelScale;
             var picks = new List<int>();
@@ -683,7 +690,8 @@ public static partial class TaskSetSynthesizer
     }
 
     /// <summary>Resource boxes: a class label mostly inside the image becomes a real positive (and occupancy); others are inpainted away.</summary>
-    private static void ApplyResourceBoxes(Mat image, Background bg, double f, Point origin, IReadOnlyList<string> classes, List<Placed> placed, SynthesisSettings s)
+    private static void ApplyResourceBoxes(Mat image, Background bg, double f, Point origin, IReadOnlyList<string> classes, IReadOnlySet<string> overlayClasses,
+        List<Placed> placed, SynthesisSettings s)
     {
         var boxes = bg.Resource.Boxes;
         if (boxes == null || boxes.Count == 0) return;
@@ -709,6 +717,7 @@ public static partial class TaskSetSynthesizer
                 FullArea = full.Width * full.Height,
                 VisibleCount = clipped.Width * clipped.Height,
                 Box = new AnnotationBox(classes[classIndex], clipped.X, clipped.Y, clipped.Right, clipped.Bottom),
+                Overlay = overlayClasses.Contains(classes[classIndex]),
             });
         }
         if (masks.Count > 0) InpaintRects(image, masks);
@@ -735,7 +744,7 @@ public static partial class TaskSetSynthesizer
             FitInto(ref obj, ref mask, image.Size());
             if (Place(image, obj, mask, compound ? null : label, placed, regions, s, rng, anchor) is not { } p) return;
             placed.Add(p);
-            if (compound) AddParts(p, parts!, obj.Width / (double)variant.Width, obj.Height / (double)variant.Height, image.Size(), placed, s);
+            if (compound) AddParts(p, parts!, obj.Width / (double)variant.Width, obj.Height / (double)variant.Height, image.Size(), placed, s, p.Overlay);
         }
         finally
         {
@@ -745,7 +754,8 @@ public static partial class TaskSetSynthesizer
     }
 
     /// <summary>Labeled parts of a pasted compound variant, scaled with it; a part keeps its label when min_visible_fraction of it is in the image.</summary>
-    private static void AddParts(Placed whole, IReadOnlyList<ResourceBox> parts, double sx, double sy, Size image, List<Placed> placed, SynthesisSettings s)
+    private static void AddParts(Placed whole, IReadOnlyList<ResourceBox> parts, double sx, double sy, Size image, List<Placed> placed, SynthesisSettings s,
+        bool overlay)
     {
         var bounds = new Rect(0, 0, image.Width, image.Height);
         foreach (var part in parts)
@@ -763,6 +773,7 @@ public static partial class TaskSetSynthesizer
                 VisibleCount = visible.Width * visible.Height,
                 Box = new AnnotationBox(part.Label.Trim(), visible.X, visible.Y, visible.Right, visible.Bottom),
                 Origin = full.Location,
+                Overlay = overlay,
             });
         }
     }
@@ -852,6 +863,7 @@ public static partial class TaskSetSynthesizer
             // A source-anchored object (UI panel) lies on top like the real overlay: it may hide earlier objects, which lose their label below keep.
             bool overlay = anchor != null;
             if (!overlay && box != null && placed.Any(p => p.Box != null && p.Box.IoU(box) > s.MaxOverlapIou)) continue;
+            if (!overlay && placed.Any(p => p.Overlay && (p.Rect & visible) is { Width: > 0, Height: > 0 })) continue;
             if (!OcclusionAllowed(placed, visible, visibleBin, overlay ? 0 : keep, covered)) continue;
 
             Composite(image, obj, mask, visible, local);
@@ -860,7 +872,7 @@ public static partial class TaskSetSynthesizer
                 if (covered[i] > 0) Occlude(placed[i], visible, visibleBin, covered[i]);
                 if (overlay && placed[i].Box != null && placed[i].VisibleCount < keep * placed[i].FullArea) placed[i].Box = null;
             }
-            return new Placed { Rect = visible, Visible = visibleBin.Clone(), FullArea = fullArea, VisibleCount = visibleCount, Box = box, Origin = pos };
+            return new Placed { Rect = visible, Visible = visibleBin.Clone(), FullArea = fullArea, VisibleCount = visibleCount, Box = box, Origin = pos, Overlay = overlay };
         }
         return null;
     }
