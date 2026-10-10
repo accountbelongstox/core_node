@@ -17,6 +17,19 @@ namespace Rcdw32.Ws.Models
         T GetAttribute<T>(int attr, uint parameter = 4294963200u) where T : struct;
     }
 
+    /// <summary>ROSBOT's target settings (its combat target selection).</summary>
+    public class RosSettings
+    {
+        public static int ScanRange => throw new NotSupportedException();
+        public static int DensityLimit => throw new NotSupportedException();
+        public static int EliteWeight => throw new NotSupportedException();
+        public static int MinionWeight => throw new NotSupportedException();
+        public static int WardenWeight => throw new NotSupportedException();
+        public static int GoblinWeight => throw new NotSupportedException();
+        public static int NormalMonsterWeight => throw new NotSupportedException();
+        public static int MonsterDistanceScan => throw new NotSupportedException();
+    }
+
     public interface IActor
     {
         uint RActorId { get; }
@@ -77,6 +90,8 @@ namespace Rcdw32.Ws.Plugins
     public static class Context
     {
         public static IActor[] Actors => throw new NotSupportedException();
+        /// <summary>ROSBOT's own attack targets (its target selection).</summary>
+        public static IActor[] AttackActors => throw new NotSupportedException();
         public static IAcd[] Acds => throw new NotSupportedException();
         public static string SequenceName => throw new NotSupportedException();
         public static string SettingsPath => throw new NotSupportedException();

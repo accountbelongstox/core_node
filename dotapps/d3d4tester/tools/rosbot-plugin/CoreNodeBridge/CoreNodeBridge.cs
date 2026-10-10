@@ -17,7 +17,8 @@ namespace CoreNodeBridge;
 /// botting, so from OnEnabled to OnDisabled the plugin runs its own TickMs timer (OnPulse drives the same Tick; one tick at a time).
 /// Every ScanIntervalMs it scans the world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to
 /// this DLL (atomic replace):
-/// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monster counts, carried
+/// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monsters (hit points, ROSBOT's
+/// attack-target mark), ROSBOT's target settings, monster counts, carried
 /// items, the live pickup / stash record, follow / town standby / combat assist state and the last command result. Commands and the pickup filter:
 /// see BridgeCommands; item
 /// GameBalanceIds and the affixes of watched build items: see ItemWatch.
@@ -70,6 +71,7 @@ public sealed class CoreNodeBridge : IPlugin
     private DateTime _lastEventUtc = DateTime.MinValue;
     private string _dir = ".";
     private List<EntityInfo> _ground = new();
+    private List<EntityInfo> _monsters = new();
     private DateTime _lastSlowLogUtc = DateTime.MinValue;
     private DateTime _enabledUtc = DateTime.MaxValue;
 
@@ -268,10 +270,13 @@ public sealed class CoreNodeBridge : IPlugin
         if (!WorldScanner.Safe(() => LocalPlayer.IsValid && LocalPlayer.IsInGame, false))
         {
             _ground = new List<EntityInfo>();
+            _monsters = new List<EntityInfo>();
             return;
         }
         var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()) ?? Array.Empty<IActor>();
         _ground = WorldScanner.GroundItems(actors);
+        if (!_assist.Combat) _assist.RefreshRosTargets();
+        _monsters = WorldScanner.Monsters(actors, _assist.RosTargetIds);
         int world = WorldScanner.Safe(() => LocalPlayer.MeWorldId, 0);
         bool alive = WorldScanner.Safe(() => LocalPlayer.IsValid && !LocalPlayer.IsDead, false);
         foreach (var r in _pickups.Update(_ground, world, alive, now))
@@ -370,6 +375,8 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("assist_enabled", _assist.Enabled)
                 .Prop("combat", _assist.Combat)
                 .Prop("combat_target", _assist.Target)
+                .Prop("combat_source", _assist.Source)
+                .Prop("ros_attack_targets", _assist.RosTargetIds.Count)
                 .Prop("standby_enabled", _standby.Enabled)
                 .Prop("standby_state", _standby.State)
                 .Prop("standby_since_utc", _standby.SinceUtc)
@@ -386,6 +393,16 @@ public sealed class CoreNodeBridge : IPlugin
             json.EndArray();
             WriteEntities(json, "ground_items", _ground);
             WriteEntities(json, "npcs", WorldScanner.Npcs(actors));
+            WriteEntities(json, "monsters", _monsters);
+            json.BeginObject("ros_settings")
+                .Prop("scan_range", CombatAssist.RosSetting(() => RosSettings.ScanRange))
+                .Prop("density_limit", CombatAssist.RosSetting(() => RosSettings.DensityLimit))
+                .Prop("elite_weight", CombatAssist.RosSetting(() => RosSettings.EliteWeight))
+                .Prop("goblin_weight", CombatAssist.RosSetting(() => RosSettings.GoblinWeight))
+                .Prop("normal_weight", CombatAssist.RosSetting(() => RosSettings.NormalMonsterWeight))
+                .Prop("minion_weight", CombatAssist.RosSetting(() => RosSettings.MinionWeight))
+                .Prop("warden_weight", CombatAssist.RosSetting(() => RosSettings.WardenWeight))
+                .EndObject();
             _follow.LearnBanners(actors);
             WriteEntities(json, "players", WorldScanner.Players(actors).Select(a => new EntityInfo
             {
@@ -452,7 +469,8 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("quality", e.Quality).Prop("ancient_rank", e.AncientRank).Prop("stack", e.Stack).Prop("equipped", e.Equipped)
                 .Prop("durability_cur", e.DurabilityCur).Prop("durability_max", e.DurabilityMax)
                 .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e)).Prop("gbid", e.Gbid)
-                .Prop("slot", e.Slot).Prop("inv_x", e.InvX).Prop("inv_y", e.InvY).Prop("party_slot", e.PartySlot).Prop("is_leader", e.IsLeader);
+                .Prop("slot", e.Slot).Prop("inv_x", e.InvX).Prop("inv_y", e.InvY).Prop("party_slot", e.PartySlot).Prop("is_leader", e.IsLeader)
+                .Prop("hp_pct", e.HpPct).Prop("ros_target", e.RosTarget);
             WriteAttrs(json, e.Attrs);
             json.EndObject();
         }

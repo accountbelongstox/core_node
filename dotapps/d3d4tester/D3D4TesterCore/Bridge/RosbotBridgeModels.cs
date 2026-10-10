@@ -86,6 +86,13 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("assist_enabled")] public bool AssistEnabled { get; init; }
     [JsonPropertyName("combat")] public bool Combat { get; init; }
     [JsonPropertyName("combat_target")] public string CombatTarget { get; init; } = "";
+    /// <summary>Where the fought monster came from: rosbot (ROSBOT's attack targets) / weights (ROSBOT's target weights) / "".</summary>
+    [JsonPropertyName("combat_source")] public string CombatSource { get; init; } = "";
+    /// <summary>Number of ROSBOT's own attack targets (Context.AttackActors) at the last plugin scan.</summary>
+    [JsonPropertyName("ros_attack_targets")] public int RosAttackTargets { get; init; }
+    /// <summary>ROSBOT's target settings (scan_range, density_limit, elite / goblin / normal / minion / warden weight); -1 = unreadable.</summary>
+    [JsonPropertyName("ros_settings")] public IReadOnlyDictionary<string, int>? RosSettings { get; init; }
+    [JsonPropertyName("monsters")] public IReadOnlyList<RosbotBridgeEntity> Monsters { get; init; } = Array.Empty<RosbotBridgeEntity>();
     /// <summary>Town standby (app "return to town and stand by"): on, state (reviving / needs_town / in_town) and since when.</summary>
     [JsonPropertyName("standby_enabled")] public bool StandbyEnabled { get; init; }
     [JsonPropertyName("standby_state")] public string StandbyState { get; init; } = "";
@@ -146,6 +153,9 @@ public sealed record RosbotBridgeEntity(
     [JsonPropertyName("is_leader")] public bool IsLeader { get; init; }
     [JsonPropertyName("gbid")] public int Gbid { get; init; }
     [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
+    /// <summary>Monsters: hit points 0-1 (-1 unknown) and whether ROSBOT's own target selection (AttackActors) lists it.</summary>
+    [JsonPropertyName("hp_pct")] public double HpPct { get; init; } = -1;
+    [JsonPropertyName("ros_target")] public bool RosTarget { get; init; }
 }
 
 /// <summary>Live pickup (item vanished next to the hero) or stash event.</summary>

@@ -100,6 +100,17 @@ public static partial class I18nKeys
     public const string RosbotBridgeControlEnd = "ui.rosbot_bridge.control_end";
     public const string RosbotBridgeControlTaken = "ui.rosbot_bridge.control_taken";
     public const string RosbotBridgeCombatTarget = "ui.rosbot_bridge.combat_target";
+    public const string RosbotBridgeTabMonsters = "ui.rosbot_bridge.tab_monsters";
+    public const string RosbotBridgeScriptScope = "ui.rosbot_bridge.script_scope";
+    public const string RosbotBridgeScriptScopeTip = "ui.rosbot_bridge.script_scope_tip";
+    public const string RosbotBridgeMonsterRosTarget = "ui.rosbot_bridge.monster_ros_target";
+    public const string RosbotBridgeMonsterElite = "ui.rosbot_bridge.monster_elite";
+    public const string RosbotBridgeMonsterBoss = "ui.rosbot_bridge.monster_boss";
+    public const string RosbotBridgeMonsterHp = "ui.rosbot_bridge.monster_hp";
+    public const string RosbotBridgeMonsterInfo = "ui.rosbot_bridge.monster_info";
+    /// <summary>combat_source.rosbot / combat_source.weights / combat_source.none.</summary>
+    public const string RosbotBridgeCombatSourcePrefix = "ui.rosbot_bridge.combat_source.";
+    public const string RosbotBridgeCombatSourceNone = "none";
     public const string RosbotBridgeItemNamePrefix = "ui.rosbot_bridge.item_name.";
 
     // town NPC shortcuts and test buttons; NPC display names are NpcNamePrefix + lowercase internal actor name

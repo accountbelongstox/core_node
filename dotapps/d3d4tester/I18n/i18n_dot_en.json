@@ -1260,6 +1260,19 @@
       "control_end": "End control · resume monitoring",
       "control_taken": "controlled by the plugin",
       "combat_target": "fighting: {0}",
+      "tab_monsters": "Monsters",
+      "script_scope": "Export ROSBOT script scope",
+      "script_scope_tip": "Research (read only, no script is run): the plugin finds ROSBOT's IronPython engine and script scope inside ROSBOT's process and writes the variable names, types and search paths to script_scope.txt in the plugin folder, to check whether ROSBOT's combat logic is scripted and callable by the plugin.",
+      "monster_ros_target": "ROSBOT target",
+      "monster_elite": "elite",
+      "monster_boss": "boss",
+      "monster_hp": "HP {0:0}%",
+      "monster_info": "ROSBOT attack targets {0} · fight target from: {1} · ROSBOT settings (-1 = unreadable): scan {2} yd, elite weight {3}, goblin weight {4}, normal weight {5}",
+      "combat_source": {
+        "rosbot": "ROSBOT's target list",
+        "weights": "ROSBOT's target weights",
+        "none": "none"
+      },
       "take_control": "Pause monitoring and ROSBOT when a command acts in the game (follow, NPC, salvage...)",
       "plugin_not_running": "Not sent: the plugin is not running (start ROSBOT and enable CoreNode Bridge)"
     },

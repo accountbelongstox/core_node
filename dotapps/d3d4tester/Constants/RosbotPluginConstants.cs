@@ -67,6 +67,13 @@ public static class RosbotPluginConstants
     public const string BridgeActionAssist = "assist";
     public const string BridgeAssistOn = "on";
     public const string BridgeAssistOff = "off";
+    /// <summary>Plugin research command: list ROSBOT's IronPython engine / scope (read only) into script_scope.txt next to the plugin.</summary>
+    public const string BridgeActionScriptScope = "script_scope";
+    /// <summary>ros_settings keys shown on the monsters tab (plugin CoreNodeBridge.WriteStateLocked).</summary>
+    public const string BridgeRosScanRange = "scan_range";
+    public const string BridgeRosEliteWeight = "elite_weight";
+    public const string BridgeRosGoblinWeight = "goblin_weight";
+    public const string BridgeRosNormalWeight = "normal_weight";
     /// <summary>Follow targets (plugin FollowMode modes): nearest player, the selected player, the party leader, party slot 1-4.</summary>
     public const string BridgeFollowNearest = "nearest";
     public const string BridgeFollowSelected = "selected";

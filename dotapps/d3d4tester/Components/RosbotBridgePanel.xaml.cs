@@ -100,6 +100,7 @@ public partial class RosbotBridgePanel : UserControl
         TabGround.Header = p.GetUiText(I18nKeys.RosbotBridgeTabGround);
         TabNpc.Header = p.GetUiText(I18nKeys.RosbotBridgeTabNpc);
         TabFollow.Header = p.GetUiText(I18nKeys.RosbotBridgeTabFollow);
+        TabMonsters.Header = p.GetUiText(I18nKeys.RosbotBridgeTabMonsters);
         LblTownPortalKey.Text = p.GetUiText(I18nKeys.RosbotBridgeFollowTownPortalKey);
         TxtTownPortalKey.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowTownPortalKeyTip);
         BtnStandby.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeStandbyTip);
@@ -121,6 +122,8 @@ public partial class RosbotBridgePanel : UserControl
         TxtNpcTarget.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeNpcTargetHint);
         TabCarried.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeCarriedNote);
         BtnClickUi.Content = p.GetUiText(I18nKeys.RosbotBridgeClickUi);
+        BtnScriptScope.Content = p.GetUiText(I18nKeys.RosbotBridgeScriptScope);
+        BtnScriptScope.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeScriptScopeTip);
         TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);
         TxtCapabilities.Text = p.GetUiText(I18nKeys.RosbotBridgeCapabilities);
         foreach (var button in PanelTownNpcs.Children.OfType<Button>())
@@ -231,6 +234,8 @@ public partial class RosbotBridgePanel : UserControl
         Fill(LstGround, s?.GroundItems, e => GroundText(e, p));
         Fill(LstNpcs, s?.Npcs, e => NpcText(e, p));
         Fill(LstPlayers, s?.Players, e => PlayerText(e, p));
+        Fill(LstMonsters, s?.Monsters, e => MonsterText(e, p));
+        TxtMonsterInfo.Text = MonsterInfo(s, p);
         RefreshFollow(s, p);
         Fill(LstCarried, s?.CarriedItems.Where(e => !RosbotPluginConstants.BridgeHiddenSlots.Contains(e.Slot))
             .OrderBy(SlotOrder).ThenBy(e => e.Slot, StringComparer.Ordinal).ToList(), e => CarriedText(e, p));
@@ -282,6 +287,26 @@ public partial class RosbotBridgePanel : UserControl
         p.GetUiText(I18nKeys.RosbotBridgePlayer) + (e.PartySlot > 0 ? $" {e.PartySlot}" : ""),
         e.IsLeader ? p.GetUiText(I18nKeys.RosbotBridgeFollowTargetLeader) : "",
         $"[{e.Name} #{e.Id}]", string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance));
+
+    /// <summary>Monster row: ROSBOT's attack-target mark, name with internal name and SNO, elite / boss, hit points, distance.</summary>
+    private static string MonsterText(RosbotBridgeEntity e, II18nProvider p) => Join(
+        e.RosTarget ? p.GetUiText(I18nKeys.RosbotBridgeMonsterRosTarget) : "",
+        e.Name, $"[{(e.InternalName.Length > 0 ? e.InternalName : e.Name)} #{e.Sno}]",
+        e.Boss ? p.GetUiText(I18nKeys.RosbotBridgeMonsterBoss) : e.Elite ? p.GetUiText(I18nKeys.RosbotBridgeMonsterElite) : "",
+        e.HpPct >= 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeMonsterHp), e.HpPct * 100) : "",
+        string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance));
+
+    /// <summary>ROSBOT's attack-target count, where the fought target comes from, and ROSBOT's target settings.</summary>
+    private static string MonsterInfo(RosbotBridgeState? s, II18nProvider p)
+    {
+        if (s == null) return "";
+        int Setting(string key) => s.RosSettings != null && s.RosSettings.TryGetValue(key, out int v) ? v : -1;
+        string source = s.CombatSource.Length > 0 ? s.CombatSource : I18nKeys.RosbotBridgeCombatSourceNone;
+        return string.Format(p.GetUiText(I18nKeys.RosbotBridgeMonsterInfo), s.RosAttackTargets,
+            p.GetUiText(I18nKeys.RosbotBridgeCombatSourcePrefix + source, source),
+            Setting(RosbotPluginConstants.BridgeRosScanRange), Setting(RosbotPluginConstants.BridgeRosEliteWeight),
+            Setting(RosbotPluginConstants.BridgeRosGoblinWeight), Setting(RosbotPluginConstants.BridgeRosNormalWeight));
+    }
 
     /// <summary>Follow button text / style and the follow state line (state, leader, distance).</summary>
     private void RefreshFollow(RosbotBridgeState? s, II18nProvider p)
@@ -452,7 +477,7 @@ public partial class RosbotBridgePanel : UserControl
         }
         if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll
                 or RosbotPluginConstants.BridgeActionFollow or RosbotPluginConstants.BridgeActionUiSequence or RosbotPluginConstants.BridgeActionStandby
-                or RosbotPluginConstants.BridgeActionAssist)
+                or RosbotPluginConstants.BridgeActionAssist or RosbotPluginConstants.BridgeActionScriptScope)
             && string.IsNullOrWhiteSpace(target))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);
@@ -520,6 +545,8 @@ public partial class RosbotBridgePanel : UserControl
         }
         Send(RosbotPluginConstants.BridgeActionClickUi, uiId: TxtUiId.Text);
     }
+
+    private void BtnScriptScope_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionScriptScope);
 
     /// <summary>Why there is (no) live data: not installed, ROSBOT not running, running without the plugin loaded, stale, live.</summary>
     private static string FormatDuration(TimeSpan t) =>
