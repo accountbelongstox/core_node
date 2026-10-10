@@ -66,6 +66,8 @@ public static class D3SkillSwitcher
     private static readonly (int X, int Y)[] PaneSlotIcon = { (354, 109), (562, 109), (354, 212), (562, 212), (354, 292), (562, 292) };
     private static readonly (int X, int Y) PanePassiveSlot = (354, 381);
     private static readonly (int X, int Y)[] PanePassiveSlots = { (354, 381), (474, 381), (594, 381), (714, 381) };
+    /// <summary>Band of the passive names printed under the pane's passive icons (reference client px).</summary>
+    private static readonly (int Left, int Top, int Right, int Bottom) PanePassiveNames = (300, 400, 770, 428);
     /// <summary>Cursor rest point outside every skill dialog (reference client px), so no tooltip covers what is read next.</summary>
     private static readonly (int X, int Y) CursorPark = (1040, 560);
     private const int ParkSettleMs = 250;
@@ -712,6 +714,22 @@ public static class D3SkillSwitcher
             var keys = passives.Select(p => p.Id).ToList();
             var slots = PanePassiveSlots.Select(slot => BestIconAt(pane, slot, keys, k => D3SkillIcons.PassiveIconPath(cacheDir, cls, k))).ToList();
             var shown = slots.Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
+            if (keys.Any(k => !shown.Contains(k)))
+            {
+                // the pane prints each passive's name under its icon: read them (all class passives as candidates) for icons the art does not match
+                var (nl, nt) = pane.ToImage((PanePassiveNames.Left, PanePassiveNames.Top));
+                var (nr, nb) = pane.ToImage((PanePassiveNames.Right, PanePassiveNames.Bottom));
+                var words = OcrArea(pane, new Rect(nl, nt, nr - nl, nb - nt).Intersect(new Rect(0, 0, pane.Image.Cols, pane.Image.Rows)))
+                    .Where(w => FuzzyText.Normalize(w.Text).Length > 0).ToList();
+                var names = MaxrollD3PlannerClient.PassiveNames(cacheDir, cls)
+                    .Select(n => (n.Key, (IReadOnlyCollection<string>)new[] { n.Zh, n.En }.Where(x => x.Length > 0).ToArray())).ToList();
+                foreach (var key in keys.Where(k => !shown.Contains(k)).ToList())
+                    if (AssignByName(words, names, key) is { } hit)
+                    {
+                        shown.Add(key);
+                        ColorPrinter.Gray($"{LogTag} passive {key} in the pane by name '{hit.Word.Text}' ({hit.How})");
+                    }
+            }
             int passiveMismatches = keys.Count(k => !shown.Contains(k));
             string scores = string.Join(", ", slots.Select(b => $"{b.Key ?? "-"} {b.Score:F2}"));
             if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))} (slots: {scores})");
