@@ -15,6 +15,11 @@ public partial class SkillSwitchDialog : Window
 {
     public SkillSwitchMethod Method { get; private set; } = SkillSwitchMethod.Image;
 
+    /// <summary>Use the calibrated / learned layout cache; off by default (full recognition as before). Kept for the app session only.</summary>
+    public bool ReuseCache { get; private set; }
+
+    private static bool _lastReuseCache;
+
     public SkillSwitchDialog(string target, bool pluginAvailable)
     {
         InitializeComponent();
@@ -24,6 +29,9 @@ public partial class SkillSwitchDialog : Window
         TxtPluginDesc.Text = T(pluginAvailable ? I18nKeys.RosbotBridgeBuildSkillSwitchPluginDesc : I18nKeys.RosbotBridgeBuildSkillSwitchPluginOff);
         RadioImage.Content = T(I18nKeys.RosbotBridgeBuildSkillSwitchImage);
         TxtImageDesc.Text = T(I18nKeys.RosbotBridgeBuildSkillSwitchImageDesc);
+        ChkReuseCache.Content = T(I18nKeys.RosbotBridgeBuildSkillSwitchReuseCache);
+        TxtReuseCacheDesc.Text = T(I18nKeys.RosbotBridgeBuildSkillSwitchReuseCacheDesc);
+        ChkReuseCache.IsChecked = _lastReuseCache;
         TxtRequirements.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildSkillSwitchRequirements), D3SkillSwitcher.RequiredLevel);
         BtnStart.Content = T(I18nKeys.RosbotBridgeBuildSkillSwitchStart);
         BtnCancel.Content = T(I18nKeys.ButtonCancel);
@@ -37,6 +45,7 @@ public partial class SkillSwitchDialog : Window
     private void BtnStart_Click(object sender, RoutedEventArgs e)
     {
         Method = RadioPlugin.IsChecked == true ? SkillSwitchMethod.Plugin : SkillSwitchMethod.Image;
+        ReuseCache = _lastReuseCache = ChkReuseCache.IsChecked == true;
         DialogResult = true;
     }
 }

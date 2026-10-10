@@ -17,7 +17,9 @@
         <RadioButton x:Name="RadioPlugin" GroupName="SkillSwitchMethod" Margin="0,0,0,2"/>
         <TextBlock x:Name="TxtPluginDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="22,0,0,10"/>
         <RadioButton x:Name="RadioImage" GroupName="SkillSwitchMethod" Margin="0,0,0,2"/>
-        <TextBlock x:Name="TxtImageDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="22,0,0,0"/>
+        <TextBlock x:Name="TxtImageDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="22,0,0,10"/>
+        <CheckBox x:Name="ChkReuseCache" Margin="0,0,0,2"/>
+        <TextBlock x:Name="TxtReuseCacheDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="22,0,0,0"/>
       </StackPanel>
     </Border>
     <Border Grid.Row="1" Style="{StaticResource StatusChipWarningStyle}" Margin="0,0,0,16" HorizontalAlignment="Stretch">
