@@ -1,6 +1,9 @@
 // PY-REF: none (DOT-only)
 using System.Globalization;
+using System.IO;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -10,6 +13,7 @@ using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Planner;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
+using DotApps.d3d4tester.Windows;
 using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Components;
@@ -96,6 +100,10 @@ public partial class D3PlannerBuildBlock : UserControl
         ColSkillSlot.Header = ColSlot.Header;
         ColSkillName.Header = T(I18nKeys.RosbotBridgeBuildColSkill);
         ColSkillRune.Header = T(I18nKeys.RosbotBridgeBuildColRune);
+        ColSkillIcon.Header = "";
+        LblPassives.Text = T(I18nKeys.RosbotBridgeBuildPassives);
+        BtnSwitchSkills.Content = T(I18nKeys.RosbotBridgeBuildSkillSwitch);
+        BtnSwitchSkills.ToolTip = T(I18nKeys.RosbotBridgeBuildSkillSwitchTip);
         ColFollowerSlot.Header = T(I18nKeys.RosbotBridgeBuildColSlot);
         ColFollowerItem.Header = T(I18nKeys.RosbotBridgeBuildColItem);
         ColFollowerAffixes.Header = T(I18nKeys.RosbotBridgeBuildColAffixes);
@@ -137,10 +145,13 @@ public partial class D3PlannerBuildBlock : UserControl
     private void RefreshSkills()
     {
         var profile = D3PlannerService.Profile;
+        string cls = D3PlannerService.Build?.Class ?? "";
+        string cacheDir = D3PlannerService.CacheDir;
         LstSkills.ItemsSource = profile?.Skills.Select(s => new SkillRow(
             T(I18nKeys.RosbotBridgeBuildSkillSlotPrefix + s.SlotIndex.ToString(CultureInfo.InvariantCulture)),
-            Pick(s.NameEn, s.NameZh), Pick(s.RuneNameEn, s.RuneNameZh))).ToList();
-        TxtPassives.Text = T(I18nKeys.RosbotBridgeBuildPassives) + LabelSeparator + JoinNames(profile?.Passives);
+            LoadIcon(D3SkillIcons.SkillIconPath(cacheDir, cls, s.Id)), Pick(s.NameEn, s.NameZh), Pick(s.RuneNameEn, s.RuneNameZh))).ToList();
+        LstPassives.ItemsSource = profile?.Passives.Select(p => new PassiveRow(LoadIcon(D3SkillIcons.PassiveIconPath(cacheDir, cls, p.Id)), Pick(p.NameEn, p.NameZh))).ToList();
+        BtnSwitchSkills.IsEnabled = profile is { Skills.Count: > 0 } && !D3SkillSwitchService.IsRunning;
         TxtKanai.Text = T(I18nKeys.RosbotBridgeBuildKanai) + LabelSeparator
             + string.Join(NameSeparator, profile?.Kanai.Select(i => $"{SlotLabel(i.Slot)} {D3PlannerService.ItemName(i)}") ?? Array.Empty<string>());
         TxtParagon.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildParagon), profile?.ParagonLevel ?? 0);
@@ -149,6 +160,45 @@ public partial class D3PlannerBuildBlock : UserControl
         TxtFollowerSkills.Text = T(I18nKeys.RosbotBridgeBuildFollowerSkills) + LabelSeparator + JoinNames(profile?.FollowerSkills);
         LstFollowerItems.ItemsSource = profile?.FollowerItems.Select(i => new FollowerRow(D3PlannerService.SlotName(i), PlannedText(i),
             GemsText(i), string.Join(StatSeparator, i.Stats.Select(StatText)), AffixDetail(i, null))).ToList();
+    }
+
+    /// <summary>Cached icon file as an image (loaded into memory, so the file stays free); null while it is not cached yet.</summary>
+    private static ImageSource? LoadIcon(string path)
+    {
+        if (!File.Exists(path)) return null;
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.UriSource = new Uri(path);
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    /// <summary>Ask for the method, then switch the hero's skills, runes and passives to the selected gear set (D3SkillSwitchService).</summary>
+    private async void BtnSwitchSkills_Click(object sender, RoutedEventArgs e)
+    {
+        if (D3PlannerService.Build is not { } build || D3PlannerService.Profile is not { } profile) return;
+        var dialog = new SkillSwitchDialog($"{build.Name} · {profile.Name}", D3SkillSwitchService.PluginAvailable) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true) return;
+        BtnSwitchSkills.IsEnabled = false;
+        TxtSwitchStatus.Text = T(I18nKeys.RosbotBridgeBuildSkillSwitchRunning);
+        try
+        {
+            var result = await D3SkillSwitchService.RunAsync(dialog.Method);
+            TxtSwitchStatus.Text = result == null
+                ? T(I18nKeys.RosbotBridgeBuildSkillSwitchBusy)
+                : string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildSkillSwitchOutcomePrefix + result.Outcome.ToString().ToLowerInvariant()),
+                    result.SkillsChanged, result.PassivesChanged, result.Mismatches, result.Detail);
+        }
+        catch (Exception ex)
+        {
+            TxtSwitchStatus.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildSkillSwitchFailed), ex.Message);
+        }
+        finally
+        {
+            BtnSwitchSkills.IsEnabled = true;
+        }
     }
 
     private static string Pick(string en, string zh) => D3PlannerService.UseChineseNames && zh.Length > 0 ? zh : en;
@@ -301,7 +351,9 @@ public partial class D3PlannerBuildBlock : UserControl
 
     private sealed record BuildRow(string Slot, string Item, string Have, string Gems, string Affixes, string Detail);
 
-    private sealed record SkillRow(string Slot, string Skill, string Rune);
+    private sealed record SkillRow(string Slot, ImageSource? Icon, string Skill, string Rune);
+
+    private sealed record PassiveRow(ImageSource? Icon, string Name);
 
     private sealed record FollowerRow(string Slot, string Item, string Gems, string Affixes, string Detail);
 }

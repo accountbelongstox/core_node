@@ -5,9 +5,10 @@ namespace DotApps.d3d4tester.Constants;
 public static partial class I18nKeys
 {
     public const string RosbotBridgeTitle = "ui.rosbot_bridge.title";
-    public const string RosbotBridgeDesc = "ui.rosbot_bridge.desc";
     public const string RosbotBridgeAutoInstall = "ui.rosbot_bridge.auto_install";
-    public const string RosbotBridgeInstall = "ui.rosbot_bridge.install";
+    /// <summary>Plugin button: prefix + lowercase RosbotBridgePluginAction; + TipSuffix for its tooltip.</summary>
+    public const string RosbotBridgePluginActionPrefix = "ui.rosbot_bridge.plugin_action.";
+    public const string RosbotBridgePluginActionTipSuffix = "_tip";
     public const string RosbotBridgeOpenDir = "ui.rosbot_bridge.open_dir";
     public const string RosbotBridgeSaveAreaName = "ui.rosbot_bridge.save_area_name";
     public const string RosbotBridgeHistory = "ui.rosbot_bridge.history";
@@ -180,6 +181,21 @@ public static partial class I18nKeys
     public const string RosbotBridgeBuildParagon = "ui.rosbot_bridge.build_paragon";
     public const string RosbotBridgeBuildFollower = "ui.rosbot_bridge.build_follower";
     public const string RosbotBridgeBuildFollowerSkills = "ui.rosbot_bridge.build_follower_skills";
+    public const string RosbotBridgeBuildSkillSwitch = "ui.rosbot_bridge.build_skill_switch";
+    public const string RosbotBridgeBuildSkillSwitchTip = "ui.rosbot_bridge.build_skill_switch_tip";
+    public const string RosbotBridgeBuildSkillSwitchTitle = "ui.rosbot_bridge.build_skill_switch_title";
+    public const string RosbotBridgeBuildSkillSwitchPlugin = "ui.rosbot_bridge.build_skill_switch_plugin";
+    public const string RosbotBridgeBuildSkillSwitchPluginDesc = "ui.rosbot_bridge.build_skill_switch_plugin_desc";
+    public const string RosbotBridgeBuildSkillSwitchPluginOff = "ui.rosbot_bridge.build_skill_switch_plugin_off";
+    public const string RosbotBridgeBuildSkillSwitchImage = "ui.rosbot_bridge.build_skill_switch_image";
+    public const string RosbotBridgeBuildSkillSwitchImageDesc = "ui.rosbot_bridge.build_skill_switch_image_desc";
+    public const string RosbotBridgeBuildSkillSwitchRequirements = "ui.rosbot_bridge.build_skill_switch_requirements";
+    public const string RosbotBridgeBuildSkillSwitchStart = "ui.rosbot_bridge.build_skill_switch_start";
+    public const string RosbotBridgeBuildSkillSwitchRunning = "ui.rosbot_bridge.build_skill_switch_running";
+    public const string RosbotBridgeBuildSkillSwitchBusy = "ui.rosbot_bridge.build_skill_switch_busy";
+    public const string RosbotBridgeBuildSkillSwitchFailed = "ui.rosbot_bridge.build_skill_switch_failed";
+    /// <summary>Prefix + SkillSwitchOutcome in lower case ({0} skills set, {1} passives set, {2} mismatches, {3} detail).</summary>
+    public const string RosbotBridgeBuildSkillSwitchOutcomePrefix = "ui.rosbot_bridge.build_skill_switch_outcome_";
     public const string RosbotBridgeMoveTo = "ui.rosbot_bridge.move_to";
     public const string RosbotBridgePickup = "ui.rosbot_bridge.pickup";
     public const string RosbotBridgePickupMatching = "ui.rosbot_bridge.pickup_matching";

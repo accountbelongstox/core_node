@@ -167,12 +167,29 @@ public static class D3PlannerService
                 _watchWritten = false;
             }
             await SaveAsync().ConfigureAwait(false);
+            await EnsureIconsAsync(_builds).ConfigureAwait(false);
             MonitorLog.Info($"{LogTag} planner cache {CacheDir}: {_builds.Count} build(s), {parsed.Count} parsed from cached raw data");
             BuildChanged?.Invoke();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             ColorPrinter.Yellow($"{LogTag} planner cache {CacheDir} not refreshed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Skill / passive icons of every build class in the cache (cut once from maxroll's sprite sheets); failures only logged.</summary>
+    private static async Task EnsureIconsAsync(IEnumerable<PlannerBuild> builds)
+    {
+        foreach (string cls in builds.Select(b => b.Class).Where(c => c.Length > 0).Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                await D3SkillIcons.EnsureAsync(CacheDir, cls).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or System.Net.Http.HttpRequestException or OpenCvSharp.OpenCVException)
+            {
+                ColorPrinter.Yellow($"{LogTag} {cls} icons not cached: {ex.Message}");
+            }
         }
     }
 
@@ -203,6 +220,7 @@ public static class D3PlannerService
             _watchWritten = false;
         }
         await SaveAsync().ConfigureAwait(false);
+        await EnsureIconsAsync(new[] { build }).ConfigureAwait(false);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerUrl, url.Trim());
         ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, index);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, build.ActiveProfile);

@@ -19,9 +19,17 @@ public static class D3InterfaceDetection
     public const string InterfaceBlacksmith = "blacksmith";
     public const string InterfaceKanaiCube = "kanai_cube";
 
+    /// <summary>The blacksmith's own left sidebar (hammer / anvil tab column, both tab states): tells it apart from a stash or vendor.</summary>
+    private static readonly string[] BlacksmithSignatureTemplates =
+    {
+        D3TemplateNames.BlacksmithIndicator1, D3TemplateNames.BlacksmithIndicator2,
+        D3TemplateNames.BlacksmithSidebarTab1, D3TemplateNames.BlacksmithSidebarTab2,
+    };
+
     /// <summary>
-    /// When wantBlacksmith, bag_opened_indicator centered in the left 30% -> "blacksmith"; then kanai_cube_left_panel_indicator
-    /// in the left 30% -> "kanai_cube". debugAttempts (optional) receives one entry per template tried for the DEBUG image.
+    /// When wantBlacksmith, bag_opened_indicator centered in the left 30% plus a blacksmith sidebar template there -> "blacksmith"
+    /// (Python took any left panel with the bag, e.g. the stash, as the blacksmith); then kanai_cube_left_panel_indicator in the
+    /// left 30% -> "kanai_cube". debugAttempts (optional) receives one entry per template tried for the DEBUG image.
     /// </summary>
     public static InterfaceDetectionResult DetectInterfaceTypeFromFullWindow(
         Bitmap? fullWindowImage,
@@ -39,7 +47,13 @@ public static class D3InterfaceDetection
         if (wantBlacksmith && TryMatchLeft(matcher, target, width, D3TemplateNames.BagOpenedIndicator, debugAttempts) is { } bag)
         {
             details[D3TemplateNames.BagOpenedIndicator] = bag;
-            return new InterfaceDetectionResult(InterfaceBlacksmith, details);
+            foreach (var name in BlacksmithSignatureTemplates)
+            {
+                if (TryMatchLeft(matcher, target, width, name, debugAttempts) is not { } sidebar) continue;
+                details[name] = sidebar;
+                return new InterfaceDetectionResult(InterfaceBlacksmith, details);
+            }
+            ColorPrinter.Gray("[DEBUG][InterfaceDetection] bag open but no blacksmith sidebar (stash / vendor?) -> not blacksmith");
         }
         if (TryMatchLeft(matcher, target, width, D3TemplateNames.KanaiCubeLeftPanelIndicator, debugAttempts) is { } kanai)
         {
