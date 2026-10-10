@@ -134,7 +134,7 @@ export {
 } from './useAgentHistoryPromptFeed';
 
 export {
-  getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
+  getPycoreTarget, getPycoreSelectionUrls, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
   getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
   getPycoreSelectedTarget,
   setPycoreSessionTarget, getPycoreSessionTarget, isPrivateLanHost,
@@ -151,7 +151,7 @@ export type {
   PycoreTarget, PycoreEndpoint, PycoreEndpointKind, PycoreEndpointSource, SetPycoreTargetOptions,
 } from './pycoreTarget';
 export {
-  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints, switchPycoreTarget,
+  getPycoreProbe, isSamePycoreMachine, probePycoreEndpoint, probePycoreEndpoints, switchPycoreTarget,
   recordPycoreProbe, subscribePycoreProbes,
 } from './PycoreEndpointProbe';
 export type { PycoreProbeResult, PycoreProbeState, PycoreSwitchResult } from './PycoreEndpointProbe';

@@ -2,10 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { RELAY_CONTRACT } from '@/core/contracts/RelayContract';
 import { compressImageFile, type ImageCompressPolicy } from '@/core/media/ImageProcessor';
+import { recognizeImageText, textRecognitionErrorCode, textRecognitionSupported } from '@/shared/ocr/CapTextRecognition';
 
 export type PcTerminalImageStatus = 'queued' | 'compressing' | 'uploading' | 'uploaded' | 'error';
 
 export type PcTerminalAttachmentKind = 'image' | 'audio';
+
+export type PcTerminalImageOcrStatus = 'running' | 'done' | 'empty' | 'error';
+
+/** On-device text recognition of an attached image, independent of its upload. */
+export interface PcTerminalImageOcr {
+  status: PcTerminalImageOcrStatus;
+  text: string;
+  errorCode: string;
+}
 
 export interface PcTerminalImage {
   id: string;
@@ -23,6 +33,8 @@ export interface PcTerminalImage {
   errorKey: string;
   errorParams: Record<string, number>;
   errorDetail: PcTerminalImageErrorDetail | null;
+  /** Set only for images in the Android app, where recognition runs on the device. */
+  ocr?: PcTerminalImageOcr;
 }
 
 export interface PcTerminalImageCompression {
@@ -134,6 +146,19 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
 
   useEffect(() => () => allRef.current.forEach(release), [release]);
 
+  /** Recognizes the text of the image as it was attached; the result is dropped when the image was removed meanwhile. */
+  const recognize = useCallback(async (item: PcTerminalImage) => {
+    patch(item.id, { ocr: { status: 'running', text: '', errorCode: '' } });
+    let ocr: PcTerminalImageOcr;
+    try {
+      const text = (await recognizeImageText(item.file)).text.trim();
+      ocr = { status: text ? 'done' : 'empty', text, errorCode: '' };
+    } catch (error) {
+      ocr = { status: 'error', text: '', errorCode: textRecognitionErrorCode(error) };
+    }
+    if (allRef.current.some((entry) => entry.id === item.id)) patch(item.id, { ocr });
+  }, [patch]);
+
   const addFiles = useCallback((files: File[]) => {
     if (!windowId) return;
     const added = files.map((file): PcTerminalImage => {
@@ -155,8 +180,10 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         errorDetail: null,
       };
     });
-    if (added.length) commit([...allRef.current, ...added]);
-  }, [commit, windowId]);
+    if (!added.length) return;
+    commit([...allRef.current, ...added]);
+    if (textRecognitionSupported()) added.forEach((item) => { if (item.kind === 'image' && item.previewUrl) void recognize(item); });
+  }, [commit, recognize, windowId]);
 
   const remove = useCallback((id: string) => {
     const item = allRef.current.find((entry) => entry.id === id);

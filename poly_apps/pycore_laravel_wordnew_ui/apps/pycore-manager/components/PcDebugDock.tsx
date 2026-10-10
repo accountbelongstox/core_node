@@ -52,7 +52,7 @@ export const PcDebugDock: React.FC = () => {
     <div className="hide-on-soft-keyboard absolute left-3 bottom-3 z-[70] pointer-events-none flex flex-col items-start gap-2">
       {open && (
         <div
-          className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl pc-glass shadow-2xl shadow-black/20 dark:shadow-black/50"
+          className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl pc-overlay shadow-2xl shadow-black/20 dark:shadow-black/50"
           style={{ width: 'min(calc(100vw - 1.5rem), clamp(320px, 60vw, 960px))', height: 'clamp(260px, 55vh, 75vh)' }}
         >
           <div className="shrink-0 h-10 flex items-center gap-1 px-2 border-b border-[var(--pc-glass-border)]">
@@ -89,7 +89,7 @@ export const PcDebugDock: React.FC = () => {
         onClick={() => setOpen((value) => !value)}
         aria-label={t('debugDock.toggle')}
         title={t('debugDock.toggle')}
-        className="pointer-events-auto relative h-11 w-11 rounded-full pc-glass shadow-xl shadow-black/20 dark:shadow-black/50 flex items-center justify-center text-indigo-500 hover:scale-105 transition-transform"
+        className="pointer-events-auto relative h-11 w-11 rounded-full pc-overlay shadow-xl shadow-black/20 dark:shadow-black/50 flex items-center justify-center text-indigo-500 hover:scale-105 transition-transform"
       >
         <Terminal className="w-5 h-5" />
         <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">

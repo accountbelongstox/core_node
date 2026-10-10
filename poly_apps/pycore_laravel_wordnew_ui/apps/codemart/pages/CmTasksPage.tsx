@@ -1,11 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, CalendarDays, CircleDollarSign, ExternalLink, Flag, MessageSquare, Pencil, RefreshCw, Search, Send, Store, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmApi } from '../api/CmApi';
-import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import type { CmCodeReview, CmTask, CmTaskDetail } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
@@ -15,58 +11,21 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmSubmissionsPanel } from '../components/workspace/CmSubmissionsPanel';
 import { CmTaskForm } from '../components/workspace/CmMilestoneCard';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
-import { cmFileAccept, cmFileTypeAllowed, cmSplitList, cmTotalPages, cmUserLabel, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-import { useCmPagedList } from '../components/workspace/useCmPagedList';
+import { cmFileAccept, cmUserLabel, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { CM_PROTECTED_ROUTE, CM_TASK_QUERY_PARAM, cmProjectPath } from '../components/public-home/cmPublicRoutes';
-
-const BLOCKED_STATUS = 'blocked';
-const REVIEW_STATUS = 'review';
-const IN_PROGRESS_STATUS = 'in_progress';
-const MANAGER_ROLE = 'manager';
-const URL_PATTERN = /^https?:\/\/\S+$/i;
-
-interface CmMyTask extends CmTask {
-  milestone?: { id: number; project_id: number; title: string } | null;
-}
-
-function latestReviewWithNotes(task: CmTaskDetail): CmCodeReview | null {
-  for (const submission of task.submissions ?? []) {
-    const review = (submission.reviews ?? []).find((item) => item.review_notes || item.comments);
-    if (review) return review;
-  }
-  return null;
-}
+import { CM_TASK_SCOPES, useCmMyTasks } from '../shared/useCmMyTasks';
+import { CM_TASK_REVIEW_STATUS, useCmTaskDetail, useCmTaskSubmit } from '../shared/useCmTaskDetail';
 
 const CmTaskSubmitForm: React.FC<{ taskId: number; onSubmitted: () => Promise<void> }> = ({ taskId, onSubmitted }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const [note, setNote] = useState('');
-  const [fileUrls, setFileUrls] = useState('');
-  const [uploads, setUploads] = useState<File[]>([]);
   const [inputKey, setInputKey] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const { allowedDocumentTypes } = useCmPolicy();
-  const urls = cmSplitList(fileUrls);
-  const invalidUrls = urls.filter((url) => !URL_PATTERN.test(url));
-  const hasContent = note.trim() !== '' || urls.length > 0 || uploads.length > 0;
-  const rejectedUploads = uploads.filter((file) => !cmFileTypeAllowed(file.name, allowedDocumentTypes));
+  const submitModel = useCmTaskSubmit(taskId, onSubmitted, notice);
+  const { invalidUrls, rejectedUploads, allowedDocumentTypes, hasContent, canSubmit, busy } = submitModel;
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (busy || !hasContent || invalidUrls.length > 0 || rejectedUploads.length > 0) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.submitTask(taskId, note.trim(), urls, uploads);
-    setBusy(false);
-    if (response.success) {
-      setNote('');
-      setFileUrls('');
-      setUploads([]);
-      setInputKey((key) => key + 1);
-      await onSubmitted();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'tasks.submitFailed'));
-    }
+    if (await submitModel.submit()) setInputKey((key) => key + 1);
   };
 
   return (
@@ -75,20 +34,20 @@ const CmTaskSubmitForm: React.FC<{ taskId: number; onSubmitted: () => Promise<vo
       <p className="cm-field-hint">{t('tasks.submitLead')}</p>
       <label className="cm-stacked-field">
         <span>{t('tasks.submissionNote')}</span>
-        <textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t('tasks.submissionPlaceholder')} />
+        <textarea rows={4} value={submitModel.note} onChange={(event) => submitModel.setNote(event.target.value)} placeholder={t('tasks.submissionPlaceholder')} />
       </label>
       <label className="cm-stacked-field">
         <span>{t('tasks.fileUrls')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-        <textarea rows={2} value={fileUrls} onChange={(event) => setFileUrls(event.target.value)} placeholder={t('tasks.fileUrlsPlaceholder')} aria-invalid={invalidUrls.length > 0} />
+        <textarea rows={2} value={submitModel.fileUrls} onChange={(event) => submitModel.setFileUrls(event.target.value)} placeholder={t('tasks.fileUrlsPlaceholder')} aria-invalid={invalidUrls.length > 0} />
         {invalidUrls.length > 0 && <small className="cm-field-error">{t('tasks.invalidUrls', { urls: invalidUrls.join(', ') })}</small>}
       </label>
       <label className="cm-stacked-field">
         <span>{t('tasks.uploads')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-        <input key={inputKey} type="file" multiple accept={cmFileAccept(allowedDocumentTypes)} onChange={(event) => setUploads(Array.from(event.target.files ?? []))} aria-invalid={rejectedUploads.length > 0} />
+        <input key={inputKey} type="file" multiple accept={cmFileAccept(allowedDocumentTypes)} onChange={(event) => submitModel.setUploads(Array.from(event.target.files ?? []))} aria-invalid={rejectedUploads.length > 0} />
         {rejectedUploads.length > 0 && <small className="cm-field-error">{t('tasks.uploadWrongType', { files: rejectedUploads.map((file) => file.name).join(', '), types: allowedDocumentTypes.join(', ') })}</small>}
       </label>
       <div className="cm-table-actions">
-        <button type="submit" className="cm-workspace-button is-primary" disabled={busy || !hasContent || invalidUrls.length > 0 || rejectedUploads.length > 0}>
+        <button type="submit" className="cm-workspace-button is-primary" disabled={busy || !canSubmit}>
           {busy ? t('tasks.submitting') : t('tasks.submit')}
         </button>
         {!hasContent && <small className="cm-field-hint">{t('tasks.submitEmptyHint')}</small>}
@@ -101,38 +60,13 @@ const CmTaskSubmitForm: React.FC<{ taskId: number; onSubmitted: () => Promise<vo
 const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: () => Promise<void> }> = ({ taskId, onClose, onChanged }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap } = useCmBootstrap();
   const { currency } = useCmPolicy();
   const notice = useCmNotice();
-  const [task, setTask] = useState<CmTaskDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadRetryable, setLoadRetryable] = useState(true);
-  const [comment, setComment] = useState('');
-  const [busy, setBusy] = useState(false);
+  const detail = useCmTaskDetail(taskId, onChanged, notice);
+  const { task, loading, loadError, lastReview, transitionLabel } = detail;
   const [editing, setEditing] = useState(false);
 
-  const load = useCallback(async (): Promise<void> => {
-    const response = await cmApi.getTask(taskId);
-    if (response.success && response.data) {
-      setTask(response.data);
-      setLoadError(null);
-      setLoadRetryable(true);
-    } else {
-      setLoadError(cmErrorMessage(t, response, 'tasks.loadFailed'));
-      setLoadRetryable(response.status !== 403 && response.status !== 404);
-    }
-    setLoading(false);
-  }, [taskId, t]);
-
-  useEffect(() => {
-    setLoading(true);
-    setTask(null);
-    notice.clear();
-    void load();
-  }, [load, notice.clear]);
-
-  useEffect(() => {
+  React.useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose();
     };
@@ -140,55 +74,17 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const reload = async (): Promise<void> => {
-    await load();
-    await onChanged();
-  };
-
   const onEdited = async (): Promise<void> => {
     setEditing(false);
     notice.success(t('projectDetail.taskUpdated'));
-    await reload();
-  };
-
-  const onSubmitted = async (): Promise<void> => {
-    notice.success(t('tasks.submitted'));
-    await reload();
-  };
-
-  const transition = async (toStatus: string, reason: string): Promise<boolean> => {
-    notice.clear();
-    const response = await cmApi.transitionTask(taskId, toStatus, reason);
-    if (response.success) {
-      notice.success(t('transitions.taskDone', { status: t(`states.task.${toStatus}`, { defaultValue: toStatus }) }));
-      await reload();
-      return true;
-    }
-    notice.error(cmErrorMessage(t, response, 'transitions.failed'));
-    return false;
+    await detail.reload();
   };
 
   const postComment = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (!comment.trim() || busy) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.addTaskComment(taskId, comment.trim());
-    setBusy(false);
-    if (response.success) {
-      setComment('');
-      await load();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'tasks.commentFailed'));
-    }
+    await detail.postComment();
   };
 
-  const lastReview = task ? latestReviewWithNotes(task) : null;
-  const transitionLabel = (toStatus: string): string => (
-    task?.status === BLOCKED_STATUS && toStatus === IN_PROGRESS_STATUS
-      ? t('transitions.task.unblock')
-      : t(`transitions.task.${toStatus}`, { defaultValue: toStatus })
-  );
   const comments = task?.comments ?? [];
 
   return (
@@ -207,7 +103,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
         {loading ? (
           <CmLoadingState compact />
         ) : loadError || !task ? (
-          <CmErrorState compact message={loadError ?? t('tasks.loadFailed')} onRetry={loadRetryable ? () => { setLoading(true); void load(); } : undefined} />
+          <CmErrorState compact message={loadError ?? t('tasks.loadFailed')} onRetry={detail.loadRetryable ? detail.retry : undefined} />
         ) : (
           <>
             <div className="cm-record-card__meta">
@@ -227,7 +123,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
             )}
             <p className="cm-drawer__hint">{t(`tasks.statusHint.${task.status}`, { defaultValue: '' })}</p>
             <CmNotice notice={notice.notice} onDismiss={notice.clear} />
-            <CmTransitionBar transitions={task.access.allowed_transitions} labelFor={transitionLabel} onConfirm={transition} />
+            <CmTransitionBar transitions={task.access.allowed_transitions} labelFor={transitionLabel} onConfirm={detail.transition} />
             {task.access.can_edit && (
               <div className="cm-drawer__section">
                 <button type="button" className="cm-workspace-button is-small" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
@@ -243,13 +139,13 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
                 <p>{lastReview.review_notes || lastReview.comments}</p>
               </div>
             )}
-            {task.access.can_submit && <CmTaskSubmitForm taskId={task.id} onSubmitted={onSubmitted} />}
-            {!task.access.can_submit && task.status === REVIEW_STATUS && <CmNotice notice={{ tone: 'info', text: t('tasks.inReview') }} />}
+            {task.access.can_submit && <CmTaskSubmitForm taskId={task.id} onSubmitted={detail.reload} />}
+            {!task.access.can_submit && task.status === CM_TASK_REVIEW_STATUS && <CmNotice notice={{ tone: 'info', text: t('tasks.inReview') }} />}
             <CmSubmissionsPanel
               taskId={task.id}
               taskStatus={task.status}
-              canReview={task.access.roles.includes(MANAGER_ROLE) && task.access.can_review}
-              onChanged={reload}
+              canReview={detail.canDecide}
+              onChanged={detail.reload}
             />
             <form className="cm-drawer__section" onSubmit={(event) => void postComment(event)}>
               <h3><MessageSquare aria-hidden="true" /> {t('tasks.commentTitle')}</h3>
@@ -270,11 +166,11 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
               )}
               <label className="cm-stacked-field">
                 <span className="cm-visually-hidden">{t('tasks.commentLabel')}</span>
-                <textarea rows={2} value={comment} onChange={(event) => setComment(event.target.value)} placeholder={t('tasks.commentPlaceholder')} />
+                <textarea rows={2} value={detail.comment} onChange={(event) => detail.setComment(event.target.value)} placeholder={t('tasks.commentPlaceholder')} />
               </label>
               <div className="cm-table-actions">
-                <button type="submit" className="cm-workspace-button" disabled={busy || !comment.trim()}>
-                  {busy ? t('common.saving') : t('tasks.commentPost')}
+                <button type="submit" className="cm-workspace-button" disabled={detail.commenting || !detail.comment.trim()}>
+                  {detail.commenting ? t('common.saving') : t('tasks.commentPost')}
                 </button>
               </div>
             </form>
@@ -285,54 +181,13 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   );
 };
 
-const TASK_SCOPES = ['mine', 'visible'] as const;
-type CmTaskScope = typeof TASK_SCOPES[number];
-
-interface CmTaskSlice {
-  items: CmMyTask[];
-  totalPages: number;
-}
-
-/** Tasks assigned to the signed-in developer (`GET /marketplace/my-tasks`). */
-async function fetchMyTasks(page: number): Promise<APIResponse<CmTaskSlice>> {
-  const response = await cmApi.getMyTasks(page);
-  if (!response.success || !response.data) return { ...response, data: null };
-  return {
-    ...response,
-    data: {
-      items: (Array.isArray(response.data.my_tasks) ? response.data.my_tasks : []) as CmMyTask[],
-      totalPages: cmTotalPages(response.data.pagination as Parameters<typeof cmTotalPages>[0]),
-    },
-  };
-}
-
-/** Every task the account may see, filtered on the server (`GET /tasks`). */
-async function fetchVisibleTasks(page: number, status: string, search: string): Promise<APIResponse<CmTaskSlice>> {
-  const response = await cmApi.getTasks({ page, status, search });
-  if (!response.success || !response.data) return { ...response, data: null };
-  return {
-    ...response,
-    data: { items: (Array.isArray(response.data.items) ? response.data.items : []) as CmMyTask[], totalPages: cmTotalPages(response.data) },
-  };
-}
-
-const extractTasks = (data: CmTaskSlice): CmTaskSlice => data;
-
 export const CmTasksPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, refresh, states } = useCmBootstrap();
+  const { refresh, states } = useCmBootstrap();
   const { currency } = useCmPolicy();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [scope, setScope] = useState<CmTaskScope>('mine');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchDraft, setSearchDraft] = useState('');
-  const [search, setSearch] = useState('');
-  const fetchTasks = useCallback(
-    (page: number) => (scope === 'mine' ? fetchMyTasks(page) : fetchVisibleTasks(page, statusFilter, search)),
-    [scope, statusFilter, search],
-  );
-  const list = useCmPagedList(fetchTasks, extractTasks, 'tasks.loadFailed');
+  const { list, scope, setScope, statusFilter, setStatusFilter, searchDraft, setSearchDraft, applySearch } = useCmMyTasks();
   const selectedId = Number.parseInt(searchParams.get(CM_TASK_QUERY_PARAM) ?? '', 10);
 
   const openTask = useCallback((taskId: number | null): void => {
@@ -364,14 +219,14 @@ export const CmTasksPage: React.FC = () => {
         )}
       />
       <nav className="cm-tabs cm-tabs--inline" role="tablist" aria-label={t('tasks.scope.label')}>
-        {TASK_SCOPES.map((item) => (
+        {CM_TASK_SCOPES.map((item) => (
           <button key={item} type="button" role="tab" aria-selected={scope === item} className={scope === item ? 'is-active' : ''} onClick={() => setScope(item)}>
             {t(`tasks.scope.${item}`)}
           </button>
         ))}
       </nav>
       {scope === 'visible' && (
-        <form className="cm-marketplace-toolbar" onSubmit={(event) => { event.preventDefault(); setSearch(searchDraft.trim()); }}>
+        <form className="cm-marketplace-toolbar" onSubmit={(event) => { event.preventDefault(); applySearch(); }}>
           <label>
             <span>{t('tasks.filters.search')}</span>
             <div>

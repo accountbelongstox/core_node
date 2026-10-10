@@ -36,7 +36,22 @@ const results = new Map<string, PycoreProbeResult>();
 const inFlight = new Map<string, Promise<PycoreProbeResult>>();
 const listeners = new Set<ProbeListener>();
 
-function publish(url: string, result: PycoreProbeResult): PycoreProbeResult {
+/** A result without identity (relay entry, refused, down, a scan that saw only the hostname) keeps the last one the URL reported. */
+function withKnownIdentity(url: string, result: PycoreProbeResult): PycoreProbeResult {
+  const previous = results.get(url);
+  if (!previous || result.machineId) return result;
+  return {
+    ...result,
+    hostname: result.hostname || previous.hostname,
+    platform: result.platform || previous.platform,
+    instanceId: result.instanceId || previous.instanceId,
+    machineId: previous.machineId,
+    lanIps: result.lanIps.length ? result.lanIps : previous.lanIps,
+  };
+}
+
+function publish(url: string, measured: PycoreProbeResult): PycoreProbeResult {
+  const result = withKnownIdentity(url, measured);
   results.set(url, result);
   listeners.forEach((listener) => listener(url, result));
   return result;
@@ -58,6 +73,29 @@ function outcome(state: PycoreProbeState, ms: number | null, httpStatus = 0, pay
 
 export function getPycoreProbe(url: string): PycoreProbeResult | null {
   return results.get(url) ?? null;
+}
+
+function urlHost(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * True when two backend URLs reach the same machine: the machine id decides when both report one;
+ * otherwise a shared LAN address (a LAN URL's host or reported LAN IPs), then the same hostname.
+ */
+export function isSamePycoreMachine(leftUrl: string, rightUrl: string): boolean {
+  if (leftUrl === rightUrl) return true;
+  const left = results.get(leftUrl);
+  const right = results.get(rightUrl);
+  if (!left || !right) return false;
+  if (left.machineId && right.machineId) return left.machineId === right.machineId;
+  const leftIps = new Set([urlHost(leftUrl), ...left.lanIps].filter(Boolean));
+  if ([urlHost(rightUrl), ...right.lanIps].some((ip) => ip && leftIps.has(ip))) return true;
+  return Boolean(left.hostname) && left.hostname.toLowerCase() === right.hostname.toLowerCase();
 }
 
 /** Record a result measured elsewhere (the active-endpoint health loop). */

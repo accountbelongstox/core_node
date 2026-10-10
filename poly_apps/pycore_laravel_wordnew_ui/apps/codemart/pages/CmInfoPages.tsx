@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -15,8 +15,6 @@ import {
   Workflow,
 } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmPublicApi } from '../api/CmPublicApi';
-import { cmErrorMessage } from '../api/cmErrors';
 import {
   CmPublicCardGrid,
   CmPublicChecklist,
@@ -31,22 +29,25 @@ import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import type { CmImageName } from '../assets/cmImageRegistry';
 import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from '../components/public-home/cmPublicRoutes';
-
-interface CmContactDraft {
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-}
-
-type CmContactField = keyof CmContactDraft;
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CONTACT_MESSAGE_MIN = 5;
-const CONTACT_MESSAGE_MAX = 5000;
-const CONTACT_NAME_MAX = 100;
-const CONTACT_SUBJECT_MAX = 255;
-const EMPTY_CONTACT: CmContactDraft = { name: '', email: '', subject: '', message: '' };
+import {
+  CM_ABOUT_POINTS,
+  CM_ABOUT_ROLE_IDS,
+  CM_DELIVERY_FAQ,
+  CM_DELIVERY_STAGES,
+  CM_DELIVERY_STATUS_IDS,
+  CM_INFORMATION_TOPICS,
+  CM_LEGAL_SECTIONS,
+  CM_SERVICE_POINTS,
+  CM_SERVICES_FAQ,
+  type CmLegalPageId,
+} from '../shared/cmInfoContent';
+import {
+  CM_CONTACT_MESSAGE_MAX,
+  CM_CONTACT_NAME_MAX,
+  CM_CONTACT_SUBJECT_MAX,
+  useCmContactForm,
+  type CmContactField,
+} from '../shared/useCmContactForm';
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   client: <Briefcase />,
@@ -66,53 +67,18 @@ const CmInfoLead: React.FC<{ pageId: string }> = ({ pageId }) => {
   return <>{t(`infoPages.${pageId}.lead`)}</>;
 };
 
-function validateContact(draft: CmContactDraft): Partial<Record<CmContactField, string>> {
-  const errors: Partial<Record<CmContactField, string>> = {};
-  if (!draft.name.trim()) errors.name = 'infoPages.contactForm.errors.nameRequired';
-  else if (draft.name.trim().length > CONTACT_NAME_MAX) errors.name = 'infoPages.contactForm.errors.nameTooLong';
-  if (!EMAIL_PATTERN.test(draft.email.trim())) errors.email = 'infoPages.contactForm.errors.emailInvalid';
-  if (draft.subject.trim().length > CONTACT_SUBJECT_MAX) errors.subject = 'infoPages.contactForm.errors.subjectTooLong';
-  const messageLength = draft.message.trim().length;
-  if (messageLength < CONTACT_MESSAGE_MIN) errors.message = 'infoPages.contactForm.errors.messageTooShort';
-  else if (messageLength > CONTACT_MESSAGE_MAX) errors.message = 'infoPages.contactForm.errors.messageTooLong';
-  return errors;
-}
-
 const CmContactForm: React.FC = () => {
   const { t } = useTranslation('cm');
-  const [draft, setDraft] = useState<CmContactDraft>(EMPTY_CONTACT);
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<CmContactField, string>>>({});
-  const [pending, setPending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const contact = useCmContactForm();
+  const { draft, fieldErrors, pending, sent, error } = contact;
 
   const update = (field: CmContactField) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
-    setDraft((current) => ({ ...current, [field]: event.target.value }));
-    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    contact.update(field, event.target.value);
   };
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    const errors = validateContact(draft);
-    setFieldErrors(errors);
-    setError(null);
-    if (Object.keys(errors).length > 0) return;
-    setPending(true);
-    const response = await cmPublicApi.submitContact({
-      name: draft.name.trim(),
-      email: draft.email.trim(),
-      subject: draft.subject.trim() || undefined,
-      message: draft.message.trim(),
-    });
-    setPending(false);
-    if (response.success) {
-      setSent(true);
-      setDraft(EMPTY_CONTACT);
-      return;
-    }
-    setError(response.status === 429
-      ? t('infoPages.contactForm.throttled')
-      : cmErrorMessage(t, response, 'infoPages.contactForm.failed'));
+    void contact.submit();
   };
 
   const fieldError = (field: CmContactField): React.ReactNode => (
@@ -126,15 +92,15 @@ const CmContactForm: React.FC = () => {
       {sent ? (
         <div className="cm-public-form__notice is-success" role="status">
           <span>{t('infoPages.contactForm.success')}</span>
-          <button type="button" className="cm-public-form__link" onClick={() => setSent(false)}>
+          <button type="button" className="cm-public-form__link" onClick={contact.sendAnother}>
             {t('infoPages.contactForm.sendAnother')}
           </button>
         </div>
       ) : (
-        <form className="cm-public-form cm-public-form--two-column" onSubmit={(event) => void submit(event)} noValidate>
+        <form className="cm-public-form cm-public-form--two-column" onSubmit={submit} noValidate>
           <label>
             <span>{t('infoPages.contactForm.name')}</span>
-            <input value={draft.name} onChange={update('name')} autoComplete="name" maxLength={CONTACT_NAME_MAX} aria-invalid={Boolean(fieldErrors.name)} aria-describedby="cm-contact-name-error" />
+            <input value={draft.name} onChange={update('name')} autoComplete="name" maxLength={CM_CONTACT_NAME_MAX} aria-invalid={Boolean(fieldErrors.name)} aria-describedby="cm-contact-name-error" />
             {fieldError('name')}
           </label>
           <label>
@@ -144,12 +110,12 @@ const CmContactForm: React.FC = () => {
           </label>
           <label className="is-wide">
             <span>{t('infoPages.contactForm.subject')}</span>
-            <input value={draft.subject} onChange={update('subject')} maxLength={CONTACT_SUBJECT_MAX} aria-invalid={Boolean(fieldErrors.subject)} aria-describedby="cm-contact-subject-error" />
+            <input value={draft.subject} onChange={update('subject')} maxLength={CM_CONTACT_SUBJECT_MAX} aria-invalid={Boolean(fieldErrors.subject)} aria-describedby="cm-contact-subject-error" />
             {fieldError('subject')}
           </label>
           <label className="is-wide">
             <span>{t('infoPages.contactForm.message')}</span>
-            <textarea value={draft.message} onChange={update('message')} rows={6} maxLength={CONTACT_MESSAGE_MAX} aria-invalid={Boolean(fieldErrors.message)} aria-describedby="cm-contact-message-error" />
+            <textarea value={draft.message} onChange={update('message')} rows={6} maxLength={CM_CONTACT_MESSAGE_MAX} aria-invalid={Boolean(fieldErrors.message)} aria-describedby="cm-contact-message-error" />
             {fieldError('message')}
           </label>
           {error && <p className="cm-public-form__notice is-error is-wide" role="alert">{error}</p>}
@@ -162,15 +128,7 @@ const CmContactForm: React.FC = () => {
   );
 };
 
-type CmLegalPageId = 'privacy' | 'terms';
-
-interface CmLegalSection {
-  id: string;
-  items?: string[];
-}
-
-const ABOUT_POINTS = ['brief', 'escrow', 'review'];
-const ABOUT_ROLES: CmPublicCardItem[] = ['client', 'developer', 'architect', 'reviewer', 'administrator'].map((id) => ({
+const ABOUT_ROLES: CmPublicCardItem[] = CM_ABOUT_ROLE_IDS.map((id) => ({
   id,
   icon: ROLE_ICONS[id],
   titleKey: `infoPages.about.roles.${id}.title`,
@@ -184,24 +142,12 @@ const ABOUT_PRINCIPLES: CmPublicCardItem[] = [
   { id: 'audit', icon: <History />, titleKey: 'infoPages.about.principles.audit.title', bodyKey: 'infoPages.about.principles.audit.body' },
 ];
 
-const DELIVERY_STAGES: Array<{ id: string; actor: string }> = [
-  { id: 'brief', actor: 'client' },
-  { id: 'analysis', actor: 'platform' },
-  { id: 'proposal', actor: 'client' },
-  { id: 'funding', actor: 'client' },
-  { id: 'plan', actor: 'architect' },
-  { id: 'marketplace', actor: 'developer' },
-  { id: 'submission', actor: 'developer' },
-  { id: 'review', actor: 'reviewer' },
-  { id: 'approval', actor: 'client' },
-];
-const DELIVERY_STATUSES: CmPublicCardItem[] = ['project', 'task', 'submission'].map((id) => ({
+const DELIVERY_STATUSES: CmPublicCardItem[] = CM_DELIVERY_STATUS_IDS.map((id) => ({
   id,
   titleKey: `infoPages.delivery.statuses.${id}.title`,
   bodyKey: `infoPages.delivery.statuses.${id}.body`,
   metaKey: `infoPages.delivery.statuses.${id}.flow`,
 }));
-const DELIVERY_FAQ = ['revision', 'stalled', 'pause', 'refund'];
 
 const SERVICE_FEATURES: Array<{ id: string; image: CmImageName; action: { to: string; labelKey: string } }> = [
   { id: 'managed', image: 'service-managed', action: { to: CM_PROTECTED_ROUTE.projectCreate, labelKey: 'infoPages.services.managed.action' } },
@@ -209,32 +155,7 @@ const SERVICE_FEATURES: Array<{ id: string; image: CmImageName; action: { to: st
   { id: 'review', image: 'service-review', action: { to: CM_PUBLIC_ROUTE.delivery, labelKey: 'infoPages.services.review.action' } },
   { id: 'escrow', image: 'service-escrow', action: { to: CM_PUBLIC_ROUTE.estimate, labelKey: 'infoPages.services.escrow.action' } },
 ];
-const SERVICE_POINTS = ['one', 'two', 'three'];
-const SERVICES_FAQ = ['commission', 'deposit', 'invoice', 'withdrawal'];
 
-const LEGAL_SECTIONS: Record<CmLegalPageId, CmLegalSection[]> = {
-  privacy: [
-    { id: 'collect', items: ['account', 'profile', 'identity', 'finance', 'delivery', 'contact'] },
-    { id: 'use', items: ['operate', 'verify', 'money', 'notify', 'audit'] },
-    { id: 'identity' },
-    { id: 'visibility', items: ['public', 'parties', 'admins'] },
-    { id: 'retention' },
-    { id: 'rights' },
-  ],
-  terms: [
-    { id: 'accounts' },
-    { id: 'roles', items: ['client', 'developer', 'architect', 'reviewer'] },
-    { id: 'projects' },
-    { id: 'escrow', items: ['funding', 'release', 'commission'] },
-    { id: 'refunds' },
-    { id: 'withdrawals' },
-    { id: 'conduct', items: ['fraud', 'deliverables', 'reviews', 'circumvent'] },
-    { id: 'suspension' },
-    { id: 'contact' },
-  ],
-};
-
-const INFORMATION_TOPICS = ['account', 'deposit', 'project'];
 const INFORMATION_LINKS: CmPublicCardItem[] = [
   { id: 'privacy', icon: <LockKeyhole />, titleKey: 'infoPages.information.links.privacy.title', bodyKey: 'infoPages.information.links.privacy.body', to: CM_PUBLIC_ROUTE.privacy, actionKey: 'infoPages.information.links.open' },
   { id: 'terms', icon: <ScrollText />, titleKey: 'infoPages.information.links.terms.title', bodyKey: 'infoPages.information.links.terms.body', to: CM_PUBLIC_ROUTE.terms, actionKey: 'infoPages.information.links.open' },
@@ -249,7 +170,7 @@ export const CmAboutPage: React.FC = () => (
         eyebrowKey="infoPages.about.intro.eyebrow"
         titleKey="infoPages.about.intro.title"
         bodyKeys={['infoPages.about.intro.body1', 'infoPages.about.intro.body2']}
-        pointKeys={ABOUT_POINTS.map((id) => `infoPages.about.intro.points.${id}`)}
+        pointKeys={CM_ABOUT_POINTS.map((id) => `infoPages.about.intro.points.${id}`)}
         eager
       />
     </CmPublicSection>
@@ -272,7 +193,7 @@ export const CmDeliveryProcessPage: React.FC = () => {
           <CmPublicIllustration name="process-overview" />
         </figure>
         <ol className="cm-public-timeline">
-          {DELIVERY_STAGES.map((stage, index) => (
+          {CM_DELIVERY_STAGES.map((stage, index) => (
             <li key={stage.id}>
               <span className="cm-public-timeline__number" aria-hidden="true">{index + 1}</span>
               <div>
@@ -288,7 +209,7 @@ export const CmDeliveryProcessPage: React.FC = () => {
         <CmPublicCardGrid items={DELIVERY_STATUSES} columns={3} />
       </CmPublicSection>
       <CmPublicSection titleKey="infoPages.delivery.faq.title" narrow>
-        <CmPublicFaq prefix="infoPages.delivery.faq" ids={DELIVERY_FAQ} />
+        <CmPublicFaq prefix="infoPages.delivery.faq" ids={CM_DELIVERY_FAQ} />
       </CmPublicSection>
       <CmPublicCta titleKey="infoPages.delivery.cta.title" bodyKey="infoPages.delivery.cta.body" />
     </CmPublicPage>
@@ -306,7 +227,7 @@ export const CmServicesPage: React.FC = () => (
           eyebrowKey={`infoPages.services.${feature.id}.eyebrow`}
           titleKey={`infoPages.services.${feature.id}.title`}
           bodyKeys={[`infoPages.services.${feature.id}.body`]}
-          pointKeys={SERVICE_POINTS.map((point) => `infoPages.services.${feature.id}.points.${point}`)}
+          pointKeys={CM_SERVICE_POINTS.map((point) => `infoPages.services.${feature.id}.points.${point}`)}
           reverse={index % 2 === 1}
           eager={index === 0}
           action={feature.action}
@@ -314,7 +235,7 @@ export const CmServicesPage: React.FC = () => (
       ))}
     </CmPublicSection>
     <CmPublicSection titleKey="infoPages.services.faq.title" tone="muted" narrow>
-      <CmPublicFaq prefix="infoPages.services.faq" ids={SERVICES_FAQ} />
+      <CmPublicFaq prefix="infoPages.services.faq" ids={CM_SERVICES_FAQ} />
     </CmPublicSection>
     <CmPublicCta titleKey="infoPages.services.cta.title" bodyKey="infoPages.services.cta.body" />
   </CmPublicPage>
@@ -322,7 +243,7 @@ export const CmServicesPage: React.FC = () => (
 
 const CmLegalPage: React.FC<{ pageId: CmLegalPageId }> = ({ pageId }) => {
   const { t } = useTranslation('cm');
-  const sections = LEGAL_SECTIONS[pageId];
+  const sections = CM_LEGAL_SECTIONS[pageId];
   const prefix = `infoPages.${pageId}`;
   const jumpTo = (id: string) => (event: React.MouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
@@ -384,7 +305,7 @@ export const CmInformationPage: React.FC = () => {
             <CmPublicIllustration name="contact-support" className="cm-info-contact__image" />
             <h2>{t('infoPages.information.contactTitle')}</h2>
             <p>{t('infoPages.information.contactBody')}</p>
-            <CmPublicChecklist keys={INFORMATION_TOPICS.map((id) => `infoPages.information.topics.${id}`)} />
+            <CmPublicChecklist keys={CM_INFORMATION_TOPICS.map((id) => `infoPages.information.topics.${id}`)} />
             <p className="cm-public-card__meta">{t('infoPages.information.responseNote')}</p>
           </aside>
           <CmContactForm />

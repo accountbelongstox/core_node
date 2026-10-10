@@ -1,104 +1,44 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, Circle, IdCard, Lock, Mail, MessageSquareQuote, Phone, ShieldCheck, UserPlus } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import { cmApi } from '../api/CmApi';
-import type { CmProject, CmRegistrationStatus } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
-import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-
-const TESTIMONIAL_MIN_LENGTH = 10;
-const TESTIMONIAL_PROJECT_STATUS = 'completed';
-const PHONE_PATTERN = /^\+?\d{10,15}$/;
-const OTP_PATTERN = /^\d{6}$/;
-const DEFAULT_OTP_SECONDS = 600;
-const KYC_STEP = 'kyc';
-const KYC_NOT_STARTED_STATUS = 'not_started';
-const KYC_PENDING_STATUS = 'pending';
-const KYC_REJECTED_STATUS = 'rejected';
-const ID_CARD = 'ID_CARD';
-const EMAIL_RESEND_SENT = 'sent';
-const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
-const HTTP_TOO_MANY_REQUESTS = 429;
-const RETRY_AFTER_FIELD = 'retry_after';
-const SECONDS_PER_MINUTE = 60;
-const EMAIL_LINK_EMAIL_PARAM = 'email';
-const EMAIL_LINK_TOKEN_PARAM = 'token';
-
-function retryAfterSeconds(response: APIResponse<unknown>): number | null {
-  const body = response.debugInfo;
-  const seconds = Number(body?.details?.[RETRY_AFTER_FIELD] ?? body?.[RETRY_AFTER_FIELD]);
-  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
-}
+import {
+  useCmEmailVerification,
+  useCmKycForm,
+  useCmPhoneVerification,
+  useCmRoleRequest,
+  useCmTestimonialForm,
+  useCmVerification,
+  type CmKycFileSlot,
+} from '../shared/useCmVerification';
 
 const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message: string) => Promise<void> }> = ({ email, onVerified }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const [searchParams] = useSearchParams();
-  const [address, setAddress] = useState(searchParams.get(EMAIL_LINK_EMAIL_PARAM) || email || '');
-  const [token, setToken] = useState(searchParams.get(EMAIL_LINK_TOKEN_PARAM) ?? '');
-  const [busy, setBusy] = useState(false);
-  const [resending, setResending] = useState(false);
-
-  const resend = async (): Promise<void> => {
-    if (resending) return;
-    setResending(true);
-    notice.clear();
-    const response = await cmApi.resendVerificationEmail();
-    setResending(false);
-    const result = response.success ? response.data?.result : null;
-    if (result === EMAIL_RESEND_ALREADY_VERIFIED) {
-      await onVerified(t('verification.emailAlreadyVerified'));
-    } else if (result === EMAIL_RESEND_SENT) {
-      notice.success(t('verification.emailResent', { email: response.data?.email || email || '' }));
-    } else if (response.status === HTTP_TOO_MANY_REQUESTS) {
-      const wait = retryAfterSeconds(response);
-      notice.error(wait === null
-        ? t('verification.emailResendThrottled')
-        : t('verification.emailResendThrottledWait', { minutes: Math.max(1, Math.ceil(wait / SECONDS_PER_MINUTE)) }));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.emailResendFailed'));
-    }
-  };
-
-  const verify = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (busy || !address.trim() || !token.trim()) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.verifyEmail(address.trim(), token.trim());
-    setBusy(false);
-    if (response.success) {
-      setToken('');
-      await onVerified(t('verification.emailVerified'));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.emailFailed'));
-    }
-  };
+  const form = useCmEmailVerification(notice, email, onVerified);
 
   return (
     <section className="cm-section-card">
       <h2><Mail aria-hidden="true" /> {t('verification.emailTitle')}</h2>
       <p className="cm-section-card__lead">{t('verification.emailDescription')}</p>
-      <form className="cm-project-form" onSubmit={(event) => void verify(event)} noValidate>
+      <form className="cm-project-form" onSubmit={(event) => { event.preventDefault(); void form.verify(); }} noValidate>
         <label>
           <span>{t('verification.emailLabel')}</span>
-          <input type="email" autoComplete="email" value={address} onChange={(event) => setAddress(event.target.value)} />
+          <input type="email" autoComplete="email" value={form.address} onChange={(event) => form.setAddress(event.target.value)} />
         </label>
         <label>
           <span>{t('verification.emailToken')}</span>
-          <input value={token} autoComplete="one-time-code" onChange={(event) => setToken(event.target.value)} />
+          <input value={form.token} autoComplete="one-time-code" onChange={(event) => form.setToken(event.target.value)} />
         </label>
         <div className="cm-project-form__actions">
-          <button type="button" disabled={resending} onClick={() => void resend()}>{resending ? t('verification.resendingEmail') : t('verification.resendEmail')}</button>
-          <button type="submit" className="is-primary" disabled={busy || !address.trim() || !token.trim()}>{busy ? t('verification.verifying') : t('verification.verifyEmail')}</button>
+          <button type="button" disabled={form.resending} onClick={() => void form.resend()}>{form.resending ? t('verification.resendingEmail') : t('verification.resendEmail')}</button>
+          <button type="submit" className="is-primary" disabled={!form.canVerify}>{form.busy ? t('verification.verifying') : t('verification.verifyEmail')}</button>
         </div>
       </form>
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
@@ -109,70 +49,33 @@ const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message
 const CmPhoneVerification: React.FC<{ onVerified: (message: string) => Promise<void> }> = ({ onVerified }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const [phone, setPhone] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const phoneValid = PHONE_PATTERN.test(phone.trim().replace(/[\s-]/g, ''));
-  const otpValid = OTP_PATTERN.test(otpCode.trim());
-
-  const sendCode = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (busy || !phoneValid) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.requestPhoneVerification(phone.trim().replace(/[\s-]/g, ''));
-    setBusy(false);
-    if (response.success && response.data) {
-      const seconds = typeof response.data.expires_in_seconds === 'number' ? response.data.expires_in_seconds : DEFAULT_OTP_SECONDS;
-      setCodeSent(true);
-      notice.success(t('verification.codeSent', { minutes: Math.max(1, Math.round(seconds / 60)) }));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.phoneFailed'));
-    }
-  };
-
-  const verifyCode = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (busy || !otpValid) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.verifyPhoneOtp(otpCode.trim());
-    setBusy(false);
-    if (response.success) {
-      setOtpCode('');
-      setCodeSent(false);
-      await onVerified(t('verification.phoneVerified'));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.phoneFailed'));
-    }
-  };
+  const form = useCmPhoneVerification(notice, onVerified);
 
   return (
     <section className="cm-section-card">
       <h2><Phone aria-hidden="true" /> {t('verification.phoneTitle')}</h2>
       <p className="cm-section-card__lead">{t('verification.phoneDescription')}</p>
-      <form className="cm-project-form" onSubmit={(event) => void sendCode(event)} noValidate>
+      <form className="cm-project-form" onSubmit={(event) => { event.preventDefault(); void form.sendCode(); }} noValidate>
         <label>
           <span>{t('verification.phoneLabel')}</span>
-          <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t('verification.phonePlaceholder')} inputMode="tel" autoComplete="tel" aria-invalid={phone !== '' && !phoneValid} />
-          {phone !== '' && !phoneValid && <small className="cm-field-error">{t('verification.phoneInvalid')}</small>}
+          <input value={form.phone} onChange={(event) => form.setPhone(event.target.value)} placeholder={t('verification.phonePlaceholder')} inputMode="tel" autoComplete="tel" aria-invalid={form.phone !== '' && !form.phoneValid} />
+          {form.phone !== '' && !form.phoneValid && <small className="cm-field-error">{t('verification.phoneInvalid')}</small>}
         </label>
         <div className="cm-project-form__actions is-inline">
-          <button type="submit" className={codeSent ? '' : 'is-primary'} disabled={busy || !phoneValid}>
-            {busy && !codeSent ? t('verification.sendingCode') : codeSent ? t('verification.resendCode') : t('verification.sendCode')}
+          <button type="submit" className={form.codeSent ? '' : 'is-primary'} disabled={form.busy || !form.phoneValid}>
+            {form.busy && !form.codeSent ? t('verification.sendingCode') : form.codeSent ? t('verification.resendCode') : t('verification.sendCode')}
           </button>
         </div>
       </form>
-      {codeSent && (
-        <form className="cm-project-form cm-project-form--follow" onSubmit={(event) => void verifyCode(event)} noValidate>
+      {form.codeSent && (
+        <form className="cm-project-form cm-project-form--follow" onSubmit={(event) => { event.preventDefault(); void form.verifyCode(); }} noValidate>
           <label>
             <span>{t('verification.otpLabel')}</span>
-            <input value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ''))} placeholder={t('verification.otpPlaceholder')} inputMode="numeric" autoComplete="one-time-code" maxLength={6} />
+            <input value={form.otpCode} onChange={(event) => form.setOtpCode(event.target.value)} placeholder={t('verification.otpPlaceholder')} inputMode="numeric" autoComplete="one-time-code" maxLength={form.otpLength} />
           </label>
           <div className="cm-project-form__actions is-inline">
-            <button type="submit" className="is-primary" disabled={busy || !otpValid}>
-              {busy ? t('verification.verifying') : t('verification.verifyCode')}
+            <button type="submit" className="is-primary" disabled={form.busy || !form.otpValid}>
+              {form.busy ? t('verification.verifying') : t('verification.verifyCode')}
             </button>
           </div>
         </form>
@@ -185,56 +88,13 @@ const CmPhoneVerification: React.FC<{ onVerified: (message: string) => Promise<v
 const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) => Promise<void> }> = ({ rejected, onSubmitted }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const { policyList } = useCmBootstrap();
-  const [identityType, setIdentityType] = useState<string>(ID_CARD);
-  const [identityNumber, setIdentityNumber] = useState('');
-  const [realName, setRealName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
-  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
-  const [idBackFile, setIdBackFile] = useState<File | null>(null);
-  const [selfieFile, setSelfieFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-  const needsBack = identityType === ID_CARD;
-  const missing = {
-    identityNumber: !identityNumber.trim(),
-    realName: !realName.trim(),
-    dateOfBirth: !dateOfBirth,
-    idFront: !idFrontFile,
-    idBack: needsBack && !idBackFile,
-    selfie: !selfieFile,
-  };
-  const invalid = Object.values(missing).some(Boolean);
-  const show = (field: keyof typeof missing): boolean => submitted && missing[field];
+  const form = useCmKycForm(notice, onSubmitted);
 
-  const submit = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    setSubmitted(true);
-    if (progress !== null || invalid || !idFrontFile || !selfieFile) return;
-    notice.clear();
-    const formData = new FormData();
-    formData.append('identity_type', identityType);
-    formData.append('identity_number', identityNumber.trim());
-    formData.append('real_name', realName.trim());
-    formData.append('date_of_birth', dateOfBirth);
-    formData.append('id_front_image', idFrontFile);
-    if (needsBack && idBackFile) formData.append('id_back_image', idBackFile);
-    formData.append('selfie_image', selfieFile);
-    setProgress(0);
-    const response = await cmApi.uploadKycDocuments(formData, (percentage) => setProgress(percentage));
-    setProgress(null);
-    if (response.success) {
-      await onSubmitted(t('verification.kycSubmitted'));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.kycFailed'));
-    }
-  };
-
-  const fileInput = (field: 'idFront' | 'idBack' | 'selfie', labelKey: string, setter: (file: File | null) => void): React.ReactElement => (
+  const fileInput = (field: CmKycFileSlot, labelKey: string): React.ReactElement => (
     <label>
       <span>{t(labelKey)}</span>
-      <input type="file" accept="image/*" onChange={(event) => setter(event.target.files?.[0] ?? null)} aria-invalid={show(field)} />
-      {show(field) && <small className="cm-field-error">{t('verification.fileRequired')}</small>}
+      <input type="file" accept="image/*" onChange={(event) => form.setFile(field, event.target.files?.[0] ?? null)} aria-invalid={form.show(field)} />
+      {form.show(field) && <small className="cm-field-error">{t('verification.fileRequired')}</small>}
     </label>
   );
 
@@ -243,36 +103,36 @@ const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) =>
       <h2><IdCard aria-hidden="true" /> {t('verification.kycTitle')}</h2>
       <p className="cm-section-card__lead">{t('verification.kycDescription')}</p>
       {rejected && <CmNotice notice={{ tone: 'error', text: t('verification.kycRejectedNote') }} />}
-      <form className="cm-project-form" onSubmit={(event) => void submit(event)} noValidate>
+      <form className="cm-project-form" onSubmit={(event) => { event.preventDefault(); void form.submit(); }} noValidate>
         <label>
           <span>{t('verification.identityType')}</span>
-          <select value={identityType} onChange={(event) => setIdentityType(event.target.value)}>
-            {policyList('identity_types').map((type) => <option key={type} value={type}>{t(`verification.identityTypes.${type}`, { defaultValue: type })}</option>)}
+          <select value={form.identityType} onChange={(event) => form.setIdentityType(event.target.value)}>
+            {form.identityTypes.map((type) => <option key={type} value={type}>{t(`verification.identityTypes.${type}`, { defaultValue: type })}</option>)}
           </select>
         </label>
         <label>
           <span>{t('verification.identityNumber')}</span>
-          <input value={identityNumber} onChange={(event) => setIdentityNumber(event.target.value)} aria-invalid={show('identityNumber')} />
-          {show('identityNumber') && <small className="cm-field-error">{t('verification.fieldRequired')}</small>}
+          <input value={form.identityNumber} onChange={(event) => form.setIdentityNumber(event.target.value)} aria-invalid={form.show('identityNumber')} />
+          {form.show('identityNumber') && <small className="cm-field-error">{t('verification.fieldRequired')}</small>}
         </label>
         <label>
           <span>{t('verification.realName')}</span>
-          <input value={realName} autoComplete="name" onChange={(event) => setRealName(event.target.value)} aria-invalid={show('realName')} />
-          {show('realName') && <small className="cm-field-error">{t('verification.fieldRequired')}</small>}
+          <input value={form.realName} autoComplete="name" onChange={(event) => form.setRealName(event.target.value)} aria-invalid={form.show('realName')} />
+          {form.show('realName') && <small className="cm-field-error">{t('verification.fieldRequired')}</small>}
         </label>
         <label>
           <span>{t('verification.dateOfBirth')}</span>
-          <input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} aria-invalid={show('dateOfBirth')} />
-          {show('dateOfBirth') && <small className="cm-field-error">{t('verification.fieldRequired')}</small>}
+          <input type="date" value={form.dateOfBirth} onChange={(event) => form.setDateOfBirth(event.target.value)} aria-invalid={form.show('dateOfBirth')} />
+          {form.show('dateOfBirth') && <small className="cm-field-error">{t('verification.fieldRequired')}</small>}
         </label>
-        {fileInput('idFront', 'verification.idFront', setIdFrontFile)}
-        {needsBack && fileInput('idBack', 'verification.idBack', setIdBackFile)}
-        {fileInput('selfie', 'verification.selfie', setSelfieFile)}
+        {fileInput('idFront', 'verification.idFront')}
+        {form.needsBack && fileInput('idBack', 'verification.idBack')}
+        {fileInput('selfie', 'verification.selfie')}
         <p className="cm-field-hint is-wide">{t('verification.kycPrivacy')}</p>
         {notice.notice && <div className="is-wide"><CmNotice notice={notice.notice} onDismiss={notice.clear} /></div>}
         <div className="cm-project-form__actions">
-          <button type="submit" className="is-primary" disabled={progress !== null}>
-            {progress !== null ? t('verification.uploadingKyc', { progress }) : t('verification.submitKyc')}
+          <button type="submit" className="is-primary" disabled={form.progress !== null}>
+            {form.progress !== null ? t('verification.uploadingKyc', { progress: form.progress }) : t('verification.submitKyc')}
           </button>
         </div>
       </form>
@@ -282,26 +142,8 @@ const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) =>
 
 const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, depositNeeded: boolean) => Promise<void> }> = ({ roles, onRequested }) => {
   const { t } = useTranslation('cm');
-  const format = useCmFormat();
-  const { currency } = useCmPolicy();
   const notice = useCmNotice();
-  const [busyRole, setBusyRole] = useState<string | null>(null);
-
-  const request = async (roleType: string): Promise<void> => {
-    setBusyRole(roleType);
-    notice.clear();
-    const response = await cmApi.requestRole(roleType);
-    setBusyRole(null);
-    if (response.success && response.data) {
-      const roleLabel = t(`roles.${response.data.role_type}`, { defaultValue: response.data.role_type });
-      const depositNeeded = response.data.next_step === 'deposit';
-      await onRequested(depositNeeded
-        ? t('verification.roleRequestedDeposit', { role: roleLabel, amount: format.money(response.data.deposit_amount ?? 0, currency) })
-        : t('verification.roleRequested', { role: roleLabel, status: t(`states.role.${response.data.role_status}`, { defaultValue: response.data.role_status }) }), depositNeeded);
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.roleRequestFailed'));
-    }
-  };
+  const { busyRole, request } = useCmRoleRequest(notice, onRequested);
 
   return (
     <section className="cm-section-card">
@@ -324,83 +166,35 @@ const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, 
 };
 
 const CmTestimonialForm: React.FC = () => {
-  const { testimonialMaxQuoteLength } = useCmPolicy();
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const { policyList } = useCmBootstrap();
-  const [quotes, setQuotes] = useState<Record<string, string>>({});
-  const [projects, setProjects] = useState<CmProject[]>([]);
-  const [projectId, setProjectId] = useState('');
-  const [authorLabel, setAuthorLabel] = useState('');
-  const [roleLabel, setRoleLabel] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void cmApi.getProjects({ include_assigned: true }).then((response) => {
-      if (!cancelled && response.success && response.data) {
-        setProjects((response.data.projects ?? []).filter((project) => project.status === TESTIMONIAL_PROJECT_STATUS));
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const filled: Record<string, string> = Object.fromEntries(
-    Object.entries(quotes).map(([locale, text]) => [locale, text.trim()] as [string, string]).filter(([, text]) => text !== ''),
-  );
-  const tooShort = Object.values(filled).some((text) => text.length < TESTIMONIAL_MIN_LENGTH);
-  const valid = Object.keys(filled).length > 0 && !tooShort;
-
-  const submit = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (busy || !valid) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.submitTestimonial({
-      quotes: filled,
-      project_id: projectId ? Number(projectId) : undefined,
-      author_label: authorLabel.trim() || undefined,
-      role_label: roleLabel.trim() || undefined,
-    });
-    setBusy(false);
-    if (response.success) {
-      setQuotes({});
-      notice.success(t('verification.testimonialSubmitted'));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'verification.testimonialFailed'));
-    }
-  };
+  const form = useCmTestimonialForm(notice);
 
   return (
     <section className="cm-section-card">
       <h2><MessageSquareQuote aria-hidden="true" /> {t('verification.testimonialTitle')}</h2>
       <p className="cm-section-card__lead">{t('verification.testimonialDescription')}</p>
-      <form className="cm-project-form" onSubmit={(event) => void submit(event)} noValidate>
-        {policyList('supported_locales').map((locale) => {
-          const text = (quotes[locale] ?? '').trim();
-          return (
-            <label key={locale} className="is-wide">
-              <span>{t(`verification.testimonialQuote.${locale}`, { defaultValue: locale })}</span>
-              <textarea
-                rows={3}
-                maxLength={testimonialMaxQuoteLength}
-                value={quotes[locale] ?? ''}
-                onChange={(event) => setQuotes((current) => ({ ...current, [locale]: event.target.value }))}
-                placeholder={t('verification.testimonialPlaceholder')}
-                aria-invalid={text !== '' && text.length < TESTIMONIAL_MIN_LENGTH}
-              />
-              {text !== '' && text.length < TESTIMONIAL_MIN_LENGTH && <small className="cm-field-error">{t('verification.testimonialTooShort', { min: TESTIMONIAL_MIN_LENGTH })}</small>}
-            </label>
-          );
-        })}
+      <form className="cm-project-form" onSubmit={(event) => { event.preventDefault(); void form.submit(); }} noValidate>
+        {form.locales.map((locale) => (
+          <label key={locale} className="is-wide">
+            <span>{t(`verification.testimonialQuote.${locale}`, { defaultValue: locale })}</span>
+            <textarea
+              rows={3}
+              maxLength={form.maxQuoteLength}
+              value={form.quotes[locale] ?? ''}
+              onChange={(event) => form.setQuote(locale, event.target.value)}
+              placeholder={t('verification.testimonialPlaceholder')}
+              aria-invalid={form.tooShort(locale)}
+            />
+            {form.tooShort(locale) && <small className="cm-field-error">{t('verification.testimonialTooShort', { min: form.minLength })}</small>}
+          </label>
+        ))}
         <p className="cm-field-hint is-wide">{t('verification.testimonialOneLanguage')}</p>
         <label>
           <span>{t('verification.testimonialProject')}</span>
-          <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+          <select value={form.projectId} onChange={(event) => form.setProjectId(event.target.value)}>
             <option value="">{t('verification.testimonialNoProject')}</option>
-            {projects.map((project) => (
+            {form.projects.map((project) => (
               <option key={project.id} value={project.id}>{project.title}</option>
             ))}
           </select>
@@ -408,15 +202,15 @@ const CmTestimonialForm: React.FC = () => {
         <span className="cm-project-form__spacer" aria-hidden="true" />
         <label>
           <span>{t('verification.testimonialAuthor')}</span>
-          <input value={authorLabel} onChange={(event) => setAuthorLabel(event.target.value)} maxLength={100} />
+          <input value={form.authorLabel} onChange={(event) => form.setAuthorLabel(event.target.value)} maxLength={form.nameMaxLength} />
         </label>
         <label>
           <span>{t('verification.testimonialRole')}</span>
-          <input value={roleLabel} onChange={(event) => setRoleLabel(event.target.value)} maxLength={100} />
+          <input value={form.roleLabel} onChange={(event) => form.setRoleLabel(event.target.value)} maxLength={form.nameMaxLength} />
         </label>
         {notice.notice && <div className="is-wide"><CmNotice notice={notice.notice} onDismiss={notice.clear} /></div>}
         <div className="cm-project-form__actions">
-          <button type="submit" className="is-primary" disabled={busy || !valid}>{busy ? t('common.saving') : t('verification.testimonialSubmit')}</button>
+          <button type="submit" className="is-primary" disabled={form.busy || !form.valid}>{form.busy ? t('common.saving') : t('verification.testimonialSubmit')}</button>
         </div>
       </form>
     </section>
@@ -430,32 +224,10 @@ const CmTestimonialForm: React.FC = () => {
 export const CmVerificationPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, loading, error, refresh, hasCapability } = useCmBootstrap();
   const { currency } = useCmPolicy();
-  const [registration, setRegistration] = useState<CmRegistrationStatus | null>(null);
-
-  const loadRegistration = useCallback(async (): Promise<void> => {
-    const response = await cmApi.getRegistrationStatus();
-    if (response.success && response.data) setRegistration(response.data);
-  }, []);
-
-  useEffect(() => {
-    void loadRegistration();
-  }, [loadRegistration]);
-
   const pageNotice = useCmNotice();
-  const [showWalletLink, setShowWalletLink] = useState(false);
-
-  const refreshAll = useCallback(async (): Promise<void> => {
-    await refresh();
-    await loadRegistration();
-  }, [refresh, loadRegistration]);
-
-  const completed = useCallback(async (message: string, depositNeeded = false): Promise<void> => {
-    pageNotice.success(message);
-    setShowWalletLink(depositNeeded);
-    await refreshAll();
-  }, [pageNotice.success, refreshAll]);
+  const verification = useCmVerification(pageNotice);
+  const { bootstrap, loading, error, refresh, roles, phoneVerified, phoneAvailable, kycStatus, kycPending, kycOpen, requestableRoles, completed } = verification;
 
   const header = <CmPageHeader eyebrowKey="verification.eyebrow" titleKey="nav.verification" purposeKey="verification.description" />;
 
@@ -469,19 +241,12 @@ export const CmVerificationPage: React.FC = () => {
   }
 
   const onboarding = bootstrap.onboarding;
-  const phoneVerified = onboarding.phone_verified;
-  const phoneAvailable = onboarding.phone_verification_available !== false;
-  const kycStatus = onboarding.kyc_status || KYC_NOT_STARTED_STATUS;
-  const kycPending = kycStatus === KYC_PENDING_STATUS;
-  const kycOpen = !kycPending && onboarding.steps.find((step) => step.key === KYC_STEP)?.completed !== true;
-  const requestableRoles = onboarding.requestable_roles ?? [];
-  const roles = registration?.roles ?? bootstrap.roles;
 
   return (
     <main className="cm-workspace-page">
       {header}
       <CmNotice notice={pageNotice.notice} onDismiss={pageNotice.clear} />
-      {showWalletLink && <p className="cm-inline-action"><Link to={CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link></p>}
+      {verification.showWalletLink && <p className="cm-inline-action"><Link to={CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link></p>}
       <div className="cm-verification-layout">
         <aside className="cm-section-card cm-verification-summary">
           <h2><ShieldCheck aria-hidden="true" /> {t('verification.stepsTitle')}</h2>
@@ -523,7 +288,7 @@ export const CmVerificationPage: React.FC = () => {
               <CmNotice notice={{ tone: 'info', text: t('verification.kycPendingNote') }} />
             </section>
           )}
-          {kycOpen && <CmKycForm rejected={kycStatus === KYC_REJECTED_STATUS} onSubmitted={completed} />}
+          {kycOpen && <CmKycForm rejected={verification.kycRejected} onSubmitted={completed} />}
           {Object.keys(onboarding.deposit_required).length > 0 && (
             <section className="cm-section-card">
               <h2><ShieldCheck aria-hidden="true" /> {t('verification.depositTitle')}</h2>
@@ -541,8 +306,8 @@ export const CmVerificationPage: React.FC = () => {
               </div>
             </section>
           )}
-          {hasCapability('role.request') && requestableRoles.length > 0 && <CmRoleRequest roles={requestableRoles} onRequested={completed} />}
-          {hasCapability('testimonial.create') && <CmTestimonialForm />}
+          {verification.canRequestRole && <CmRoleRequest roles={requestableRoles} onRequested={completed} />}
+          {verification.canSubmitTestimonial && <CmTestimonialForm />}
         </div>
       </div>
     </main>

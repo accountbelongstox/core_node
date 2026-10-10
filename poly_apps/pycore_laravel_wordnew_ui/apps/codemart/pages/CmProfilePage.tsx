@@ -1,101 +1,18 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { Building2, Code2, Save, UserRound } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmApi } from '../api/CmApi';
-import type { CmProfileResponse } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
-import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
-import { cmJoinList, cmSplitList, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-
-const DEVELOPER_PROFILE_ROLES = ['developer', 'architect', 'reviewer'] as const;
-const CLIENT_PROFILE_ROLE = 'client';
-const CLIENT_FIELDS = ['company_name', 'industry', 'contact_person', 'contact_phone', 'company_website'] as const;
-const WEBSITE_FIELD = 'company_website';
-const URL_PATTERN = /^https?:\/\/[^\s.]+\.[^\s]+$/i;
-const NAME_MAX_LENGTH = 100;
-
-type CmClientField = typeof CLIENT_FIELDS[number];
-
-const emptyClient = (): Record<CmClientField, string> => ({ company_name: '', industry: '', contact_person: '', contact_phone: '', company_website: '' });
+import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { CM_BIO_MAX_LENGTH, CM_CLIENT_FIELDS, CM_NAME_MAX_LENGTH, CM_WEBSITE_FIELD, useCmProfile } from '../shared/useCmProfile';
 
 export const CmProfilePage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { refresh } = useCmBootstrap();
   const notice = useCmNotice();
-  const [profile, setProfile] = useState<CmProfileResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadRetryable, setLoadRetryable] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const [name, setName] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [bio, setBio] = useState('');
-  const [skills, setSkills] = useState('');
-  const [client, setClient] = useState<Record<CmClientField, string>>(emptyClient());
-
-  const apply = (data: CmProfileResponse): void => {
-    setProfile(data);
-    setName(data.user.name ?? '');
-    setNickname(data.user.nickname ?? '');
-    setCompanyName(data.developer?.company_name ?? '');
-    setBio(data.developer?.bio ?? '');
-    setSkills(cmJoinList(data.developer?.skills));
-    setClient(Object.fromEntries(CLIENT_FIELDS.map((field) => [field, data.client?.[field] ?? ''])) as Record<CmClientField, string>);
-  };
-
-  const load = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    const response = await cmApi.getProfile();
-    if (response.success && response.data) {
-      apply(response.data);
-      setLoadError(null);
-      setLoadRetryable(true);
-    } else {
-      setLoadError(cmErrorMessage(t, response, 'profile.loadFailed'));
-      setLoadRetryable(response.status !== 403 && response.status !== 404);
-    }
-    setLoading(false);
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const heldRoles = Object.keys(profile?.roles ?? {});
-  const hasDeveloperProfile = DEVELOPER_PROFILE_ROLES.some((role) => heldRoles.includes(role));
-  const hasClientProfile = heldRoles.includes(CLIENT_PROFILE_ROLE);
-  const websiteInvalid = client.company_website.trim() !== '' && !URL_PATTERN.test(client.company_website.trim());
-  const nameInvalid = !name.trim();
-
-  const save = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (saving || websiteInvalid || nameInvalid) return;
-    setSaving(true);
-    notice.clear();
-    const payload: Record<string, unknown> = { name: name.trim(), nickname: nickname.trim() };
-    if (hasDeveloperProfile) {
-      payload.developer = { company_name: companyName.trim(), bio: bio.trim(), skills: cmSplitList(skills) };
-    }
-    if (hasClientProfile) {
-      payload.client = Object.fromEntries(CLIENT_FIELDS.map((field) => [field, client[field].trim()]));
-    }
-    const response = await cmApi.updateProfile(payload);
-    setSaving(false);
-    if (response.success) {
-      notice.success(t('profile.saved'));
-      if (response.data?.user) apply(response.data);
-      else await load();
-      await refresh();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'profile.saveFailed'));
-    }
-  };
+  const form = useCmProfile(notice);
+  const { profile, loading, loadError, loadRetryable, saving, heldRoles, hasDeveloperProfile, hasClientProfile, websiteInvalid, nameInvalid, client } = form;
 
   return (
     <main className="cm-workspace-page">
@@ -103,9 +20,9 @@ export const CmProfilePage: React.FC = () => {
       {loading && !profile ? (
         <CmLoadingState />
       ) : loadError || !profile ? (
-        <CmErrorState message={loadError ?? t('profile.loadFailed')} onRetry={loadRetryable ? () => void load() : undefined} />
+        <CmErrorState message={loadError ?? t('profile.loadFailed')} onRetry={loadRetryable ? () => void form.reload() : undefined} />
       ) : (
-        <form onSubmit={(event) => void save(event)} noValidate>
+        <form onSubmit={(event) => { event.preventDefault(); void form.save(); }} noValidate>
           <section className="cm-section-card">
             <h2><UserRound aria-hidden="true" /> {t('profile.accountTitle')}</h2>
             <dl className="cm-kv">
@@ -124,12 +41,12 @@ export const CmProfilePage: React.FC = () => {
             <div className="cm-project-form cm-project-form--follow">
               <label>
                 <span>{t('profile.name')}</span>
-                <input value={name} maxLength={NAME_MAX_LENGTH} autoComplete="name" onChange={(event) => setName(event.target.value)} aria-invalid={nameInvalid} />
+                <input value={form.name} maxLength={CM_NAME_MAX_LENGTH} autoComplete="name" onChange={(event) => form.setName(event.target.value)} aria-invalid={nameInvalid} />
                 {nameInvalid ? <small className="cm-field-error">{t('profile.nameRequired')}</small> : <small className="cm-field-hint">{t('profile.nameHint')}</small>}
               </label>
               <label>
                 <span>{t('profile.nickname')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-                <input value={nickname} maxLength={NAME_MAX_LENGTH} autoComplete="nickname" onChange={(event) => setNickname(event.target.value)} />
+                <input value={form.nickname} maxLength={CM_NAME_MAX_LENGTH} autoComplete="nickname" onChange={(event) => form.setNickname(event.target.value)} />
               </label>
             </div>
           </section>
@@ -146,15 +63,15 @@ export const CmProfilePage: React.FC = () => {
               <div className="cm-project-form cm-project-form--follow">
                 <label>
                   <span>{t('profile.companyName')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-                  <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+                  <input value={form.companyName} onChange={(event) => form.setCompanyName(event.target.value)} />
                 </label>
                 <label>
                   <span>{t('profile.skills')}</span>
-                  <input value={skills} onChange={(event) => setSkills(event.target.value)} placeholder={t('profile.skillsPlaceholder')} />
+                  <input value={form.skills} onChange={(event) => form.setSkills(event.target.value)} placeholder={t('profile.skillsPlaceholder')} />
                 </label>
                 <label className="is-wide">
                   <span>{t('profile.bio')}</span>
-                  <textarea rows={4} maxLength={2000} value={bio} onChange={(event) => setBio(event.target.value)} placeholder={t('profile.bioPlaceholder')} />
+                  <textarea rows={4} maxLength={CM_BIO_MAX_LENGTH} value={form.bio} onChange={(event) => form.setBio(event.target.value)} placeholder={t('profile.bioPlaceholder')} />
                 </label>
               </div>
             </section>
@@ -169,17 +86,17 @@ export const CmProfilePage: React.FC = () => {
                 </dl>
               )}
               <div className="cm-project-form cm-project-form--follow">
-                {CLIENT_FIELDS.map((field) => (
+                {CM_CLIENT_FIELDS.map((field) => (
                   <label key={field}>
                     <span>{t(`profile.client.${field}`)} <small className="cm-field-hint">{t('common.optional')}</small></span>
                     <input
-                      type={field === WEBSITE_FIELD ? 'url' : field === 'contact_phone' ? 'tel' : 'text'}
+                      type={field === CM_WEBSITE_FIELD ? 'url' : field === 'contact_phone' ? 'tel' : 'text'}
                       value={client[field]}
-                      placeholder={field === WEBSITE_FIELD ? 'https://' : undefined}
-                      onChange={(event) => setClient((current) => ({ ...current, [field]: event.target.value }))}
-                      aria-invalid={field === WEBSITE_FIELD && websiteInvalid}
+                      placeholder={field === CM_WEBSITE_FIELD ? 'https://' : undefined}
+                      onChange={(event) => form.setClientField(field, event.target.value)}
+                      aria-invalid={field === CM_WEBSITE_FIELD && websiteInvalid}
                     />
-                    {field === WEBSITE_FIELD && websiteInvalid && <small className="cm-field-error">{t('profile.websiteInvalid')}</small>}
+                    {field === CM_WEBSITE_FIELD && websiteInvalid && <small className="cm-field-error">{t('profile.websiteInvalid')}</small>}
                   </label>
                 ))}
               </div>

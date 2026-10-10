@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Camera, ClipboardPaste, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Shrink, Square, X } from 'lucide-react';
+import { Aperture, Camera, Check, ClipboardPaste, Copy, CornerDownLeft, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
@@ -10,6 +10,8 @@ import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
 import { PcImageLightbox } from './PcAiShared';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { isNativeAppShell } from '../../../core/network/NativeShell';
+import { isDesktopAppShell } from '../../../core/network/DesktopShell';
+import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 import { readPcClipboard } from '../utils/pcClipboardRead';
 import type { PcUiSessionInput } from '../persistence/PcUiSessionStore';
 
@@ -17,9 +19,12 @@ const IME_PROCESS_KEY_CODE = 229;
 
 type DraftStatus = 'saved' | 'saving' | 'error';
 type ComposerMode = 'text' | 'voice';
-type PullHint = '' | 'pull.empty' | 'pull.permission' | 'pull.unsupported' | 'liveScreenshot.failed';
+type PullHint = '' | 'pull.empty' | 'pull.permission' | 'pull.unsupported' | 'liveScreenshot.failed' | 'camera.failed' | 'camera.permission';
 
 const PULL_HINT_MS = 4000;
+const COPIED_FLASH_MS = 1500;
+const CAMERA_CANCELLED = /cancel/i;
+const CAMERA_DENIED = /denied|permission/i;
 
 export interface PcTerminalInputSession {
   slot: string;
@@ -82,7 +87,12 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const [pullHint, setPullHint] = useState<PullHint>('');
   const [pulling, setPulling] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [shooting, setShooting] = useState(false);
+  const [ocrId, setOcrId] = useState<string | null>(null);
+  const [ocrCopied, setOcrCopied] = useState(false);
   const pullHintTimer = useRef<number | undefined>(undefined);
+  const ocrCopiedTimer = useRef<number | undefined>(undefined);
+  const cameraSupported = isNativeAppShell() && !isDesktopAppShell();
   const isMobile = useIsMobile();
   const toggleMode = () => {
     const next: ComposerMode = mode === 'voice' ? 'text' : 'voice';
@@ -112,6 +122,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   };
   const previewItem = imageItems.find((item) => item.id === previewId && item.previewUrl) ?? null;
   const compressionItem = imageItems.find((item) => item.id === compressionId && item.compression) ?? null;
+  const ocrItem = imageItems.find((item) => item.id === ocrId && item.ocr) ?? null;
   const compressionText = (item: PcTerminalImage): string => {
     const info = item.compression!;
     return t('terminal.images.compression.detail', {
@@ -149,6 +160,29 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
     setCapturing(false);
     if (file) images.addFiles([file]);
     else showPullHint('liveScreenshot.failed');
+  };
+  const takeCameraPhoto = async () => {
+    showPullHint('');
+    setShooting(true);
+    try {
+      const { capCamera } = await import('@/apps/wordnew/platform/capabilities/CapCamera');
+      const photo = await capCamera.takePhoto({ quality: 90 });
+      if (photo.blob) {
+        const extension = photo.format === 'jpeg' ? 'jpg' : photo.format;
+        images.addFiles([new File([photo.blob], `camera-${Date.now()}.${extension}`, { type: photo.blob.type || 'image/jpeg' })]);
+      }
+    } catch (error) {
+      const message = String((error as { message?: string } | null)?.message ?? error);
+      if (!CAMERA_CANCELLED.test(message)) showPullHint(CAMERA_DENIED.test(message) ? 'camera.permission' : 'camera.failed');
+    } finally {
+      setShooting(false);
+    }
+  };
+  const copyOcrText = async (text: string) => {
+    if (!(await copyTextToSystemClipboard(text))) return;
+    window.clearTimeout(ocrCopiedTimer.current);
+    setOcrCopied(true);
+    ocrCopiedTimer.current = window.setTimeout(() => setOcrCopied(false), COPIED_FLASH_MS);
   };
   const { elementRef, cancelRestore } = usePcTextInputSession({
     slot: session?.slot ?? '',
@@ -209,6 +243,19 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                     <Shrink className="h-3 w-3" />
                   </button>
                 )}
+                {item.ocr && (
+                  <button
+                    type="button"
+                    onClick={() => setOcrId(ocrId === item.id ? null : item.id)}
+                    title={t(`terminal.images.ocr.badge.${item.ocr.status}`)}
+                    aria-label={t('terminal.images.ocr.badge.done')}
+                    className={`absolute bottom-0.5 right-0.5 rounded-full p-0.5 text-white ${
+                      item.ocr.status === 'error' ? 'bg-rose-600/90' : item.ocr.status === 'empty' ? 'bg-slate-600/85' : 'bg-indigo-600/90'
+                    }`}
+                  >
+                    {item.ocr.status === 'running' ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <ScanText className="h-2.5 w-2.5" />}
+                  </button>
+                )}
                 {item.status === 'compressing' && (
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40" title={t('terminal.images.compression.running')}>
                     <Loader2 className="h-4 w-4 animate-spin text-white" />
@@ -257,6 +304,57 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               : ''}
         </p>
       </div>
+      {ocrItem?.ocr && (
+        <div className="mx-1.5 mt-1.5 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-1.5">
+          <div className="flex items-center gap-1">
+            <ScanText className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">{t('terminal.images.ocr.title')}</span>
+            {ocrItem.ocr.status === 'done' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { void copyOcrText(ocrItem.ocr!.text); }}
+                  title={t('terminal.images.ocr.copy')}
+                  aria-label={t('terminal.images.ocr.copy')}
+                  className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] text-indigo-600 hover:bg-indigo-500/15 dark:text-indigo-300"
+                >
+                  {ocrCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {t(ocrCopied ? 'terminal.images.ocr.copied' : 'terminal.images.ocr.copy')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange(value ? `${value}\n${ocrItem.ocr!.text}` : ocrItem.ocr!.text)}
+                  title={t('terminal.images.ocr.insert')}
+                  aria-label={t('terminal.images.ocr.insert')}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-indigo-600 hover:bg-indigo-500/15 dark:text-indigo-300"
+                >
+                  <CornerDownLeft className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setOcrId(null)}
+              title={t('terminal.images.ocr.close')}
+              aria-label={t('terminal.images.ocr.close')}
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-500/15"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {ocrItem.ocr.status === 'done' ? (
+            <pre className="mt-1 max-h-40 select-text overflow-auto whitespace-pre-wrap break-words font-sans text-xs leading-snug text-slate-800 dark:text-slate-100">{ocrItem.ocr.text}</pre>
+          ) : (
+            <p className="mt-1 select-text break-words text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+              {ocrItem.ocr.status === 'running'
+                ? t('terminal.images.ocr.running')
+                : ocrItem.ocr.status === 'empty'
+                  ? t('terminal.images.ocr.empty')
+                  : t('terminal.images.ocr.failed', { code: ocrItem.ocr.errorCode })}
+            </p>
+          )}
+        </div>
+      )}
       {audioItems.length > 0 && (
         <ul className="space-y-1 px-1.5 pt-1.5" aria-label={t('terminal.voice.recordings')}>
           {audioItems.map((item) => (
@@ -393,6 +491,18 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           >
             {images.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
           </button>
+          {cameraSupported && (
+            <button
+              type="button"
+              onClick={() => { void takeCameraPhoto(); }}
+              disabled={!hasWindow || shooting}
+              title={t('terminal.images.camera.action')}
+              aria-label={t('terminal.images.camera.action')}
+              className={iconButton}
+            >
+              {shooting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Aperture className="h-4 w-4" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => { void pullImages(); }}

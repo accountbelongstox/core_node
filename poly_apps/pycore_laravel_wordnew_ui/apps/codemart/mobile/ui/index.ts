@@ -5,6 +5,7 @@ export { MobileField } from './MobileField';
 export { MobileList, MobileListRow } from './MobileListRow';
 export { MobileNotice } from './MobileNotice';
 export { MobilePager } from './MobilePager';
+export { MobilePasswordInput } from './MobilePasswordInput';
 export { MobileScreen } from './MobileScreen';
 export { MobileSectionHeader } from './MobileSectionHeader';
 export { MobileSegmented, type MobileSegmentOption } from './MobileSegmented';

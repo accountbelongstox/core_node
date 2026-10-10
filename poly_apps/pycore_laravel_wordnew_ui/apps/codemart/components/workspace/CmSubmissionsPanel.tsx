@@ -1,20 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { cmApi } from '../../api/CmApi';
-import type { CmCodeReview, CmEscrowRelease, CmListPage, CmSubmission } from '../../api/CmApiTypes';
-import { cmErrorMessage } from '../../api/cmErrors';
-import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
+import type { CmCodeReview, CmSubmission } from '../../api/CmApiTypes';
+import { CM_APPROVED_DECISION, CM_CLIENT_DECISIONS, CM_RATING_VALUES, useCmTaskSubmissions, type CmSubmissionDecision } from '../../shared/useCmTaskSubmissions';
 import { CmPager } from './CmPager';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { CmStatusBadge } from './CmStatusBadge';
 import { CmSubmissionFiles } from './CmSubmissionFiles';
-import { cmTotalPages, cmUserLabel, useCmFormat } from './cmWorkspaceFormat';
-import { useCmPagedList } from './useCmPagedList';
-
-const CLIENT_DECISIONS = ['approved', 'needs_revision', 'rejected'] as const;
-const TASK_REVIEW_STATUS = 'review';
-const RATING_VALUES = [1, 2, 3, 4, 5] as const;
-const APPROVED_DECISION = 'approved';
+import { cmUserLabel, useCmFormat } from './cmWorkspaceFormat';
 
 export const CmReviewList: React.FC<{ reviews: CmCodeReview[] | undefined }> = ({ reviews }) => {
   const { t } = useTranslation('cm');
@@ -59,30 +51,15 @@ export const CmReviewList: React.FC<{ reviews: CmCodeReview[] | undefined }> = (
   );
 };
 
-const CmClientReviewForm: React.FC<{ submission: CmSubmission; onReviewed: (escrow: CmEscrowRelease | null) => Promise<void> }> = ({ submission, onReviewed }) => {
+const CmClientReviewForm: React.FC<{ submission: CmSubmission; onDecide: (submission: CmSubmission, input: CmSubmissionDecision) => Promise<boolean>; busy: boolean }> = ({ submission, onDecide, busy }) => {
   const { t } = useTranslation('cm');
-  const notice = useCmNotice();
-  const [decision, setDecision] = useState<string>(CLIENT_DECISIONS[0]);
+  const [decision, setDecision] = useState<string>(CM_CLIENT_DECISIONS[0]);
   const [notes, setNotes] = useState('');
   const [rating, setRating] = useState('');
-  const [busy, setBusy] = useState(false);
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (busy || !notes.trim()) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.reviewSubmission(submission.id, {
-      status: decision,
-      review_notes: notes.trim(),
-      rating: rating ? Number(rating) : null,
-    });
-    setBusy(false);
-    if (response.success) {
-      await onReviewed(response.data?.escrow ?? null);
-    } else {
-      notice.error(cmErrorMessage(t, response, 'submissions.reviewFailed'));
-    }
+    await onDecide(submission, { decision, notes, rating });
   };
 
   return (
@@ -91,7 +68,7 @@ const CmClientReviewForm: React.FC<{ submission: CmSubmission; onReviewed: (escr
       <label>
         <span>{t('submissions.decision')}</span>
         <select value={decision} onChange={(event) => setDecision(event.target.value)}>
-          {CLIENT_DECISIONS.map((value) => (
+          {CM_CLIENT_DECISIONS.map((value) => (
             <option key={value} value={value}>{t(`submissions.decisions.${value}`)}</option>
           ))}
         </select>
@@ -100,7 +77,7 @@ const CmClientReviewForm: React.FC<{ submission: CmSubmission; onReviewed: (escr
         <span>{t('submissions.ratingLabel')} <small className="cm-field-hint">{t('common.optional')}</small></span>
         <select value={rating} onChange={(event) => setRating(event.target.value)}>
           <option value="">{t('submissions.noRating')}</option>
-          {RATING_VALUES.map((value) => (
+          {CM_RATING_VALUES.map((value) => (
             <option key={value} value={value}>{value}</option>
           ))}
         </select>
@@ -109,8 +86,7 @@ const CmClientReviewForm: React.FC<{ submission: CmSubmission; onReviewed: (escr
         <span>{t('submissions.notes')}</span>
         <textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t('submissions.notesPlaceholder')} />
       </label>
-      {decision === APPROVED_DECISION && <p className="cm-field-hint is-wide">{t('submissions.approveHint')}</p>}
-      {notice.notice && <div className="is-wide"><CmNotice notice={notice.notice} onDismiss={notice.clear} /></div>}
+      {decision === CM_APPROVED_DECISION && <p className="cm-field-hint is-wide">{t('submissions.approveHint')}</p>}
       <div className="cm-project-form__actions">
         <button type="submit" className="is-primary" disabled={busy || !notes.trim()}>
           {busy ? t('common.saving') : t('submissions.submitDecision')}
@@ -127,37 +103,12 @@ interface CmSubmissionsPanelProps {
   onChanged?: () => Promise<void>;
 }
 
-const extractSubmissions = (data: CmListPage<CmSubmission>) => ({
-  items: Array.isArray(data.items) ? data.items : [],
-  totalPages: cmTotalPages(data),
-});
-
 /** Task submissions with files and reviews; managers decide on reviewable submissions, others read only. */
 export const CmSubmissionsPanel: React.FC<CmSubmissionsPanelProps> = ({ taskId, taskStatus, canReview, onChanged }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
-  const { bootstrap, stateRule } = useCmBootstrap();
-  const currency = bootstrap?.vocabulary.policy.currency ?? null;
-  const reviewableStates = stateRule('submission_reviewable');
-  const fetcher = useCallback((page: number) => cmApi.getTaskSubmissions(taskId, page), [taskId]);
-  const list = useCmPagedList(fetcher, extractSubmissions, 'submissions.loadFailed');
-
-  const onReviewed = async (escrow: CmEscrowRelease | null): Promise<void> => {
-    if (escrow === null) {
-      notice.success(t('submissions.reviewed'));
-    } else if (escrow.released) {
-      notice.success(t('submissions.escrowReleased', {
-        amount: format.money(escrow.net_amount ?? escrow.amount ?? '', currency),
-        commission: format.money(escrow.commission ?? '', currency),
-      }));
-    } else {
-      const key = escrow.error_code ? `errors.${escrow.error_code}` : 'errors.escrow_release_failed';
-      notice.error(t('submissions.escrowNotReleased', { reason: t(key, { defaultValue: t('errors.escrow_release_failed') }) }));
-    }
-    await list.reload();
-    if (onChanged) await onChanged();
-  };
+  const { list, canDecide, deciding, decide } = useCmTaskSubmissions(taskId, taskStatus, canReview, onChanged, notice);
 
   return (
     <div className="cm-submissions-panel">
@@ -181,9 +132,7 @@ export const CmSubmissionsPanel: React.FC<CmSubmissionsPanelProps> = ({ taskId, 
             {submission.submission_note && <p>{submission.submission_note}</p>}
             <CmSubmissionFiles submissionId={submission.id} files={submission.files} />
             <CmReviewList reviews={submission.reviews} />
-            {canReview && taskStatus === TASK_REVIEW_STATUS && reviewableStates.includes(submission.status) && (
-              <CmClientReviewForm submission={submission} onReviewed={onReviewed} />
-            )}
+            {canDecide(submission) && <CmClientReviewForm submission={submission} onDecide={decide} busy={deciding} />}
           </article>
         ))
       )}
