@@ -7,14 +7,14 @@
 # Run from repo: .\poly_apps\pycore_laravel_wordnew_ui\scripts\start.ps1
 #   Force reinstall: -ForceInstall     Skip backend: -NoBackend
 #   Build detected APK: -BuildApk [-App wordnew] [-ApkType debug|release]
-#   Background service (idempotent, via NSSM): needs NO parameter -- env var
-#   AS_SERVICE=yes|no pre-answers the prompt (same name/values as start.sh) for
-#   non-interactive callers and wins over -NonInteractive. -Service is the explicit
+#   Background service (idempotent, via NSSM): only on explicit request -- env var
+#   AS_SERVICE=yes (same name as start.sh) or -Service; otherwise it never registers
+#   one (the dashboard runs in the user session). -Service is the explicit
 #   non-interactive install/start (elevated): running -> no restart, stopped -> start,
 #   absent -> register + start; it never falls back to the foreground dev server.
 #   Env var NEXUS_DASH_SERVICE_RUN=1 (set via NSSM
 #   AppEnvironmentExtra, never a script argument) marks the NSSM-launched invocation
-#   itself: it skips the prompt/registration and the interactive browser-open, and
+#   itself: it skips registration and the interactive browser-open, and
 #   serves in the foreground (that IS the service body).
 
 param(
@@ -365,15 +365,8 @@ if ($BuildApk) {
 # its OWN separate background service too (a visible new window, used by step 3 below,
 # cannot run under a service session).
 if (-not $IsServiceRun) {
-    if ($AsServiceEnv -eq "no") {
-        $AsServiceChoice = $false
-    } elseif ($AsServiceEnv -eq "yes") {
-        $AsServiceChoice = $true
-    } elseif ($NonInteractive) {
-        $AsServiceChoice = $true
-    } else {
-        $AsServiceChoice = Read-YesNoDefaultYes "Add the nexus-dash dashboard to a background Windows service (via NSSM)?"
-    }
+    # The dashboard runs in the user session (pyservice); NSSM only on explicit -Service / AS_SERVICE=yes.
+    $AsServiceChoice = ($AsServiceEnv -eq "yes")
 
     if ($AsServiceChoice) {
         $NssmPath = Ensure-Nssm -RepoRootDir $RepoRoot

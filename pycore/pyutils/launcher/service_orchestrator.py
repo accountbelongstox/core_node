@@ -88,6 +88,7 @@ PRIVILEGE_ROOT = 'root'
 PRIVILEGE_INVOKER = 'invoker'
 WINDOWS_KIND_SERVICE = 'service'
 WINDOWS_KIND_TASK = 'task'
+NEXUS_DASH_KEY = 'nexus_dash'
 
 TAIL_FOLLOW_COMMAND = ('tail', '-f')
 POWERSHELL_EXE = 'powershell.exe'
@@ -226,7 +227,7 @@ def build_service_specs() -> Tuple[BackgroundServiceSpec, ...]:
             ),
         ),
         BackgroundServiceSpec(
-            key='nexus_dash',
+            key=NEXUS_DASH_KEY,
             name_key=ServiceI18nKeys.NAME_NEXUS_DASH,
             linux_unit=NEXUS_DASH_SERVICE_NAME,
             linux_script=NEXUS_DASH_SCRIPTS_DIR / LINUX_START_SCRIPT,
@@ -270,6 +271,9 @@ def run_launcher_service_prompts(config_manager, interactive: bool) -> None:
     timeout_sec = services_config.get(SERVICES_PROMPT_TIMEOUT_KEY, DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC)
     systemd = IS_LINUX and systemd_available()
     for spec in build_service_specs():
+        # pyservice starts the dashboard in the user session; never an NSSM service.
+        if IS_WINDOWS and spec.key == NEXUS_DASH_KEY:
+            continue
         _handle_service(spec, systemd, timeout_sec, interactive)
 
 

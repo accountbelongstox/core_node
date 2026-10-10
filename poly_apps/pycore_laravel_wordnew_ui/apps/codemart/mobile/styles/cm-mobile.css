@@ -4,17 +4,18 @@
   --cmm-surface: #ffffff;
   --cmm-surface-2: #f6f8fb;
   --cmm-text: #1d2733;
-  --cmm-muted: #6a7889;
+  --cmm-muted: #5b6a7c;
   --cmm-border: #e2e8ef;
-  --cmm-primary: #3a7fd5;
+  --cmm-primary: #2a68ba;
   --cmm-primary-ink: #ffffff;
   --cmm-primary-soft: #e8f1fd;
-  --cmm-success: #2c9a6c;
+  --cmm-success: #1f7a52;
   --cmm-success-soft: #e5f6ee;
-  --cmm-warning: #c97a22;
+  --cmm-warning: #9a5a10;
   --cmm-warning-soft: #fff1e0;
-  --cmm-danger: #c64a4a;
+  --cmm-danger: #b03a3a;
   --cmm-danger-soft: #fbe9e9;
+  --cmm-danger-ink: #ffffff;
   --cmm-info: #2b6cb8;
   --cmm-info-soft: #e6f0fc;
   --cmm-violet: #6a5acd;
@@ -45,6 +46,7 @@
   --cmm-warning-soft: #392a15;
   --cmm-danger: #ee9c9c;
   --cmm-danger-soft: #3a1d20;
+  --cmm-danger-ink: #2b0d10;
   --cmm-info: #8dbcf0;
   --cmm-info-soft: #1b2f4b;
   --cmm-violet: #aaa0f0;
@@ -440,7 +442,7 @@ div.cmm-row { cursor: default; }
 
 .cmm-btn svg { width: 18px; height: 18px; }
 .cmm-btn.is-primary { border-color: transparent; background: var(--cmm-primary); color: var(--cmm-primary-ink) !important; }
-.cmm-btn.is-danger { border-color: transparent; background: var(--cmm-danger); color: #fff !important; }
+.cmm-btn.is-danger { border-color: transparent; background: var(--cmm-danger); color: var(--cmm-danger-ink) !important; }
 .cmm-btn.is-ghost { border-color: transparent; background: transparent; color: var(--cmm-primary) !important; }
 .cmm-btn.is-block { display: flex; width: 100%; }
 .cmm-btn.is-small { min-height: 36px; padding: 0 12px; font-size: 13.5px; }
@@ -453,8 +455,10 @@ div.cmm-row { cursor: default; }
 .cmm-field__label { font-size: 13px; font-weight: 600; color: var(--cmm-muted); }
 .cmm-field__hint { color: var(--cmm-muted); font-size: 12px; }
 .cmm-field__error { color: var(--cmm-danger); font-size: 12.5px; }
-.cmm-field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cmm-field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .cmm-field-pair .cmm-field { margin-top: 12px; }
+.cmm-field-pair .cmm-input,
+.cmm-input[type="date"] { min-width: 0; }
 .cmm-input { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid var(--cmm-border); border-radius: 12px; background: var(--cmm-surface); outline: none; }
 .cmm-input:focus { border-color: var(--cmm-primary); box-shadow: 0 0 0 3px var(--cmm-primary-soft); }
 .cmm-input[aria-invalid="true"] { border-color: var(--cmm-danger); }
@@ -562,6 +566,9 @@ div.cmm-row { cursor: default; }
 .cmm-prose { margin: 0; font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cmm-textarea { min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.4; }
 .cmm-sheet__body > .cmm-prose + .cmm-field { margin-top: 12px; }
+.cmm-sheet__body > .cmm-notice,
+.cmm-sheet__body > .cmm-rating,
+.cmm-sheet__body > .cmm-radio-list { margin-top: 12px; }
 .cmm-filepick { display: flex; flex-direction: column; gap: 8px; }
 .cmm-filepick input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .cmm-filelist { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -585,6 +592,8 @@ div.cmm-row { cursor: default; }
 
 /* Toasts clear the tab bar while the mobile frame is mounted. */
 body:has(.cmm-shell) [data-notify-viewport] { bottom: calc(var(--cmm-tabbar-h) + var(--cmm-safe-bottom) + 12px) !important; right: 12px !important; left: 12px !important; align-items: stretch !important; }
+/* While a sheet is open its footer buttons sit at the bottom, so toasts move to the top. */
+body:has(.cmm-sheet-layer) [data-notify-viewport] { top: calc(var(--cmm-safe-top) + 8px) !important; bottom: auto !important; }
 
 /* The shell dock is hidden; the app switcher stays and is lifted above the tab bar and the FAB. */
 body:has(.cmm-shell) [data-shell-floating] { display: none !important; }
