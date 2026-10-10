@@ -92,6 +92,8 @@ export type {
   TerminalDesktopIntegrationResult,
   TerminalPlatformProfile,
   TerminalDraftResult,
+  TerminalLogDeleteResult,
+  TerminalLogDeleteTarget,
   TerminalLogEntry,
   TerminalLogSearchHit,
   TerminalLogSearchResult,

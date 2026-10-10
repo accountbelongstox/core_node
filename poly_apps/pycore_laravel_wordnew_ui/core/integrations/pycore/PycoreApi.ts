@@ -68,6 +68,8 @@ export type {
   TerminalActionResult,
   TerminalCaptureResult,
   TerminalDraftResult,
+  TerminalLogDeleteResult,
+  TerminalLogDeleteTarget,
   TerminalLogEntry,
   TerminalLogSource,
   TerminalScheduleClearResult,
