@@ -9,13 +9,14 @@ name alone, and a scan knows what is archived without opening any file.
 from __future__ import annotations
 
 import io
+import json
 import os
 import threading
 import time
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.atomic_json_store import atomic_write_bytes
+from pycore.pyfoundations.atomic_json_store import atomic_write_bytes, atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageOps
 from pycore.pyutils.common.relay_contract import relay_contract
@@ -116,33 +117,37 @@ class TerminalImageArchive:
         return None
 
     def archive_history_async(self, sent_text: str) -> None:
-        """One pass in the background; a pass already running covers this send."""
+        """Record this message's images as sent, then one archive pass in the background
+        (a pass already running is enough: it re-reads the sent set)."""
+        if not self.directory.is_dir():
+            return
+        current = {path.name for path in self._originals() if path.name in sent_text}
+        with self._sent_lock:
+            if current - self._load_sent():
+                self._load_sent().update(current)
+                self._save_sent()
         if not self._lock.acquire(blocking=False):
             return
         threading.Thread(
-            target=self._run, args=(sent_text,), name="TerminalImageArchiveThread", daemon=True,
+            target=self._run, args=(current,), name="TerminalImageArchiveThread", daemon=True,
         ).start()
 
-    def _run(self, sent_text: str) -> None:
+    def _run(self, current: set) -> None:
         try:
-            self.archive_history(sent_text)
+            self.archive_history(current)
         finally:
             self._lock.release()
 
-    def archive_history(self, sent_text: str = "") -> int:
-        """Archive images older than the grace window that the sent text does not reference."""
-        if not self.directory.is_dir():
-            return 0
+    def archive_history(self, current: set) -> int:
+        """Archive sent images older than the grace window, except ``current`` (this message's own)."""
         cutoff = time.time() - ARCHIVE_MIN_AGE_SECONDS
+        originals = {path.name: path for path in self._originals()}
+        with self._sent_lock:
+            sent = set(self._load_sent())
         archived = 0
-        try:
-            entries = [Path(entry.path) for entry in os.scandir(self.directory) if entry.is_file()]
-        except OSError as exc:
-            ColorPrint.yellow(f"[{LABEL}] scan failed dir={self.directory}: {exc}")
-            return 0
-        for path in entries:
-            if is_archived(path) or path.name in sent_text:
-                continue
+        done = {name for name in sent if name not in originals}
+        for name in sent - done - current:
+            path = originals[name]
             try:
                 stat = path.stat()
             except OSError:
@@ -151,6 +156,11 @@ class TerminalImageArchive:
                 continue
             if self._archive_one(path, stat.st_size, stat.st_mtime):
                 archived += 1
+                done.add(name)
+        if done:
+            with self._sent_lock:
+                self._load_sent().difference_update(done)
+                self._save_sent()
         if archived:
             ColorPrint.cyan(f"[{LABEL}] archived {archived} history image(s) to <= {ARCHIVE_MAX_BYTES} bytes")
         return archived

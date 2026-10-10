@@ -61,4 +61,36 @@ public static class CoordinateScaler
 
     /// <summary>(value - border) * scale + border, truncated. 1:1 Python scale_standard_value_to_actual.</summary>
     public static int ScaleValue(double value, double scale, int border) => (int)((value - border) * scale + border);
+
+    /// <summary>Inverse of <see cref="Scale(int, int, int, int, int, int, bool, WindowBorders)"/>: actual window pixel -> standard coordinate (not truncated).</summary>
+    public static (double X, double Y) Unscale(
+        int actualX, int actualY,
+        int actualWidth, int actualHeight,
+        int standardWidth, int standardHeight,
+        bool isWindowed, WindowBorders borders)
+    {
+        var (scaleX, scaleY) = GetScale(actualWidth, actualHeight, standardWidth, standardHeight, isWindowed, borders);
+        return isWindowed
+            ? (UnscaleValue(actualX, scaleX, borders.Left), UnscaleValue(actualY, scaleY, borders.TitleBar))
+            : (actualX / scaleX, actualY / scaleY);
+    }
+
+    /// <summary>(value - border) / scale + border: inverse of <see cref="ScaleValue"/> without truncation.</summary>
+    public static double UnscaleValue(double value, double scale, int border) => (value - border) / scale + border;
+
+    /// <summary>Standard rectangle -> actual window rectangle (corners scaled like points).</summary>
+    public static RefRect ScaleRect(
+        RefRect standard,
+        int actualWidth, int actualHeight,
+        int standardWidth, int standardHeight,
+        bool isWindowed, WindowBorders borders)
+    {
+        var (scaleX, scaleY) = GetScale(actualWidth, actualHeight, standardWidth, standardHeight, isWindowed, borders);
+        var a = ScaleWithFactors((int)standard.X, (int)standard.Y, scaleX, scaleY, isWindowed, borders);
+        var b = ScaleWithFactors((int)standard.Right, (int)standard.Bottom, scaleX, scaleY, isWindowed, borders);
+        return RefRect.FromCorners(new RefPoint(a.X, a.Y), new RefPoint(b.X, b.Y));
+    }
+
+    /// <summary>The fullscreen standard mapping as a <see cref="ReferenceFrame"/> (per-axis stretch).</summary>
+    public static ReferenceFrame StretchFrame(int standardWidth, int standardHeight) => new(standardWidth, standardHeight, ScaleMode.Stretch);
 }

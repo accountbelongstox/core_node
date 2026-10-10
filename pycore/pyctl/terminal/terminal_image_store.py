@@ -17,6 +17,7 @@ from pycore.pyutils.common.relay_contract import relay_contract
 
 TERMINAL_IMAGE_DIR_NAME = "timg"
 TERMINAL_VOICE_DIR_NAME = "taud"
+TERMINAL_IMAGE_SENT_INDEX_NAME = "timg_sent.json"
 TERMINAL_IMAGE_MAX_BYTES = relay_contract.limit("terminal_image_upload_bytes")
 TERMINAL_IMAGE_RETAIN_COUNT = relay_contract.limit("terminal_image_retain_count")
 TERMINAL_IMAGE_RETAIN_SECONDS = relay_contract.limit("terminal_image_retain_seconds")
@@ -89,10 +90,10 @@ def detect_audio_type(data: bytes) -> Optional[tuple]:
 class TerminalImageStore:
     """Images live in ``directory``; voice recordings in ``voice_directory`` with their own short retention."""
 
-    def __init__(self, directory: Path, voice_directory: Path) -> None:
+    def __init__(self, directory: Path, voice_directory: Path, sent_index: Path) -> None:
         self.directory = directory
         self.voice_directory = voice_directory
-        self.archive = TerminalImageArchive(directory)
+        self.archive = TerminalImageArchive(directory, sent_index)
 
     def resolve_image(self, reference: str) -> Optional[Path]:
         """Stored image for a sent name or path; an archived image is found under its original name."""
@@ -170,4 +171,5 @@ class TerminalImageStore:
 terminal_image_store = TerminalImageStore(
     APP_DATA_DIR / TERMINAL_IMAGE_DIR_NAME,
     APP_DATA_DIR / TERMINAL_VOICE_DIR_NAME,
+    APP_DATA_DIR / TERMINAL_IMAGE_SENT_INDEX_NAME,
 )
