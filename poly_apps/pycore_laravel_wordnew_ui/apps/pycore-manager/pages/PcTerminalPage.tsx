@@ -70,6 +70,9 @@ import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminal
 import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdown } from '@/apps/pycore-manager/components/terminal/PcTerminalStatusMarks';
 import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
+import PcShareInbox from '@/apps/pycore-manager/components/share/PcShareInbox';
+import { recordTerminalCatalog } from '@/apps/pycore-manager/components/terminal/terminalCatalog';
+import { completeShareDelivery, shareDeliveryRequest } from '@/apps/pycore-manager/components/terminal/terminalShareDelivery';
 import { agentDoneOpenRequest, ingestAgentDone, terminalName } from '@/apps/pycore-manager/components/terminal/terminalAgentDoneNotices';
 import { listTerminalTabNodes } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import PcPycoreRestartButton from '@/apps/pycore-manager/components/PcPycoreRestartButton';
@@ -1684,7 +1687,27 @@ const PcTerminalNodeView: React.FC<{
       untitled: t('terminal.untitled'),
       localDate: terminalWatch.localDate,
     }, snapshot.windows);
+    recordTerminalCatalog({ nodeUrl, nodeLabel: tabNode?.label || nodeUrl || thisMachine, os: tabNode?.os ?? 'unknown', untitled: t('terminal.untitled') }, snapshot.windows);
   }, [nodeUrl, snapshot, t, terminalWatch.localDate]);
+
+  // Shared files assigned to a terminal of this node land in its composer as pending attachments (not sent).
+  const shareRequest = shareDeliveryRequest.use();
+  useEffect(() => {
+    if (!shareRequest || shareRequest.nodeUrl !== nodeUrl || !snapshot) return;
+    const target = snapshot.windows.find((windowInfo) => windowInfo.terminal_number === shareRequest.terminalNumber);
+    if (!target) {
+      completeShareDelivery(shareRequest, false);
+      setActionNotice({ kind: 'error', translationKey: 'terminal.share.terminalMissing', translationValues: { number: shareRequest.terminalNumber } });
+      return;
+    }
+    if (selectedWindow?.id !== target.id || previewTerminalNumber !== target.terminal_number) {
+      openTerminal(target.terminal_number);
+      return;
+    }
+    images.addFiles(shareRequest.files);
+    completeShareDelivery(shareRequest, true);
+    setActionNotice({ kind: 'success', translationKey: 'terminal.share.delivered', translationValues: { count: shareRequest.files.length, number: target.terminal_number } });
+  }, [images.addFiles, nodeUrl, openTerminal, previewTerminalNumber, selectedWindow, shareRequest, snapshot]);
 
   // A clicked notice of this node opens its terminal once the snapshot lists it.
   const openRequest = agentDoneOpenRequest.use();
@@ -3357,6 +3380,7 @@ const PcTerminalPage: React.FC = () => {
             onPick={pickSentHit}
           />
         </div>
+        <PcShareInbox activeUrl={nodeUrl} onSelectNode={selectNode} />
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>

@@ -1,10 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Aperture, AudioLines, Check, ClipboardPaste, Copy, CornerDownLeft, FileAudio, ImagePlus, Keyboard, Loader2, Mic, MonitorDown, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
+import { Aperture, AudioLines, Camera, Check, ClipboardPaste, Copy, CornerDownLeft, FileAudio, FilePlus, FileText, ImagePlus, Keyboard, Loader2, Mic, MonitorDown, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
-import { isTerminalAttachmentFile, type PcTerminalImage, type PcTerminalImages } from './usePcTerminalImages';
+import { isTerminalAttachmentFile, TERMINAL_DOCUMENT_ACCEPT, type PcTerminalImage, type PcTerminalImages } from './usePcTerminalImages';
 import { usePcVoiceRecorder, type PcVoiceRecorderError } from './usePcVoiceRecorder';
 import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
 import { PcImageLightbox } from './PcAiShared';
@@ -80,6 +80,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
 }) => {
   const { t } = useTranslation('pc');
   const pickerRef = useRef<HTMLInputElement | null>(null);
+  const documentPickerRef = useRef<HTMLInputElement | null>(null);
   const recorderInputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -104,6 +105,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const recorder = usePcVoiceRecorder(addRecording);
   const imageItems = images.items.filter((item) => item.kind === 'image');
   const audioItems = images.items.filter((item) => item.kind === 'audio');
+  const fileItems = images.items.filter((item) => item.kind === 'file');
   const failedItems = images.items.filter((item) => item.status === 'error');
   const errorDetailLines = (item: PcTerminalImage): string[] => {
     const detail = item.errorDetail;
@@ -393,6 +395,43 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           ))}
         </ul>
       )}
+      {fileItems.length > 0 && (
+        <ul className="flex flex-wrap gap-1 px-1.5 pt-1.5" aria-label={t('terminal.images.documents')}>
+          {fileItems.map((item) => (
+            <li key={item.id} className="relative flex max-w-full items-center gap-1.5 overflow-hidden rounded-lg bg-slate-500/10 py-1 pl-1.5 pr-0.5">
+              <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
+              <span className="min-w-0 max-w-[12rem] truncate text-[11px] text-slate-700 dark:text-slate-200" title={item.file.name}>{item.file.name}</span>
+              <span className="shrink-0 font-mono text-[10px] text-slate-500 dark:text-slate-400">{formatBytes(item.storedBytes ?? item.file.size)}</span>
+              {item.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-500" />}
+              {item.status === 'error' && (
+                <button
+                  type="button"
+                  onClick={() => images.retry(item.id)}
+                  title={t(item.errorKey, item.errorParams)}
+                  aria-label={t('terminal.images.retry')}
+                  className="shrink-0 rounded p-1 text-rose-500 hover:bg-rose-500/10"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => images.remove(item.id)}
+                title={t('terminal.images.remove')}
+                aria-label={t('terminal.images.remove')}
+                className="shrink-0 rounded p-1 text-slate-500 hover:bg-slate-500/10"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+              {item.status === 'uploading' && (
+                <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-900/20">
+                  <div className="h-full bg-indigo-500" style={{ width: `${Math.round(item.progress * 100)}%` }} />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {compressionItem && (
         <p className="mx-1.5 mt-1.5 select-text break-all rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] leading-snug text-emerald-700 dark:text-emerald-300">
           {compressionText(compressionItem)}
@@ -434,7 +473,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
         className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 px-1.5 pb-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {leading}
           {mode === 'voice' && (
@@ -469,8 +508,8 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             </>
           )}
         </div>
-        {sendButton ?? <span />}
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center [&>button]:h-9 [&>button]:w-12">{sendButton}</div>
+        <div className="flex min-w-0 flex-auto flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={toggleMode}
@@ -491,6 +530,16 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             className={iconButton}
           >
             {images.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => documentPickerRef.current?.click()}
+            disabled={!hasWindow}
+            title={t('terminal.images.attachDocument')}
+            aria-label={t('terminal.images.attachDocument')}
+            className={iconButton}
+          >
+            <FilePlus className="h-4 w-4" />
           </button>
           {cameraSupported && (
             <button
@@ -530,6 +579,17 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             ref={pickerRef}
             type="file"
             accept="image/*"
+            multiple
+            hidden
+            onChange={(event) => {
+              images.addFiles(attachmentFiles(event.target.files));
+              event.target.value = '';
+            }}
+          />
+          <input
+            ref={documentPickerRef}
+            type="file"
+            accept={TERMINAL_DOCUMENT_ACCEPT}
             multiple
             hidden
             onChange={(event) => {

@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Pycore 管理器</string>
     <string name="title_activity_main">Pycore 管理器</string>
+    <string name="share_target_label">发送到 Pycore 管理器</string>
 </resources>
