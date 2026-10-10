@@ -1178,6 +1178,10 @@
       "path": "ui/terminal/logs/search",
       "method": "POST"
     },
+    "terminalMeshSearch": {
+      "path": "ui/terminal/mesh/search",
+      "method": "POST"
+    },
     "terminalView": {
       "path": "ui/terminal/view",
       "method": "POST"

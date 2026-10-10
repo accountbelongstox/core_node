@@ -77,9 +77,22 @@ export interface TerminalLogEntry {
   error_code?: string | null;
 }
 
-/** A sent message found by the history search, with its full text. */
-export interface TerminalLogSearchHit extends TerminalLogEntry {
+export type TerminalSearchHitKind = 'sent' | 'draft';
+
+/** Machine a MeshSync search hit was written on. */
+export interface TerminalSearchMachine {
+  machine_id: string;
+  machine_name: string;
+  platform: string;
+}
+
+/** A sent message or unsent draft found by the history search, with its full text. */
+export interface TerminalLogSearchHit extends Omit<TerminalLogEntry, 'status'> {
+  status: TerminalLogEntry['status'] | 'draft';
+  kind: TerminalSearchHitKind;
   content: string;
+  /** MeshSync hits only: the machine it was written on. */
+  machine?: TerminalSearchMachine;
 }
 
 export interface TerminalLogSearchResult {
@@ -612,9 +625,12 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { window_id: windowId, terminal_number: terminalNumber, revision, refresh },
       timeoutMs,
     ) as Promise<TerminalTextResult>,
-    /** Sent messages of every terminal containing `query`, newest first (contract-limited count). */
+    /** Sent messages and drafts of every terminal of this node containing `query`, newest first (contract-limited count). */
     searchTerminalLogs: (query: string, timeoutMs?: number) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalLogsSearch, { query }, timeoutMs) as Promise<TerminalLogSearchResult>,
+    /** Sent messages and drafts of every machine replicated through MeshSync (offline ones too), via this node's Laravel server. */
+    searchTerminalMesh: (query: string, timeoutMs?: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalMeshSearch, { query }, timeoutMs) as Promise<TerminalLogSearchResult>,
     activateTerminal: (windowId: string) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
         window_id: windowId,

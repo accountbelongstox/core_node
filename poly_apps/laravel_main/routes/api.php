@@ -424,6 +424,9 @@ require_once __DIR__ . '/RelayRouter/RelayApi.php';
 // Agent bus: cross-machine AI agent collaboration (REST + stateless MCP).
 require_once __DIR__ . '/AgentBusRouter/AgentBusApi.php';
 
+// MeshSync: record replication between every Laravel server (public domain and mesh routes).
+require_once __DIR__ . '/MeshSyncRouter/MeshSyncApi.php';
+
 // Queue Center - centralized audio queues (word_audio, sentence_audio) over
 // global_tasks. Operators and machines share the control plane; the lane diff
 // is machine-only.

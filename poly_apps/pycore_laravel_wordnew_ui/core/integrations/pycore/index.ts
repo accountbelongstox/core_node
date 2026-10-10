@@ -95,6 +95,8 @@ export type {
   TerminalLogEntry,
   TerminalLogSearchHit,
   TerminalLogSearchResult,
+  TerminalSearchHitKind,
+  TerminalSearchMachine,
   TerminalLogSource,
   TerminalScheduleClearResult,
   TerminalScheduleDefinition,

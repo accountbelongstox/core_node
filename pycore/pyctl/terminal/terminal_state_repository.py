@@ -42,6 +42,8 @@ from pycore.pyfoundations.time_utils import utc_now_iso
 LABEL = "TerminalStateRepository"
 SEARCH_HIT_SENT = "sent"
 SEARCH_HIT_DRAFT = "draft"
+CHANGE_LOG = "log"
+CHANGE_DRAFT = "draft"
 
 
 def _transactional_store_method(
@@ -71,6 +73,7 @@ class TerminalStateRepository:
         self._volatile_persisted_at: Dict[int, float] = {}
         self._data_version = 0
         self._records: Dict[int, Dict[str, Any]] = {}
+        self._change_listeners: List[Callable[[Dict[str, Any]], None]] = []
         self._reload_records()
         init_serialized_owner(
             self,
@@ -197,15 +200,44 @@ class TerminalStateRepository:
         )
         return reconciled_windows
 
+    def add_change_listener(self, listener: Callable[[Dict[str, Any]], None]) -> None:
+        """Called with every written sent-message log (``{change: log, terminal_number, log_id,
+        values, content}``) and draft (``{change: draft, terminal_number, title, date, text}``);
+        registered once at service start."""
+        self._change_listeners.append(listener)
+
+    def logs_page(self, after_terminal: int, after_log: int, limit: int) -> List[Dict[str, Any]]:
+        """Stored sent-message logs after a ``(terminal_number, log_id)`` cursor, in key order."""
+        return self._reader.logs_page(after_terminal, after_log, limit)
+
+    def drafts(self) -> List[Dict[str, Any]]:
+        """Unsent drafts of every active terminal."""
+        return self._reader.drafts()
+
+    def _notify_change(self, change: Dict[str, Any]) -> None:
+        for listener in self._change_listeners:
+            listener(change)
+
+    def _notify_draft(self, terminal_number: int, record: Dict[str, Any], text: str, date: str) -> None:
+        self._notify_change({
+            "change": CHANGE_DRAFT,
+            "terminal_number": terminal_number,
+            "title": str(record.get("custom_title") or record.get("title") or ""),
+            "date": date,
+            "text": text,
+        })
+
     @serialized_method
     @_transactional_store_method
     def save_draft(self, terminal_number: int, text: str) -> Dict[str, Any]:
         record = self._active_record(terminal_number)
         if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
+        now = utc_now_iso()
         self._store.write_draft(terminal_number, text)
         record["draft"] = str(len(text.encode("utf-8")))
-        self._set_fields(record, {"updated_at": utc_now_iso()})
+        self._set_fields(record, {"updated_at": now})
+        self._notify_draft(terminal_number, record, text, now)
         return {
             "success": True,
             "terminal_number": terminal_number,
@@ -280,9 +312,17 @@ class TerminalStateRepository:
         self._store.insert_log(terminal_number, int(log_id), log_values, text)
         record["logs_by_id"][log_id] = log_values
         refresh_record_logs(record)
+        self._notify_change({
+            "change": CHANGE_LOG,
+            "terminal_number": terminal_number,
+            "log_id": log_id,
+            "values": dict(log_values),
+            "content": text,
+        })
         if log_values["source"] == DEFAULT_LOG_SOURCE:
             self._store.write_draft(terminal_number, text)
             record["draft"] = str(len(text.encode("utf-8")))
+            self._notify_draft(terminal_number, record, text, now)
         self._set_fields(record, {"updated_at": now})
         return log_metadata(
             terminal_number,
@@ -317,10 +357,19 @@ class TerminalStateRepository:
         )
         record["logs_by_id"][log_id] = completed_values
         refresh_record_logs(record)
+        self._notify_change({
+            "change": CHANGE_LOG,
+            "terminal_number": terminal_number,
+            "log_id": log_id,
+            "values": dict(completed_values),
+            "content": self._reader.read_log_content(terminal_number, int(log_id)) or "",
+        })
+        completed_at = utc_now_iso()
         if success and str(log.get("source") or DEFAULT_LOG_SOURCE) == DEFAULT_LOG_SOURCE:
             self._store.write_draft(terminal_number, "")
             record["draft"] = "0"
-        self._set_fields(record, {"updated_at": utc_now_iso()})
+            self._notify_draft(terminal_number, record, "", completed_at)
+        self._set_fields(record, {"updated_at": completed_at})
         return log_metadata(
             terminal_number,
             log_id,
