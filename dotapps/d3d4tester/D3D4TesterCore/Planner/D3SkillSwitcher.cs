@@ -218,6 +218,13 @@ public static class D3SkillSwitcher
                     continue;
                 }
                 var step = SetSkill(slot, target, cls, cacheDir);
+                if (step == SkillSwitchOutcome.ChooserNotOpen)
+                {
+                    // something else closed the chooser or opened another panel meanwhile: back to the pane and redo the slot once
+                    ColorPrinter.Yellow($"{LogTag} slot {slot} interrupted, redoing it");
+                    Report(SkillSwitchStage.Screen, null, $"slot {slot} interrupted (chooser closed by something else), redo");
+                    if (OpenPane(cls, cacheDir)) step = SetSkill(slot, target, cls, cacheDir);
+                }
                 if (step is SkillSwitchOutcome.SkillNotInList or SkillSwitchOutcome.ChooserNotOpen or SkillSwitchOutcome.NoGameWindow)
                     return Result(step, skillsChanged, 0, 0, target.Id);
                 if (step == SkillSwitchOutcome.Done) skillsChanged++;
@@ -703,11 +710,13 @@ public static class D3SkillSwitcher
         using (pane.Image)
         {
             var keys = passives.Select(p => p.Id).ToList();
-            var shown = PanePassiveSlots.Select(slot => BestIconAt(pane, slot, keys, k => D3SkillIcons.PassiveIconPath(cacheDir, cls, k)))
-                .Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
+            var slots = PanePassiveSlots.Select(slot => BestIconAt(pane, slot, keys, k => D3SkillIcons.PassiveIconPath(cacheDir, cls, k))).ToList();
+            var shown = slots.Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
             int passiveMismatches = keys.Count(k => !shown.Contains(k));
-            if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))}");
-            Report(SkillSwitchStage.Verify, skillMismatches + passiveMismatches == 0, $"skills off {skillMismatches}, passives missing [{string.Join(", ", keys.Where(k => !shown.Contains(k)))}]", pane);
+            string scores = string.Join(", ", slots.Select(b => $"{b.Key ?? "-"} {b.Score:F2}"));
+            if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))} (slots: {scores})");
+            Report(SkillSwitchStage.Verify, skillMismatches + passiveMismatches == 0,
+                $"skills off {skillMismatches}, passives missing [{string.Join(", ", keys.Where(k => !shown.Contains(k)))}], pane slots [{scores}]", pane);
             return skillMismatches + passiveMismatches;
         }
     }

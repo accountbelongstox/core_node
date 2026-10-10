@@ -339,7 +339,11 @@ public partial class D3PlannerBuildBlock : UserControl
         TxtStatus.Text = T(I18nKeys.RosbotBridgeBuildLoading);
         try
         {
-            await D3PlannerService.LoadAsync(url);
+            var result = await D3PlannerService.LoadAsync(url);
+            if (result.Build == null)
+                TxtStatus.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildDuplicate), result.DuplicateProfiles);
+            else if (result.DuplicateProfiles > 0)
+                TxtStatus.Text += StatSeparator + string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildDuplicatesSkipped), result.DuplicateProfiles);
         }
         catch (Exception ex)
         {
