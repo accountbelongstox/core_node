@@ -48,7 +48,7 @@ internal static class ScriptProbe
                     engines++;
                     sb.Append("    language ").Append(Call(value, "get_LanguageVersion")).Append('\n');
                     if (Call(value, "GetSearchPaths") is IEnumerable paths)
-                        foreach (var path in paths) sb.Append("    search path ").Append(path).Append('\n');
+                        foreach (var searchPath in paths) sb.Append("    search path ").Append(searchPath).Append('\n');
                     continue;
                 }
                 scopes++;
