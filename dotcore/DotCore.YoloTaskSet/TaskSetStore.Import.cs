@@ -51,8 +51,15 @@ public sealed record FolderTreeImportResult(FolderTreePlan Plan, bool DryRun, in
 
 public sealed record TargetCopyResult(IReadOnlyList<TaskTarget> Targets, int TargetsCreated, IReadOnlyList<ImportFileResult> Files);
 
-/// <summary>Failures are per image (unreadable image / annotation) or per box (empty cut, Detail = label).</summary>
-public sealed record AnnotationImportResult(int Images, int Boxes, int Added, IReadOnlyList<string> CreatedTargets, IReadOnlyList<ImportFileResult> Failures);
+/// <summary>Failures are per image (unreadable image / annotation) or per box (empty cut, Detail = label). Duplicates = near-duplicate crops skipped.</summary>
+public sealed record AnnotationImportResult(int Images, int Boxes, int Added, IReadOnlyList<string> CreatedTargets, IReadOnlyList<ImportFileResult> Failures,
+    int Duplicates = 0);
+
+/// <summary>
+/// Annotated boxes to variants: every FrameStep-th image; a crop closer than MinHashDistance dHash bits to a kept crop of the same label
+/// is skipped (0 = keep all); at most MaxPerLabel crops per label, sampled evenly (0 = no cap); boxes with a side below MinSide are skipped.
+/// </summary>
+public sealed record AnnotationVariantOptions(int FrameStep = 1, int MinHashDistance = 0, int MaxPerLabel = 0, int MinSide = 0);
 
 public sealed partial class TaskSetStore
 {
@@ -202,19 +209,25 @@ public sealed partial class TaskSetStore
     /// (created when missing); classFilter limits the labels (case-insensitive). Single save.
     /// </summary>
     public AnnotationImportResult AddVariantsFromAnnotations(TaskSet set, string imagesDir, string annotationDir, IReadOnlyCollection<string>? classFilter,
-        VariantCutout cutout, VariantCutOptions? cutOptions = null, IProgress<WorkProgress>? progress = null, CancellationToken ct = default)
+        VariantCutout cutout, VariantCutOptions? cutOptions = null, IProgress<WorkProgress>? progress = null, CancellationToken ct = default,
+        AnnotationVariantOptions? variantOptions = null)
     {
+        var o = variantOptions ?? new AnnotationVariantOptions();
         var filter = classFilter is { Count: > 0 } ? new HashSet<string>(classFilter.Select(c => c.Trim()), StringComparer.OrdinalIgnoreCase) : null;
-        var images = AnnotationIo.ListImages(imagesDir);
+        var all = AnnotationIo.ListImages(imagesDir);
+        int step = Math.Max(1, o.FrameStep);
+        var images = all.Where((_, i) => i % step == 0).ToList();
         var failures = new List<ImportFileResult>();
         var createdTargets = new List<string>();
-        int boxes = 0, added = 0, done = 0;
+        var crops = new Dictionary<string, List<(string Image, VariantRegion Region, byte[] Png, ulong? Hash, (int, int) Size)>>(StringComparer.OrdinalIgnoreCase);
+        int boxes = 0, done = 0;
         foreach (var image in images)
         {
             ct.ThrowIfCancellationRequested();
             progress?.Report(new WorkProgress(done++, images.Count, image));
             var annotation = AnnotationIo.Load(image, annotationDir);
-            var wanted = annotation?.Boxes.Where(b => !b.Difficult && b.Label.Trim().Length > 0 && (filter == null || filter.Contains(b.Label.Trim()))).ToList();
+            var wanted = annotation?.Boxes.Where(b => !b.Difficult && b.Label.Trim().Length > 0 && (filter == null || filter.Contains(b.Label.Trim()))
+                && Math.Min(b.Width, b.Height) >= o.MinSide).ToList();
             if (wanted == null || wanted.Count == 0) continue;
             using var frame = TaskSetImageIo.ReadBgra(image);
             if (frame == null)
@@ -222,7 +235,6 @@ public sealed partial class TaskSetStore
                 failures.Add(new ImportFileResult(image, ImportOutcome.Failed, ImportFailure.Unreadable));
                 continue;
             }
-            var stem = Path.GetFileNameWithoutExtension(image);
             foreach (var box in wanted)
             {
                 boxes++;
@@ -235,19 +247,35 @@ public sealed partial class TaskSetStore
                     failures.Add(new ImportFileResult(image, ImportOutcome.Failed, ImportFailure.Unreadable, Detail: label));
                     continue;
                 }
-                var target = FindTargetByName(set, label);
-                if (target == null)
-                {
-                    target = AddTargetCore(set, label);
-                    createdTargets.Add(target.Name);
-                }
-                AddVariantPngCore(set, target, png, VariantExtractor.FormatSourceRef(image, null, region), stem + "_" + label);
+                if (!crops.TryGetValue(label, out var list)) crops[label] = list = new();
+                list.Add((image, region, png, o.MinHashDistance > 0 ? VariantExtractor.PerceptualHash(png) : null, (frame.Width, frame.Height)));
+            }
+        }
+        int added = 0, duplicates = 0;
+        foreach (var (label, list) in crops)
+        {
+            var kept = o.MinHashDistance > 0 && list.All(c => c.Hash != null)
+                ? VariantExtractor.Dedupe(list.Select(c => c.Hash!.Value).ToList(), o.MinHashDistance).Select(i => list[i]).ToList()
+                : list;
+            duplicates += list.Count - kept.Count;
+            if (o.MaxPerLabel > 0 && kept.Count > o.MaxPerLabel)
+                kept = Enumerable.Range(0, o.MaxPerLabel).Select(i => kept[(int)((long)i * kept.Count / o.MaxPerLabel)]).ToList();
+            var target = FindTargetByName(set, label);
+            if (target == null)
+            {
+                target = AddTargetCore(set, label);
+                createdTargets.Add(target.Name);
+            }
+            foreach (var c in kept)
+            {
+                AddVariantPngCore(set, target, c.Png, VariantExtractor.FormatSourceRef(c.Image, null, c.Region),
+                    Path.GetFileNameWithoutExtension(c.Image) + "_" + label, c.Size);
                 added++;
             }
         }
         progress?.Report(new WorkProgress(done, images.Count));
         if (added > 0 || createdTargets.Count > 0) Save(set);
-        return new AnnotationImportResult(images.Count, boxes, added, createdTargets, failures);
+        return new AnnotationImportResult(images.Count, boxes, added, createdTargets, failures, duplicates);
     }
 
     private List<ImportFileResult> AddManyCore(TaskSet set, IReadOnlyList<(TaskTarget? Target, TaskResourcePool Pool, string Path)> jobs,

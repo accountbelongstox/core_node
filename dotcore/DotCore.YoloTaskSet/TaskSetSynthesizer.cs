@@ -53,6 +53,9 @@ public static partial class TaskSetSynthesizer
     {
         public required Lazy<Mat?> Image { get; init; }
         public required TaskResource Resource { get; init; }
+
+        /// <summary>Region the variant was cut from (with the source size known), for source placement; null otherwise.</summary>
+        public VariantRegion? SourceRegion { get; init; }
     }
 
     private sealed record Job(int Index, YoloSplit Split, int TargetIndex, string Stem, int Seed)
@@ -82,6 +85,8 @@ public static partial class TaskSetSynthesizer
         public List<TaskResource> CommonVideos { get; } = new();
         public List<VariantRef> Distractors { get; } = new();
         public List<HoldoutItem> Holdout { get; } = new();
+        public List<Background> SegmentBackgrounds { get; } = new();
+        public List<SegmentFrame> RealFrames { get; } = new();
 
         public bool HasErrors => Issues.Any(i => i.IsError);
     }
@@ -100,6 +105,7 @@ public static partial class TaskSetSynthesizer
         public required PoolSplit Common { get; init; }
         public required SynthesisBackgroundCache Cache { get; init; }
         public required IReadOnlyList<HoldoutItem> Holdout { get; init; }
+        public required IReadOnlyList<SegmentFrame> RealFrames { get; init; }
 
         public List<Background> TargetPool(int targetIndex, YoloSplit split) =>
             Scenes[targetIndex].For(split).Concat(Common.For(split)).ToList();
@@ -224,19 +230,22 @@ public static partial class TaskSetSynthesizer
 
         var holdoutSplit = s.HoldoutSplit == SynthesisSettings.HoldoutSplitTest ? YoloSplit.Test : YoloSplit.Val;
         int holdout = WriteHoldout(ctx, dir, holdoutSplit);
+        var real = WriteRealFrames(ctx, dir, ct);
         var written = outcomes.Where(o => !o.Failed).ToList();
-        var instances = ctx.Classes.Select((c, i) => (c, n: written.Sum(o => o.ClassCounts[i]))).ToDictionary(x => x.c, x => x.n, StringComparer.Ordinal);
-        int train = written.Count(o => o.Split == YoloSplit.Train);
-        int val = written.Count(o => o.Split == YoloSplit.Val);
+        var counted = written.Concat(real).ToList();
+        var instances = ctx.Classes.Select((c, i) => (c, n: counted.Sum(o => o.ClassCounts[i]))).ToDictionary(x => x.c, x => x.n, StringComparer.Ordinal);
+        int train = counted.Count(o => o.Split == YoloSplit.Train);
+        int val = counted.Count(o => o.Split == YoloSplit.Val);
         int negatives = written.Count(o => o.IsEmpty);
         int failed = outcomes.Count(o => o.Failed);
         int failedPositives = jobs.Count(j => !j.IsNegative && !outcomes[j.Index].Failed && outcomes[j.Index].IsEmpty);
         if (failedPositives > 0) ColorPrinter.Yellow($"[YoloTaskSet] {failedPositives} images got no placeable object and are written as negatives");
         if (failed > 0) ColorPrinter.Yellow($"[YoloTaskSet] {failed} images failed to render and were skipped");
-        var inference = InferenceInfo(ctx, written);
-        WriteManifest(ctx, dir, jobs, outcomes, warnings, inference, holdout, holdoutSplit, movedToTrain);
+        var inference = InferenceInfo(ctx, counted);
+        WriteManifest(ctx, dir, jobs, outcomes, warnings, inference, holdout, holdoutSplit, movedToTrain, real);
+        if (real.Count > 0) ColorPrinter.Blue($"[YoloTaskSet] real segment frames: train {real.Count(r => r.Split == YoloSplit.Train)}, val {real.Count(r => r.Split == YoloSplit.Val)}");
         return new SynthesisResult(finalDir, Path.Combine(finalDir, YoloDataYaml.FileName), ctx.Classes, train, val, negatives, instances, warnings,
-            inference, holdout, failed);
+            inference, holdout, failed, real.Count);
     }
 
     private static JobOutcome RunJob(Context ctx, Job job, string dir, string previewDir, bool preview)
@@ -336,10 +345,12 @@ public static partial class TaskSetSynthesizer
             }
             else if (CheckBackground(r) is { } bg) result.CommonImages.Add(bg);
         }
-        int commonCount = result.CommonImages.Count + videoFrames;
-        var commonGroups = result.CommonImages.Select(b => b.Group).Concat(result.CommonVideos.Select(v => v.Id)).ToList();
+        InspectSegments(set, s, classes, result);
+        int commonCount = result.CommonImages.Count + videoFrames + result.SegmentBackgrounds.Count;
+        var commonGroups = result.CommonImages.Select(b => b.Group).Concat(result.CommonVideos.Select(v => v.Id))
+            .Concat(result.SegmentBackgrounds.Select(b => b.Group)).ToList();
         int commonVal = ValGroups(commonGroups, s).Count;
-        if (set.CommonResources.Count == 0) Add(TaskSetIssueCode.NoCommonResources, set.Name, false);
+        if (set.CommonResources.Count == 0 && result.SegmentBackgrounds.Count == 0) Add(TaskSetIssueCode.NoCommonResources, set.Name, false);
         if (s.UsesDpiSteps && s.ScaleJitter > NativeJitterLimit) Add(TaskSetIssueCode.NativeScaleJitterLarge, set.Name, false);
 
         foreach (var t in set.Targets)
@@ -355,6 +366,7 @@ public static partial class TaskSetSynthesizer
                 if (VariantExtractor.InspectAlpha(path) is { HasTransparency: false }) Add(TaskSetIssueCode.VariantWithoutAlpha, r.File, false);
             }
             if (variants.Count == 0) Add(TaskSetIssueCode.NoVariants, subject, true);
+            else if (t.PlacesAtSource && !variants.Any(v => SourceRegionOf(v.Resource) != null)) Add(TaskSetIssueCode.PlacementSourceUnknown, subject, false);
             var scenes = t.Scenes.Select(CheckBackground).OfType<Background>().ToList();
             int backgrounds = scenes.Count + commonCount;
             if (backgrounds == 0) Add(TaskSetIssueCode.NoBackgrounds, subject, true);
@@ -402,7 +414,7 @@ public static partial class TaskSetSynthesizer
         IProgress<SynthesisProgress>? progress, CancellationToken ct)
     {
         var s = set.Synthesis.Normalized();
-        var common = inspection.CommonImages.ToList();
+        var common = inspection.CommonImages.Concat(inspection.SegmentBackgrounds).ToList();
         int videosDone = 0;
         foreach (var video in inspection.CommonVideos)
         {
@@ -416,7 +428,10 @@ public static partial class TaskSetSynthesizer
             if (scenes[i].Train.Count + commonSplit.Train.Count == 0)
                 throw new InvalidOperationException("No readable background for target " + set.Targets[i].Name);
 
-        VariantEntry Entry(VariantRef v) => new() { Image = new Lazy<Mat?>(() => TaskSetImageIo.ReadBgra(v.Path)), Resource = v.Resource };
+        VariantEntry Entry(VariantRef v) => new()
+        {
+            Image = new Lazy<Mat?>(() => TaskSetImageIo.ReadBgra(v.Path)), Resource = v.Resource, SourceRegion = SourceRegionOf(v.Resource),
+        };
         return new Context
         {
             Set = set,
@@ -430,6 +445,7 @@ public static partial class TaskSetSynthesizer
             Common = commonSplit,
             Cache = new SynthesisBackgroundCache(s.BackgroundCacheSize, s.IsNative ? 0 : s.OutputMaxSide),
             Holdout = inspection.Holdout,
+            RealFrames = inspection.RealFrames,
         };
     }
 
@@ -566,7 +582,10 @@ public static partial class TaskSetSynthesizer
                         targetIndex = (job.TargetIndex + 1 + rng.Next(ctx.Classes.Count - 1)) % ctx.Classes.Count;
                     var variants = ctx.VariantsFor(targetIndex, job.Split);
                     if (variants.Count == 0) continue;
-                    PasteObject(image, variants[rng.Next(variants.Count)], ctx.Profiles[targetIndex], ctx.Classes[targetIndex], bgScale, placed, regions, s, rng);
+                    var target = ctx.Set.Targets[targetIndex];
+                    var entry = PickVariant(variants, target, rng);
+                    var anchor = target.PlacesAtSource ? SourceAnchor(entry, used, f, origin, image.Size(), target.PlacementJitter) : null;
+                    PasteObject(image, entry, ctx.Profiles[targetIndex], ctx.Classes[targetIndex], bgScale, placed, regions, s, rng, anchor);
                 }
             }
             if (ctx.Distractors.Length > 0 && s.MaxDistractorsPerImage > 0 && rng.NextDouble() < s.DistractorProbability)
@@ -673,7 +692,7 @@ public static partial class TaskSetSynthesizer
 
     /// <summary>Augments and places one variant (label null = unlabeled distractor). Size: §4 scale modes plus the pixel-scale ratio (S3).</summary>
     private static void PasteObject(Mat image, VariantEntry entry, AugmentationProfile profile, string? label, double bgScale,
-        List<Placed> placed, IReadOnlyList<ImageRegion> regions, SynthesisSettings s, Random rng)
+        List<Placed> placed, IReadOnlyList<ImageRegion> regions, SynthesisSettings s, Random rng, SourceAnchorPoint? anchor = null)
     {
         var variant = entry.Image.Value;
         if (variant == null) return;
@@ -682,7 +701,7 @@ public static partial class TaskSetSynthesizer
         try
         {
             FitInto(ref obj, ref mask, image.Size());
-            if (Place(image, obj, mask, label, placed, regions, s, rng) is { } p) placed.Add(p);
+            if (Place(image, obj, mask, label, placed, regions, s, rng, anchor) is { } p) placed.Add(p);
         }
         finally
         {
@@ -695,6 +714,8 @@ public static partial class TaskSetSynthesizer
     {
         if (!s.IsNative)
         {
+            if (s.SizesFromSource && resource.HasSourceSize)
+                return (Math.Min(image.Width, image.Height) / (double)Math.Min(resource.SourceWidth, resource.SourceHeight), false);
             double longest = Math.Min(image.Width, image.Height) * (s.RelativeMin + rng.NextDouble() * (s.RelativeMax - s.RelativeMin));
             return (longest / Math.Max(variant.Width, variant.Height), false);
         }
@@ -740,7 +761,7 @@ public static partial class TaskSetSynthesizer
     /// of its mask pixels); composites, re-tightens occluded labels and returns the placed object, or null.
     /// </summary>
     private static Placed? Place(Mat image, Mat obj, Mat mask, string? label, List<Placed> placed, IReadOnlyList<ImageRegion> regions,
-        SynthesisSettings s, Random rng)
+        SynthesisSettings s, Random rng, SourceAnchorPoint? anchor = null)
     {
         int ow = obj.Width, oh = obj.Height;
         double keep = s.MinVisibleFraction;
@@ -755,9 +776,11 @@ public static partial class TaskSetSynthesizer
         var covered = new int[placed.Count];
         for (int attempt = 0; attempt < MaxPlacementAttempts; attempt++)
         {
-            var pos = inRegion && attempt < MaxPlacementAttempts / 2
-                ? RegionPosition(regions[rng.Next(regions.Count)], ow, oh, rng)
-                : new Point(RandomIn(rng, xMin, xMax), RandomIn(rng, yMin, yMax));
+            var pos = anchor is { } a
+                ? new Point(a.CenterX - ow / 2 + RandomIn(rng, -a.JitterX, a.JitterX), a.CenterY - oh / 2 + RandomIn(rng, -a.JitterY, a.JitterY))
+                : inRegion && attempt < MaxPlacementAttempts / 2
+                    ? RegionPosition(regions[rng.Next(regions.Count)], ow, oh, rng)
+                    : new Point(RandomIn(rng, xMin, xMax), RandomIn(rng, yMin, yMax));
             var objRect = new Rect(pos.X, pos.Y, ow, oh);
             var visible = objRect & bounds;
             if (visible.Width <= 0 || visible.Height <= 0) continue;
@@ -769,12 +792,17 @@ public static partial class TaskSetSynthesizer
             if (tight.Width < MinBoxSide || tight.Height < MinBoxSide) continue;
             var box = label == null ? null
                 : new AnnotationBox(label, visible.X + tight.X, visible.Y + tight.Y, visible.X + tight.X + tight.Width, visible.Y + tight.Y + tight.Height);
-            if (box != null && placed.Any(p => p.Box != null && p.Box.IoU(box) > s.MaxOverlapIou)) continue;
-            if (!OcclusionAllowed(placed, visible, visibleBin, keep, covered)) continue;
+            // A source-anchored object (UI panel) lies on top like the real overlay: it may hide earlier objects, which lose their label below keep.
+            bool overlay = anchor != null;
+            if (!overlay && box != null && placed.Any(p => p.Box != null && p.Box.IoU(box) > s.MaxOverlapIou)) continue;
+            if (!OcclusionAllowed(placed, visible, visibleBin, overlay ? 0 : keep, covered)) continue;
 
             Composite(image, obj, mask, visible, local);
             for (int i = 0; i < placed.Count; i++)
+            {
                 if (covered[i] > 0) Occlude(placed[i], visible, visibleBin, covered[i]);
+                if (overlay && placed[i].Box != null && placed[i].VisibleCount < keep * placed[i].FullArea) placed[i].Box = null;
+            }
             return new Placed { Rect = visible, Visible = visibleBin.Clone(), FullArea = fullArea, VisibleCount = visibleCount, Box = box };
         }
         return null;
