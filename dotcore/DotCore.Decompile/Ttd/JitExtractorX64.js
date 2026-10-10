@@ -51,6 +51,13 @@ function writeText(path, text) {
     }
 }
 
+function writeReport(path, modulePath, methods, failures) {
+    writeText(path, JSON.stringify({
+        ModulesInfo: [{ ModuleName: modulePath, MethodsInfo: methods }],
+        Failures: failures
+    }, null, 2));
+}
+
 function invokeScript() {
     const outputPath = __OUTPUT_PATH__;
     const targetName = __TARGET_MODULE__;
@@ -104,6 +111,7 @@ function invokeScript() {
                 LocalsSignatureBytes: "",
                 ExceptionHandlers: []
             });
+            writeReport(outputPath, targetModulePath, methods, failures);
             if (methods.length % 25 === 0) {
                 DebuggerApi.log(`Captured ${methods.length} target methods at call ${index}/${callCount}.`);
             }
@@ -113,6 +121,6 @@ function invokeScript() {
         }
     }
 
-    writeText(outputPath, JSON.stringify({ ModulesInfo: [{ ModuleName: targetModulePath, MethodsInfo: methods }], Failures: failures }, null, 2));
+    writeReport(outputPath, targetModulePath, methods, failures);
     DebuggerApi.log(`Finished: ${methods.length} target methods, ${failures.length} failures -> ${outputPath}`);
 }
