@@ -34,6 +34,11 @@ public sealed record SkillSwitchResult(SkillSwitchOutcome Outcome, int SkillsCha
 /// not on top yet goes into a top slot not holding a planned one, then Accept.
 /// Geometry is in client pixels of the 1072x603 reference client, scaled with the client height and centered horizontally (D3 scales
 /// its UI that way); every capture first makes D3 the foreground window (idempotent) and maps client points through the capture offset.
+/// Redundancy: D3 drops a click that only activates it, and other programs may take the foreground meanwhile, so every click / key is
+/// followed by a fresh capture that must show the expected screen (<see cref="UiState"/>: game menu, skill chooser, passive chooser,
+/// skill pane, world) and is repeated up to Attempts times; opening / closing goes state by state (game menu -> Return, chooser -> Escape,
+/// pane -> Escape / S), never by a blind key count. Before every capture that reads the chooser the cursor is parked outside the
+/// dialog: the tooltip of the icon just clicked would cover the rune row and the passive list.
 /// Plugin method: skills_check first (level 70 required; a slot is skipped when its pane icon is the planned skill and the plugin reports
 /// that skill with the planned rune) and again at the end. Image method: every slot is set (runes cannot be read from icons) and the end
 /// check compares the pane icons.
@@ -51,6 +56,11 @@ public static class D3SkillSwitcher
     private static readonly (int X, int Y)[] PaneSlotClick = { (435, 109), (642, 109), (435, 212), (642, 212), (435, 292), (642, 292) };
     private static readonly (int X, int Y)[] PaneSlotIcon = { (354, 109), (562, 109), (354, 212), (562, 212), (354, 292), (562, 292) };
     private static readonly (int X, int Y) PanePassiveSlot = (354, 381);
+    private static readonly (int X, int Y)[] PanePassiveSlots = { (354, 381), (474, 381), (594, 381), (714, 381) };
+    /// <summary>Cursor rest point outside every skill dialog (reference client px), so no tooltip covers what is read next.</summary>
+    private static readonly (int X, int Y) CursorPark = (1040, 560);
+    private const int ParkSettleMs = 250;
+    private const string DebugTimeFormat = "HHmmss_fff";
     /// <summary>Passive chooser, reference client px: the four slots on top and the grid of available passives.</summary>
     private static readonly (int X, int Y)[] PassiveTopSlots = { (390, 102), (487, 102), (584, 102), (681, 102) };
     private static readonly (int Left, int Top, int Right, int Bottom) PassiveGrid = (282, 149, 752, 429);
@@ -90,8 +100,15 @@ public static class D3SkillSwitcher
     private const string TemplatePagePrev = "skill_page_prev";
     private const string TemplatePageNext = "skill_page_next";
     private const string TemplateAccept = "skill_accept";
+    private const string TemplateGameMenuReturn = "game_menu_return";
+    private const double GameMenuThreshold = 0.88;
+    private const int Attempts = 3;
+    private const int MaxStateSteps = 6;
     private static readonly string[] NoRuneNames = { "无符文", "No Rune" };
     private static readonly string[] AcceptWords = { "接受", "Accept" };
+
+    /// <summary>When set, captures of failed recognitions are saved here (diagnostics).</summary>
+    public static string? DebugDir { get; set; }
 
     public static SkillSwitchResult Run(PlannerProfile profile, string cls, string cacheDir, SkillSwitchMethod method,
         Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop)
@@ -132,7 +149,7 @@ public static class D3SkillSwitcher
                 passivesChanged = SetPassives(passives, cls, cacheDir);
                 OpenPane(cls, cacheDir);
             }
-            int mismatches = Verify(method, pluginCheck, skills, cls, cacheDir);
+            int mismatches = Verify(method, pluginCheck, skills, passives, cls, cacheDir);
             var outcome = mismatches == 0 ? SkillSwitchOutcome.Done : SkillSwitchOutcome.Partial;
             return Result(outcome, skillsChanged, passivesChanged, mismatches, $"{skillsChanged} skill(s), {passivesChanged} passive(s) set, {mismatches} mismatch(es)");
         }
@@ -150,41 +167,92 @@ public static class D3SkillSwitcher
 
     // ---------- skill pane ----------
 
-    /// <summary>Skill pane open (idempotent): already open when the slot icons show class skills, else press S once.</summary>
-    private static bool OpenPane(string cls, string cacheDir)
+    /// <summary>What D3 shows: checked in this order (a chooser covers the pane, the game menu covers everything).</summary>
+    private enum UiState { GameMenu, SkillChooser, PassiveChooser, Pane, World, NoWindow }
+
+    private static UiState State(string cls, string cacheDir)
     {
-        if (PaneOpen(cls, cacheDir)) return true;
-        if (Capture() is not { } shot) return false;
-        if (FindChooser(shot) != null) PressKey(shot, VkEscape);
-        PressKey(shot, VkS);
-        shot.Image.Dispose();
-        Thread.Sleep(AfterKeyMs);
-        bool open = PaneOpen(cls, cacheDir);
-        if (!open) ColorPrinter.Yellow($"{LogTag} skill pane did not open with the skills key (S)");
-        return open;
+        if (Capture() is not { } shot) return UiState.NoWindow;
+        using (shot.Image) return State(shot, cls, cacheDir);
     }
 
-    private static void ClosePane(string cls, string cacheDir)
+    private static UiState State(Shot shot, string cls, string cacheDir)
     {
-        for (int i = 0; i < 2 && PaneOpen(cls, cacheDir); i++)
+        if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold) != null) return UiState.GameMenu;
+        if (FindChooser(shot) != null) return UiState.SkillChooser;
+        if (MatchTemplate(shot, TemplateAccept, AcceptThreshold) != null) return UiState.PassiveChooser;
+        var keys = SkillKeys(cls, cacheDir).ToList();
+        int icons = Enumerable.Range(0, SlotCount).Count(slot => BestIconAt(shot, PaneSlotIcon[slot], keys, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key)).Score >= IconThreshold);
+        return icons >= PaneOpenMinIcons ? UiState.Pane : UiState.World;
+    }
+
+    /// <summary>
+    /// Bring D3 to the wanted screen one step at a time (idempotent): game menu -> Return (Escape when its button is not found),
+    /// chooser -> Escape (back to the pane), pane -> Escape (world) or world -> S (pane). False when it is not reached in MaxStateSteps.
+    /// </summary>
+    private static bool ToState(UiState wanted, string cls, string cacheDir)
+    {
+        for (int step = 0; step < MaxStateSteps; step++)
         {
-            if (Capture() is not { } shot) return;
-            PressKey(shot, VkEscape);
-            shot.Image.Dispose();
+            if (Capture() is not { } shot) return false;
+            using var image = shot.Image;
+            var state = State(shot, cls, cacheDir);
+            if (state == wanted) return true;
+            switch (state)
+            {
+                case UiState.GameMenu:
+                    if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold) is { } ret) Click(shot, (ret.CenterX, ret.CenterY));
+                    else PressKey(shot, VkEscape);
+                    break;
+                case UiState.SkillChooser or UiState.PassiveChooser:
+                    PressKey(shot, VkEscape);
+                    break;
+                case UiState.Pane:
+                    PressKey(shot, VkEscape);
+                    break;
+                case UiState.World:
+                    PressKey(shot, VkS);
+                    break;
+                default:
+                    return false;
+            }
+            ColorPrinter.Gray($"{LogTag} screen {state} -> {wanted}");
             Thread.Sleep(AfterKeyMs);
         }
+        ColorPrinter.Yellow($"{LogTag} could not reach {wanted} in {MaxStateSteps} steps");
+        return false;
     }
 
-    /// <summary>At least PaneOpenMinIcons of the six pane slot spots show a class skill icon (and no chooser covers the pane).</summary>
-    private static bool PaneOpen(string cls, string cacheDir)
+    private static bool OpenPane(string cls, string cacheDir) => ToState(UiState.Pane, cls, cacheDir);
+
+    private static void ClosePane(string cls, string cacheDir) => ToState(UiState.World, cls, cacheDir);
+
+    /// <summary>
+    /// Click a point (computed on a fresh capture) until a fresh capture shows the expected screen, at most Attempts times; D3 drops a
+    /// click that only activates its window, and another program may take the foreground in between.
+    /// </summary>
+    private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir)
     {
-        if (Capture() is not { } shot) return false;
-        using var image = shot.Image;
-        if (FindChooser(shot) != null) return false;
-        var keys = SkillKeys(cls, cacheDir).ToList();
-        int found = Enumerable.Range(0, SlotCount).Count(slot => BestIconAt(shot, PaneSlotIcon[slot], keys, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key)).Score >= IconThreshold);
-        return found >= PaneOpenMinIcons;
+        for (int attempt = 1; attempt <= Attempts; attempt++)
+        {
+            if (Capture() is not { } shot) return false;
+            using (shot.Image)
+            {
+                if (point(shot) is not { } at)
+                {
+                    ColorPrinter.Yellow($"{LogTag} {what}: target not on screen");
+                    return false;
+                }
+                Click(shot, at);
+            }
+            Thread.Sleep(AfterClickMs);
+            var state = State(cls, cacheDir);
+            if (state == expected) return true;
+            ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt} shows {state}, expected {expected}");
+        }
+        return false;
     }
+
 
     /// <summary>The pane slot shows the given skill icon.</summary>
     private static bool SlotShows(int slot, string skill, string cls, string cacheDir)
@@ -221,10 +289,8 @@ public static class D3SkillSwitcher
     {
         using var icon = LoadImage(D3SkillIcons.SkillIconPath(cacheDir, cls, target.Id));
         if (icon == null) return SkillSwitchOutcome.SkillNotInList;
-        if (Capture() is not { } paneShot) return SkillSwitchOutcome.NoGameWindow;
-        Click(paneShot, paneShot.ToImage(PaneSlotClick[slot]));
-        paneShot.Image.Dispose();
-        Thread.Sleep(AfterClickMs);
+        if (!ClickUntil(sh => sh.ToImage(PaneSlotClick[slot]), UiState.SkillChooser, $"slot {slot} box", cls, cacheDir))
+            return SkillSwitchOutcome.ChooserNotOpen;
         Shot? shot = null;
         Chooser? chooser = null;
         try
@@ -240,9 +306,9 @@ public static class D3SkillSwitcher
                     ColorPrinter.Yellow($"{LogTag} slot {slot}: skill chooser did not open (page arrows not found)");
                     return SkillSwitchOutcome.ChooserNotOpen;
                 }
-                if (FindInRow(shot, chooser, icon, target) is { } at)
+                if (FindInRow(shot, chooser, icon, target) is not null)
                 {
-                    Click(shot, at);
+                    if (!PickUntilAssigned(icon, target, cls, cacheDir)) return SkillSwitchOutcome.ChooserNotOpen;
                     break;
                 }
                 if (page == MaxPages - 1)
@@ -254,18 +320,13 @@ public static class D3SkillSwitcher
                 Click(shot, chooser.Next);
                 Thread.Sleep(AfterPageClickMs);
             }
-            Thread.Sleep(AfterIconClickMs);
+            Park(shot!);
             shot!.Image.Dispose();
             shot = Capture();
             if (shot == null) return SkillSwitchOutcome.NoGameWindow;
             chooser = FindChooser(shot) ?? chooser!;
             if (target.Rune.Length > 0) SelectRune(shot, chooser, target, cls, cacheDir);
-            using (var box = new Mat(shot.Image, Band(shot, chooser, AssignedTopFrac, AssignedBottomFrac)))
-            {
-                var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(shot.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, target.Id);
-                if (!check.Success) ColorPrinter.Yellow($"{LogTag} assigned box does not show {target.Id} (score {check.Score:F2})");
-            }
-            Accept(shot);
+            if (!AcceptUntil(UiState.Pane, cls, cacheDir)) return SkillSwitchOutcome.ChooserNotOpen;
             ColorPrinter.Green($"{LogTag} slot {slot}: {target.NameEn} / {target.RuneNameEn}");
             return SkillSwitchOutcome.Done;
         }
@@ -303,12 +364,45 @@ public static class D3SkillSwitcher
         if (pick == null)
         {
             ColorPrinter.Yellow($"{LogTag} rune '{target.RuneNameZh}' / '{target.RuneNameEn}' not found in [{string.Join(", ", words.Select(w => w.Text))}]");
+            SaveDebug(shot, $"rune_{target.Id}");
             return;
         }
         ColorPrinter.Gray($"{LogTag} rune '{target.RuneNameZh}' by {how}: '{pick.Text}'");
         Click(shot, pick.Center);
         Thread.Sleep(AfterRuneClickMs);
     }
+
+    /// <summary>Click the planned icon in the current page's row until the assigned box shows it (fresh capture each attempt).</summary>
+    private static bool PickUntilAssigned(Mat icon, PlannerSkill target, string cls, string cacheDir)
+    {
+        for (int attempt = 1; attempt <= Attempts; attempt++)
+        {
+            if (Capture() is not { } shot) return false;
+            using (shot.Image)
+            {
+                if (FindChooser(shot) is not { } chooser || FindInRow(shot, chooser, icon, target) is not { } at) return false;
+                Click(shot, at);
+                Thread.Sleep(AfterIconClickMs);
+                Park(shot);
+            }
+            if (Capture() is not { } after) return false;
+            using (after.Image)
+            {
+                if (FindChooser(after) is not { } chooser) return false;
+                using var box = new Mat(after.Image, Band(after, chooser, AssignedTopFrac, AssignedBottomFrac));
+                var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(after.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, target.Id);
+                if (check.Success) return true;
+                ColorPrinter.Yellow($"{LogTag} {target.Id}: attempt {attempt}, assigned box not updated (score {check.Score:F2})");
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Click Accept until the chooser is gone (the expected screen shows).</summary>
+    private static bool AcceptUntil(UiState expected, string cls, string cacheDir) =>
+        ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold) is { } b ? (b.CenterX, b.CenterY)
+            : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
+            expected, "accept", cls, cacheDir);
 
     /// <summary>Open chooser: page arrows (templates) -> icon row center line, row bounds and the next-page point (image px).</summary>
     private sealed record Chooser(int RowY, int Left, int Right, (int X, int Y) Next);
@@ -346,30 +440,28 @@ public static class D3SkillSwitcher
 
     // ---------- passives ----------
 
-    /// <summary>Passive chooser from a pane passive slot: put each planned passive not on top yet into a top slot without a planned one, Accept.</summary>
+    /// <summary>
+    /// Passive chooser from a pane passive slot: put each planned passive not on top yet into a top slot without a planned one, each
+    /// placement checked on a fresh capture (the list reflows after every placement) and repeated up to Attempts times; then Accept.
+    /// </summary>
     private static int SetPassives(IReadOnlyList<PlannerNamed> planned, string cls, string cacheDir)
     {
-        if (Capture() is not { } pane) return 0;
-        Click(pane, pane.ToImage(PanePassiveSlot));
-        pane.Image.Dispose();
-        Thread.Sleep(AfterClickMs);
-        if (Capture() is not { } shot) return 0;
-        using var image = shot.Image;
-        if (MatchTemplate(shot, TemplateAccept, AcceptThreshold) == null)
-        {
-            ColorPrinter.Yellow($"{LogTag} passive chooser did not open");
-            return 0;
-        }
+        if (!ToState(UiState.Pane, cls, cacheDir)) return 0;
+        if (!ClickUntil(sh => sh.ToImage(PanePassiveSlot), UiState.PassiveChooser, "passive slot", cls, cacheDir)) return 0;
         string Path(string key) => D3SkillIcons.PassiveIconPath(cacheDir, cls, key);
         var plannedKeys = planned.Select(p => p.Id).ToList();
-        var onTop = PassiveTopSlots.Select(slot => BestIconAt(shot, slot, plannedKeys, Path)).Select(b => b.Score >= IconThreshold ? b.Key : null).ToList();
+        List<string?> onTop;
+        if (Capture() is not { } parkShot) return 0;
+        using (parkShot.Image) Park(parkShot);
+        if (Capture() is not { } first) return 0;
+        using (first.Image)
+            onTop = PassiveTopSlots.Select(slot => BestIconAt(first, slot, plannedKeys, Path)).Select(b => b.Score >= IconThreshold ? b.Key : null).ToList();
         var missing = planned.Where(p => !onTop.Contains(p.Id)).ToList();
-        ColorPrinter.Gray($"{LogTag} passives on top: [{string.Join(", ", onTop.Select(k => k ?? "-"))}], missing: [{string.Join(", ", missing.Select(p => p.Id))}]");
         var freeSlots = Enumerable.Range(0, PassiveTopSlots.Length).Where(i => onTop[i] == null).ToList();
+        ColorPrinter.Gray($"{LogTag} passives on top: [{string.Join(", ", onTop.Select(k => k ?? "-"))}], missing: [{string.Join(", ", missing.Select(p => p.Id))}]");
         if (missing.Count == 0)
         {
-            PressKey(shot, VkEscape);
-            Thread.Sleep(AfterKeyMs);
+            ToState(UiState.Pane, cls, cacheDir);
             return 0;
         }
         int changed = 0;
@@ -377,42 +469,87 @@ public static class D3SkillSwitcher
         {
             using var icon = LoadImage(Path(passive.Id));
             if (icon == null) continue;
-            Click(shot, shot.ToImage(PassiveTopSlots[slot]));
-            Thread.Sleep(AfterRuneClickMs);
-            // the list reflows once a passive is placed: locate on a fresh capture every time
-            if (Capture() is not { } now) break;
-            using var nowImage = now.Image;
-            var (gl, gt) = now.ToImage((PassiveGrid.Left, PassiveGrid.Top));
-            var (gr, gb) = now.ToImage((PassiveGrid.Right, PassiveGrid.Bottom));
-            var grid = new Rect(gl, gt, gr - gl, gb - gt).Intersect(new Rect(0, 0, nowImage.Cols, nowImage.Rows));
-            using var area = new Mat(nowImage, grid);
-            var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(area, icon, Widths(now.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, passive.Id);
-            (int X, int Y)? at = m.Success ? (grid.X + m.CenterX, grid.Y + m.CenterY) : null;
-            if (at == null && FuzzyText.Best(OcrArea(now, grid), w => w.Text, new[] { passive.NameZh, passive.NameEn }) is { } label)
-                at = label.Item.Center;
-            if (at is not { } point)
+            for (int attempt = 1; attempt <= Attempts; attempt++)
             {
-                ColorPrinter.Yellow($"{LogTag} passive {passive.Id} not found in the passive list (icon {m.Score:F2})");
-                continue;
+                if (PlacePassive(passive, slot, icon, cls, cacheDir))
+                {
+                    changed++;
+                    break;
+                }
+                ColorPrinter.Yellow($"{LogTag} passive {passive.Id}: attempt {attempt} not on top slot {slot}");
             }
-            Click(now, point);
-            Thread.Sleep(AfterRuneClickMs);
-            changed++;
-            ColorPrinter.Green($"{LogTag} passive slot {slot} -> {passive.NameEn} (icon {m.Score:F2})");
         }
-        if (Capture() is { } after)
-        {
-            using (after.Image) Accept(after);
-        }
+        if (!AcceptUntil(UiState.Pane, cls, cacheDir)) ToState(UiState.Pane, cls, cacheDir);
         return changed;
     }
 
+    /// <summary>Select the top slot, click the passive in the list (icon, else its OCR'd name), true when the top slot then shows it.</summary>
+    private static bool PlacePassive(PlannerNamed passive, int slot, Mat icon, string cls, string cacheDir)
+    {
+        string Path(string key) => D3SkillIcons.PassiveIconPath(cacheDir, cls, key);
+        if (Capture() is not { } shot) return false;
+        using (shot.Image)
+        {
+            Click(shot, shot.ToImage(PassiveTopSlots[slot]));
+            Thread.Sleep(AfterRuneClickMs);
+            Park(shot);
+        }
+        if (Capture() is not { } now) return false;
+        using (now.Image)
+        {
+            var (gl, gt) = now.ToImage((PassiveGrid.Left, PassiveGrid.Top));
+            var (gr, gb) = now.ToImage((PassiveGrid.Right, PassiveGrid.Bottom));
+            var grid = new Rect(gl, gt, gr - gl, gb - gt).Intersect(new Rect(0, 0, now.Image.Cols, now.Image.Rows));
+            using var area = new Mat(now.Image, grid);
+            var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(area, icon, Widths(now.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, passive.Id);
+            (int X, int Y)? at = m.Success ? (grid.X + m.CenterX, grid.Y + m.CenterY) : null;
+            string how = $"icon {m.Score:F2}";
+            if (at == null && FuzzyText.Best(OcrArea(now, grid), w => w.Text, new[] { passive.NameZh, passive.NameEn }) is { } label)
+            {
+                at = label.Item.Center;
+                how = $"name '{label.Item.Text}' ({label.Score:F2}), icon {m.Score:F2}";
+            }
+            if (at is not { } point)
+            {
+                ColorPrinter.Yellow($"{LogTag} passive {passive.Id} not found in the list (icon {m.Score:F2})");
+                SaveDebug(now, $"passive_{passive.Id}");
+                return false;
+            }
+            ColorPrinter.Gray($"{LogTag} passive {passive.Id} by {how}");
+            Click(now, point);
+            Thread.Sleep(AfterRuneClickMs);
+            Park(now);
+        }
+        if (Capture() is not { } after) return false;
+        using (after.Image)
+        {
+            bool placed = BestIconAt(after, PassiveTopSlots[slot], new[] { passive.Id }, Path).Score >= IconThreshold;
+            if (placed) ColorPrinter.Green($"{LogTag} passive slot {slot} -> {passive.NameEn}");
+            return placed;
+        }
+    }
+
     /// <summary>Mismatches after the run: plugin check (skills incl. runes + passives), or the pane slot icons against the planned skills.</summary>
-    private static int Verify(SkillSwitchMethod method, Func<SkillCheckResult?>? pluginCheck, PlannerSkill?[] skills, string cls, string cacheDir)
+    private static int Verify(SkillSwitchMethod method, Func<SkillCheckResult?>? pluginCheck, PlannerSkill?[] skills, IReadOnlyList<PlannerNamed> passives, string cls, string cacheDir)
     {
         if (method == SkillSwitchMethod.Plugin && pluginCheck?.Invoke() is { } after)
             return after.Skills.Count(s => s == false) + after.Passives.Count(p => p == false);
-        return Enumerable.Range(0, SlotCount).Count(slot => skills[slot] is { } s && !SlotShows(slot, s.Id, cls, cacheDir));
+        int skillMismatches = Enumerable.Range(0, SlotCount).Count(slot => skills[slot] is { } s && !SlotShows(slot, s.Id, cls, cacheDir));
+        if (passives.Count == 0 || Capture() is not { } shot) return skillMismatches;
+        using (shot.Image)
+        {
+            Park(shot);
+        }
+        if (Capture() is not { } pane) return skillMismatches;
+        using (pane.Image)
+        {
+            var keys = passives.Select(p => p.Id).ToList();
+            var shown = PanePassiveSlots.Select(slot => BestIconAt(pane, slot, keys, k => D3SkillIcons.PassiveIconPath(cacheDir, cls, k)))
+                .Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
+            int passiveMismatches = keys.Count(k => !shown.Contains(k));
+            if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))}");
+            return skillMismatches + passiveMismatches;
+        }
     }
 
     // ---------- capture, input, matching ----------
@@ -455,6 +592,28 @@ public static class D3SkillSwitcher
         }
     }
 
+    /// <summary>Move the cursor to the rest point outside the dialogs (no click) and let the tooltip fade.</summary>
+    private static void Park(Shot shot)
+    {
+        var (x, y) = shot.ToImage(CursorPark);
+        StateAwareClickHandler.Instance.MoveMouse(shot.Offset.X + x, shot.Offset.Y + y, 0);
+        Thread.Sleep(ParkSettleMs);
+    }
+
+    private static void SaveDebug(Shot shot, string name)
+    {
+        if (string.IsNullOrEmpty(DebugDir)) return;
+        try
+        {
+            Directory.CreateDirectory(DebugDir);
+            Cv2.ImWrite(Path.Combine(DebugDir, $"{name}_{DateTime.Now.ToString(DebugTimeFormat, System.Globalization.CultureInfo.InvariantCulture)}.png"), shot.Image);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OpenCVException)
+        {
+            ColorPrinter.Yellow($"{LogTag} debug capture not saved: {ex.Message}");
+        }
+    }
+
     private static void Click(Shot shot, (int X, int Y) imagePoint) =>
         StateAwareClickHandler.Instance.LeftClick(shot.Offset.X + imagePoint.X, shot.Offset.Y + imagePoint.Y, 0);
 
@@ -479,20 +638,6 @@ public static class D3SkillSwitcher
         return words;
     }
 
-    /// <summary>Click Accept: its template, else an OCR'd "Accept" word (typo-tolerant), else Escape (nothing changed).</summary>
-    private static void Accept(Shot shot)
-    {
-        if (MatchTemplate(shot, TemplateAccept, AcceptThreshold) is { } button)
-            Click(shot, (button.CenterX, button.CenterY));
-        else if (FuzzyText.Best(OcrArea(shot, new Rect(0, shot.Image.Rows / 2, shot.Image.Cols, shot.Image.Rows / 2)), w => w.Text, AcceptWords) is { } word)
-            Click(shot, word.Item.Center);
-        else
-        {
-            ColorPrinter.Yellow($"{LogTag} Accept button not found, closing the chooser");
-            PressKey(shot, VkEscape);
-        }
-        Thread.Sleep(AfterAcceptMs);
-    }
 
     /// <summary>Template from Templates/skill_switch scaled with the client height; null below the threshold.</summary>
     private static TemplateMatchResult? MatchTemplate(Shot shot, string name, double threshold)
