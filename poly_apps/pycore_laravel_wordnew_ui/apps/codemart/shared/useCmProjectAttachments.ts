@@ -29,6 +29,20 @@ const extractAttachments = (data: CmListPage<CmAttachment>) => ({
   totalPages: cmTotalPages(data),
 });
 
+type CmTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+/** Why a file cannot be attached under the server policy (size, extension), or null when it can. */
+export function cmAttachmentIssue(file: File, policy: { maxAttachmentKb: number; allowedDocumentTypes: string[] }, t: CmTranslate): string | null {
+  if (file.size > policy.maxAttachmentKb * BYTES_PER_KB) return t('attachments.tooLarge', { size: Math.round(policy.maxAttachmentKb / KB_PER_MB) });
+  if (!cmFileTypeAllowed(file.name, policy.allowedDocumentTypes)) return t('attachments.wrongType', { types: policy.allowedDocumentTypes.join(', ') });
+  return null;
+}
+
+/** First server field message of a failed upload, else the coded error message. */
+export function cmAttachmentUploadError(response: Parameters<typeof cmErrorMessage>[1], t: CmTranslate): string {
+  return firstServerFieldMessage(response) ?? cmErrorMessage(t, response, 'attachments.uploadFailed');
+}
+
 export interface CmProjectAttachmentsModel {
   list: CmPagedList<CmAttachment>;
   /** Upload progress 0..100 while an upload runs, otherwise null. */
@@ -54,12 +68,9 @@ export function useCmProjectAttachments(projectId: number, feedback: CmFeedback)
   const upload = useCallback(async (file: File): Promise<boolean> => {
     if (progress !== null) return false;
     feedback.clear();
-    if (file.size > maxAttachmentKb * BYTES_PER_KB) {
-      feedback.error(t('attachments.tooLarge', { size: Math.round(maxAttachmentKb / KB_PER_MB) }));
-      return false;
-    }
-    if (!cmFileTypeAllowed(file.name, allowedDocumentTypes)) {
-      feedback.error(t('attachments.wrongType', { types: allowedDocumentTypes.join(', ') }));
+    const issue = cmAttachmentIssue(file, { maxAttachmentKb, allowedDocumentTypes }, t);
+    if (issue) {
+      feedback.error(issue);
       return false;
     }
     setProgress(0);
@@ -70,7 +81,7 @@ export function useCmProjectAttachments(projectId: number, feedback: CmFeedback)
       await load(1);
       return true;
     }
-    feedback.error(firstServerFieldMessage(response) ?? cmErrorMessage(t, response, 'attachments.uploadFailed'));
+    feedback.error(cmAttachmentUploadError(response, t));
     return false;
   }, [progress, feedback, maxAttachmentKb, allowedDocumentTypes, projectId, load, t]);
 

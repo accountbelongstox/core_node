@@ -134,7 +134,7 @@ export const CmBrandCompare: React.FC<CmBrandCompareProps> = ({ candidate, manif
             <figcaption>{t('brandGallery.compareOriginal')}</figcaption>
           </figure>
           <figure>
-            <div className="cm-brand-compare__stage">{candidateImage()}</div>
+            <div className="cm-brand-compare__stage" style={stageStyle}>{candidateImage()}</div>
             <figcaption>{t('brandGallery.compareCandidate')}</figcaption>
           </figure>
         </div>
