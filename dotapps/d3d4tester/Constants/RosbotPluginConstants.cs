@@ -63,6 +63,10 @@ public static class RosbotPluginConstants
     public const string BridgeHoldOn = "on";
     public const string BridgeHoldOff = "off";
     public const string BridgeFollowOff = "off";
+    /// <summary>Follow value "mode,party slot,banner,pickup,revive,assist": flags are BridgeFollowFlagOn / 0; assist = follow only and fight.</summary>
+    public const char BridgeFollowValueSeparator = ',';
+    public const int BridgeFollowAssistIndex = 5;
+    public const string BridgeFollowFlagOn = "1";
     /// <summary>Follow targets (plugin FollowMode modes): nearest player, the selected player, the party leader, party slot 1-4.</summary>
     public const string BridgeFollowNearest = "nearest";
     public const string BridgeFollowSelected = "selected";
