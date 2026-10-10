@@ -504,7 +504,9 @@
         "contamination_check": "Check backgrounds for unlabeled targets",
         "contamination_threshold": "Match threshold",
         "contamination_video_frames": "Video frames checked per video",
-        "holdout_split": "Real annotated images go to"
+        "holdout_split": "Real annotated images go to",
+        "relative_sizing": "Object size in relative mode",
+        "segment_block_frames": "Segment frames per split block"
       },
       "issue": {
         "no_targets": "The task set has no targets.",
@@ -523,7 +525,9 @@
         "unknown_box_label": "Box label is not a target name and is masked out: {subject}",
         "holdout_unreadable": "Real validation folder is missing or has no annotated images: {subject}",
         "invalid_region": "Placement region lies outside the image: {subject}",
-        "variant_without_alpha": "Opaque variant is pasted with its background square: {subject}"
+        "variant_without_alpha": "Opaque variant is pasted with its background square: {subject}",
+        "segment_unreadable": "Segment missing or without annotated frames: {subject}",
+        "placement_source_unknown": "\"{subject}\" is placed at its source position but no variant has a known source position and size; it is placed anywhere."
       },
       "extract": {
         "open_button": "Extract from image/video…",
@@ -732,7 +736,33 @@
       "holdout_folder_title": "Select a folder of annotated screenshots",
       "holdout_counting": "Counting annotated images…",
       "holdout_count": "{annotated} annotated of {images} images",
-      "holdout_empty": "No annotated images found (see Validation)"
+      "holdout_empty": "No annotated images found (see Validation)",
+      "segment_link": "Share with task set (used in place, not copied)…",
+      "segment_link_prompt": "The task set reads this segment's frames and annotations directly: annotated frames become backgrounds with their real labels and are written as real training images.",
+      "segment_linked": "Task set \"{set}\": {added} segment(s) shared.",
+      "segments": {
+        "section": "Segments",
+        "hint": "Recorded segments shared in place (not copied; frames and annotations are read at generation). Annotated frames serve as backgrounds (their real objects stay labeled, difficult / uncertain boxes are masked) and as real training images; both uses split train/val by frame blocks, so one block never feeds both.",
+        "add": "Add segments…",
+        "folder_title": "Select segment folders (a project folder adds all its segments)",
+        "none_found": "No new segment in the selected folders (a segment has a frames folder or annotated images).",
+        "backgrounds": "As backgrounds",
+        "real_images": "As real images",
+        "frame_step": "Frame step",
+        "counting": "Counting annotations…",
+        "count": "{annotated} / {images} frames annotated · {boxes} boxes · {labels}",
+        "empty": "No annotated frames",
+        "extract": "Extract variants from labels (deduplicated)",
+        "extract_confirm": "Crop the annotated boxes of all shared segments into variants of the same-named targets (created when missing): every {step}th frame, near duplicates closer than {distance} dHash bits skipped, at most {max} per label. Continue?",
+        "extract_done": "Added {added} variants from {segments} segments, skipped {duplicates} near duplicates; new targets: {targets}",
+        "status_extracting": "Extracting variants {done}/{total}"
+      },
+      "placement": "Placement",
+      "placement_anywhere": "Anywhere",
+      "placement_source": "Source position (fixed UI)",
+      "relative_sizing_range": "Relative size range",
+      "relative_sizing_source": "Keep the size in the source frame",
+      "result_real": "Real recorded frames among them: {count}"
     },
     "yolo_training_service": {
       "task_set_invalid": "Task set has errors: {issues}",

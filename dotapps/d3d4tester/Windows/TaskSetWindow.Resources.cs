@@ -217,6 +217,34 @@ public partial class TaskSetWindow
 
     private void RemoveHoldouts() => _vm.RemoveHoldouts(LstHoldouts.SelectedItems.OfType<TaskSetHoldoutRow>().ToList());
 
+    private async Task AddSegmentsAsync()
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = T(I18nKeys.YoloTaskSetSegmentsFolderTitle), Multiselect = true };
+        if (Directory.Exists(YoloDataLayout.Root)) dlg.InitialDirectory = YoloDataLayout.Root;
+        if (dlg.ShowDialog(this) == true) await AddSegmentDirsAsync(dlg.FolderNames);
+    }
+
+    private async Task AddSegmentDirsAsync(IReadOnlyList<string> dirs)
+    {
+        if (dirs.Count == 0) return;
+        if (await _vm.AddSegmentsAsync(dirs) == 0) Warn(T(I18nKeys.YoloTaskSetSegmentsNone));
+        UpdateEnabled();
+    }
+
+    private async Task ExtractSegmentVariantsAsync()
+    {
+        if (!Confirm(T(I18nKeys.YoloTaskSetSegmentsExtractConfirm)
+                .Replace("{step}", N(SegmentVariantOptions.FrameStep))
+                .Replace("{distance}", N(SegmentVariantOptions.MinHashDistance))
+                .Replace("{max}", N(SegmentVariantOptions.MaxPerLabel)))) return;
+        if (await _vm.ExtractSegmentVariantsAsync(VariantCutout.Rectangle, SegmentVariantOptions) is not { } r) return;
+        MessageBox.Show(this, T(I18nKeys.YoloTaskSetSegmentsExtractDone)
+            .Replace("{segments}", N(r.Segments))
+            .Replace("{added}", N(r.Added))
+            .Replace("{duplicates}", N(r.Duplicates))
+            .Replace("{targets}", r.Created.Count == 0 ? "-" : string.Join(", ", r.Created)), Title, MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private async Task RemoveSelectedAsync(ListBox list)
     {
         var selected = SelectedResources(list);

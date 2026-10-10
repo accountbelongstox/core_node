@@ -37,6 +37,9 @@ public partial class TaskSetWindow : Window
     private const int AugPreviewSeed = 1;
     private const double AugPreviewMaxHeight = 360;
 
+    // Recorded frames are near duplicates: every 3rd frame, crops closer than 6 dHash bits skipped, at most 40 per label, no slivers.
+    private static readonly AnnotationVariantOptions SegmentVariantOptions = new(FrameStep: 3, MinHashDistance: 6, MaxPerLabel: 40, MinSide: 8);
+
     private static readonly string ImagePatterns = Patterns(TaskSetStore.ImageExtensions);
     private static readonly string VideoPatterns = Patterns(TaskSetStore.VideoExtensions);
 
@@ -70,6 +73,7 @@ public partial class TaskSetWindow : Window
         LstDatasets.ItemsSource = _vm.Datasets;
         LstRuns.ItemsSource = _vm.Runs;
         LstHoldouts.ItemsSource = _vm.Holdouts;
+        LstSegments.ItemsSource = _vm.Segments;
         BuildGlobalAugEditor();
         BuildOverrideEditor();
         BuildSynthesisEditor();
@@ -221,6 +225,18 @@ public partial class TaskSetWindow : Window
         BtnHoldoutAdd.Content = T(I18nKeys.YoloTaskSetAddFolder);
         BtnHoldoutRemove.Content = T(I18nKeys.YoloTaskSetRemoveSelected);
         AutomationProperties.SetName(LstHoldouts, LblHoldout.Text);
+        TabSegments.Header = T(I18nKeys.YoloTaskSetSectionSegments);
+        TxtSegmentsHint.Text = T(I18nKeys.YoloTaskSetSegmentsHint);
+        BtnSegmentsAdd.Content = T(I18nKeys.YoloTaskSetSegmentsAdd);
+        BtnSegmentsExtract.Content = T(I18nKeys.YoloTaskSetSegmentsExtract);
+        BtnSegmentsRemove.Content = T(I18nKeys.YoloTaskSetRemoveSelected);
+        Resources["SegmentBackgroundsText"] = T(I18nKeys.YoloTaskSetSegmentsBackgrounds);
+        Resources["SegmentRealImagesText"] = T(I18nKeys.YoloTaskSetSegmentsRealImages);
+        Resources["SegmentFrameStepText"] = T(I18nKeys.YoloTaskSetSegmentsFrameStep);
+        AutomationProperties.SetName(LstSegments, TabSegments.Header as string);
+        LblPlacement.Text = T(I18nKeys.YoloTaskSetPlacement);
+        AutomationProperties.SetName(CboPlacement, LblPlacement.Text);
+        SetChoiceTexts(CboPlacement, TaskSetFields.Placements.Select(p => p.TextKey));
         AutomationProperties.SetName(CboRoiAnchor, LblRoiAnchor.Text);
         AutomationProperties.SetName(TxtRoiBand, LblRoiBand.Text);
         AutomationProperties.SetName(TxtRoiRect, LblRoiRect.Text);
@@ -368,6 +384,19 @@ public partial class TaskSetWindow : Window
         BtnHoldoutAdd.Click += (_, _) => AddHoldout();
         BtnHoldoutRemove.Click += (_, _) => RemoveHoldouts();
         LstHoldouts.SelectionChanged += (_, _) => UpdateEnabled();
+        BtnSegmentsAdd.Click += async (_, _) => await AddSegmentsAsync();
+        BtnSegmentsRemove.Click += async (_, _) => await _vm.RemoveSegmentsAsync(LstSegments.SelectedItems.OfType<TaskSetSegmentRow>().ToList());
+        BtnSegmentsExtract.Click += async (_, _) => await ExtractSegmentVariantsAsync();
+        LstSegments.SelectionChanged += (_, _) => UpdateEnabled();
+        LstSegments.DragOver += (_, e) => AcceptFileDrag(e);
+        LstSegments.Drop += async (_, e) =>
+        {
+            if (DroppedPaths(e) is { } paths) await AddSegmentDirsAsync(paths.Where(Directory.Exists).ToList());
+        };
+        CboPlacement.SelectionChanged += (_, _) =>
+        {
+            if (!_rendering && CboPlacement.SelectedIndex >= 0) _vm.SetPlacement(TaskSetFields.Placements[CboPlacement.SelectedIndex].Value);
+        };
 
         BtnValidate.Click += async (_, _) =>
         {
@@ -567,6 +596,8 @@ public partial class TaskSetWindow : Window
         BtnRunDelete.IsEnabled = LstRuns.SelectedItem != null;
         BtnRunTest.IsEnabled = LstRuns.SelectedItem != null;
         BtnHoldoutRemove.IsEnabled = LstHoldouts.SelectedItem != null;
+        BtnSegmentsRemove.IsEnabled = LstSegments.SelectedItem != null;
+        BtnSegmentsExtract.IsEnabled = _vm.Segments.Count > 0;
         CommandManager.InvalidateRequerySuggested();
     }
 
@@ -648,6 +679,10 @@ public partial class TaskSetWindow : Window
     {
         LblTargetName.Text = _vm.TargetTitle(_vm.Target);
         RenderIpt();
+        _rendering = true;
+        int placement = Enumerable.Range(0, TaskSetFields.Placements.Count).FirstOrDefault(i => TaskSetFields.Placements[i].Value == _vm.Target?.Placement);
+        CboPlacement.SelectedIndex = _vm.Target == null ? -1 : placement;
+        _rendering = false;
     }
 
     private async Task AddTargetAsync()
@@ -811,6 +846,7 @@ public partial class TaskSetWindow : Window
             sb.AppendLine(T(I18nKeys.YoloTaskSetResultWarnings));
             foreach (var w in r.Warnings) sb.AppendLine(LinePrefix + TaskSetIssueFormatter.Text(w));
         }
+        if (r.RealImages > 0) sb.AppendLine(T(I18nKeys.YoloTaskSetResultReal).Replace("{count}", N(r.RealImages)));
         sb.Append(T(I18nKeys.YoloTaskSetResultDir).Replace("{path}", r.DatasetDir));
         TxtResult.Text = sb.ToString();
     }
