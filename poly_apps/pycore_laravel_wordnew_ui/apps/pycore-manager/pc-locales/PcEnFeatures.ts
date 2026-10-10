@@ -408,6 +408,16 @@ terminal: {
       notImage: 'Only image or audio files can be attached.',
       uploadFailed: 'Image upload failed.',
       uploadStalled: 'Image upload stalled with no progress.',
+      detail: {
+        file: 'File: {{name}} ({{type}}, {{size}})',
+        unknownType: 'no type',
+        code: 'Error code: {{code}}',
+        http: 'HTTP status: {{status}}',
+        message: 'Message: {{message}}',
+        received: 'pycore received: {{size}}',
+        max: 'Limit: {{size}}',
+        head: 'File header (hex): {{head}}',
+      },
       sentWithMissing: 'Sent, but {{count}} attachment(s) failed to upload and were left out; the AI was told they are missing.',
       agentMissingNote: '[{{count}} attached image(s) failed to upload and did not reach you; only the text below was sent.]',
       pull: {

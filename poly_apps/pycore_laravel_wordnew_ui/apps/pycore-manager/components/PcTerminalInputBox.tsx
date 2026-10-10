@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
-import { isTerminalAttachmentFile, type PcTerminalImages } from './usePcTerminalImages';
+import { isTerminalAttachmentFile, type PcTerminalImage, type PcTerminalImages } from './usePcTerminalImages';
 import { usePcVoiceRecorder, type PcVoiceRecorderError } from './usePcVoiceRecorder';
 import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
 import { PcImageLightbox } from './PcAiShared';
@@ -92,6 +92,23 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const recorder = usePcVoiceRecorder(addRecording);
   const imageItems = images.items.filter((item) => item.kind === 'image');
   const audioItems = images.items.filter((item) => item.kind === 'audio');
+  const failedItems = images.items.filter((item) => item.status === 'error');
+  const errorDetailLines = (item: PcTerminalImage): string[] => {
+    const detail = item.errorDetail;
+    const lines = [t('terminal.images.detail.file', {
+      name: item.file.name,
+      type: item.file.type || t('terminal.images.detail.unknownType'),
+      size: formatBytes(item.file.size),
+    })];
+    if (!detail) return lines;
+    lines.push(t('terminal.images.detail.code', { code: detail.code }));
+    if (detail.httpStatus !== null) lines.push(t('terminal.images.detail.http', { status: detail.httpStatus }));
+    if (detail.message) lines.push(t('terminal.images.detail.message', { message: detail.message }));
+    if (detail.receivedBytes !== null) lines.push(t('terminal.images.detail.received', { size: formatBytes(detail.receivedBytes) }));
+    if (detail.maxBytes !== null) lines.push(t('terminal.images.detail.max', { size: formatBytes(detail.maxBytes) }));
+    if (detail.headHex) lines.push(t('terminal.images.detail.head', { head: detail.headHex }));
+    return lines;
+  };
   const previewItem = imageItems.find((item) => item.id === previewId && item.previewUrl) ?? null;
   const record = () => {
     if (recorder.recording) recorder.stop();
@@ -247,6 +264,16 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               >
                 <X className="h-3.5 w-3.5" />
               </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {failedItems.length > 0 && (
+        <ul className="space-y-1 px-1.5 pt-1.5">
+          {failedItems.map((item) => (
+            <li key={item.id} className="select-text break-all rounded-lg bg-rose-500/10 px-2 py-1 text-[11px] leading-snug text-rose-600 dark:text-rose-300">
+              <p className="font-semibold">{t(item.errorKey, item.errorParams)}</p>
+              <p>{errorDetailLines(item).join(' · ')}</p>
             </li>
           ))}
         </ul>

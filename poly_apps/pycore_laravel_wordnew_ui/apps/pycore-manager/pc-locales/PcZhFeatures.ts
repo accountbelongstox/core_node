@@ -408,6 +408,16 @@ terminal: {
       notImage: '只能添加图片或录音文件。',
       uploadFailed: '图片上传失败。',
       uploadStalled: '图片上传长时间没有进展。',
+      detail: {
+        file: '文件：{{name}}（{{type}}，{{size}}）',
+        unknownType: '无类型',
+        code: '错误码：{{code}}',
+        http: 'HTTP 状态：{{status}}',
+        message: '信息：{{message}}',
+        received: 'pycore 收到：{{size}}',
+        max: '上限：{{size}}',
+        head: '文件头（hex）：{{head}}',
+      },
       sentWithMissing: '已发送，但有 {{count}} 个附件上传失败未附带；已告知 AI 这些图片缺失。',
       agentMissingNote: '[{{count}} attached image(s) failed to upload and did not reach you; only the text below was sent.]',
       pull: {

@@ -18,6 +18,17 @@ export interface PcTerminalImage {
   storedBytes: number | null;
   errorKey: string;
   errorParams: Record<string, number>;
+  errorDetail: PcTerminalImageErrorDetail | null;
+}
+
+/** Everything known about a failed upload, shown in full under the attachments. */
+export interface PcTerminalImageErrorDetail {
+  code: string;
+  httpStatus: number | null;
+  message: string;
+  receivedBytes: number | null;
+  headHex: string;
+  maxBytes: number | null;
 }
 
 export interface PcTerminalImages {
@@ -122,6 +133,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         storedBytes: null,
         errorKey: ok ? '' : ERROR_KEYS.notImage,
         errorParams: {},
+        errorDetail: null,
       };
     });
     if (added.length) commit([...allRef.current, ...added]);
@@ -145,7 +157,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
   const startUpload = useCallback(async (item: PcTerminalImage): Promise<string | null> => {
     const abort = new AbortController();
     aborts.current.set(item.id, abort);
-    patch(item.id, { status: 'uploading', progress: 0, errorKey: '', errorParams: {} });
+    patch(item.id, { status: 'uploading', progress: 0, errorKey: '', errorParams: {}, errorDetail: null });
     try {
       const result = await terminalApi.uploadTerminalImage(item.windowId, item.file, {
         signal: abort.signal,
@@ -156,6 +168,14 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
           status: 'error',
           errorKey: UPLOAD_ERROR_KEYS[result?.error_code ?? ''] ?? ERROR_KEYS.failed,
           errorParams: result?.max_bytes ? { max: Math.round(result.max_bytes / MIB) } : {},
+          errorDetail: {
+            code: result?.error_code || (result ? 'no_display_path' : 'empty_response'),
+            httpStatus: 200,
+            message: result?.error ?? '',
+            receivedBytes: result?.received_bytes ?? null,
+            headHex: result?.head_hex ?? '',
+            maxBytes: result?.max_bytes ?? null,
+          },
         });
         return null;
       }
@@ -171,6 +191,14 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         patch(item.id, {
           status: 'error',
           errorKey: error?.name === 'TimeoutError' ? ERROR_KEYS.stalled : ERROR_KEYS.failed,
+          errorDetail: {
+            code: [error?.name, error?.code].filter(Boolean).join(' ') || 'request_failed',
+            httpStatus: typeof error?.status === 'number' ? error.status : null,
+            message: error?.message || String(error),
+            receivedBytes: null,
+            headHex: '',
+            maxBytes: null,
+          },
         });
       }
       return null;
