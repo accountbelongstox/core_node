@@ -72,6 +72,8 @@ public static class RosbotPluginConstants
     /// <summary>Plugin research commands: Interact with the nearest monster and report its hit points (attack_test), list ROSBOT methods taking a power into power_api.txt.</summary>
     public const string BridgeActionAttackTest = "attack_test";
     public const string BridgeActionPowerApi = "power_api";
+    /// <summary>attack_test value: one cast step of ROSBOT's own cast entry instead of Interact.</summary>
+    public const string BridgeAttackTestCast = "cast";
     /// <summary>ros_settings keys shown on the monsters tab (plugin CoreNodeBridge.WriteStateLocked).</summary>
     public const string BridgeRosScanRange = "scan_range";
     public const string BridgeRosEliteWeight = "elite_weight";

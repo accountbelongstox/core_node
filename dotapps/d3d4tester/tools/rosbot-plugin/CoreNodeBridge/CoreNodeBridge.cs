@@ -100,7 +100,7 @@ public sealed class CoreNodeBridge : IPlugin
         _follow = new FollowMode(Log) { TownHold = _townHold, Assist = _assist };
         _standby = new TownStandby(Log) { TownHold = _townHold };
         _hold = new PulseHold(Log, () => _writeStartedUtc, () => _writeThread);
-        _commands = new BridgeCommands(_dir, Log, _follow, _standby, _hold, _assist);
+        _commands = new BridgeCommands(_dir, Log, _follow, _standby, _hold, _assist, _probe);
         _follow.PickupHandler = _commands.PickupNearestMatching;
         _follow.CommandBusy = () => _commands.Busy;
         _commands.ReloadFilter();
@@ -190,6 +190,7 @@ public sealed class CoreNodeBridge : IPlugin
         _follow.Tick();
         TickAssist();
         _probe.Tick();
+        _assist.Cast(_probe.Skills);
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
             _lastScanUtc = now;
@@ -378,6 +379,10 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("combat", _assist.Combat)
                 .Prop("combat_target", _assist.Target)
                 .Prop("combat_source", _assist.Source)
+                .Prop("cast_by_plugin", _assist.CastByPlugin)
+                .Prop("plugin_cast", _assist.PluginCast)
+                .Prop("ros_cast_available", RosCaster.Available)
+                .Prop("last_cast", RosCaster.LastCast)
                 .Prop("ros_attack_targets", _assist.RosTargetIds.Count)
                 .Prop("standby_enabled", _standby.Enabled)
                 .Prop("standby_state", _standby.State)
@@ -398,7 +403,7 @@ public sealed class CoreNodeBridge : IPlugin
             WriteEntities(json, "monsters", _monsters);
             json.BeginArray("skills");
             foreach (var k in _probe.Skills)
-                json.BeginObject().Prop("power", k.Power).Prop("name", k.Name).Prop("ready", k.Ready).Prop("on_cooldown", k.OnCooldown)
+                json.BeginObject().Prop("power", k.Power).Prop("name", k.Name).Prop("slot", k.Slot).Prop("ready", k.Ready).Prop("on_cooldown", k.OnCooldown)
                     .Prop("cooldown_ms", k.CooldownMs).Prop("resource_ok", k.ResourceOk).Prop("charges", k.Charges).Prop("channel", k.Channel).EndObject();
             json.EndArray();
             json.BeginObject("ros_settings")

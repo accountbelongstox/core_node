@@ -88,6 +88,11 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("combat_target")] public string CombatTarget { get; init; } = "";
     /// <summary>Where the fought monster came from: rosbot (ROSBOT's attack targets) / weights (ROSBOT's target weights) / "".</summary>
     [JsonPropertyName("combat_source")] public string CombatSource { get; init; } = "";
+    /// <summary>The plugin casts with ROSBOT's own cast entry (so the combat macro stays off); the setting; whether that entry was found; the last cast.</summary>
+    [JsonPropertyName("cast_by_plugin")] public bool CastByPlugin { get; init; }
+    [JsonPropertyName("plugin_cast")] public bool PluginCast { get; init; }
+    [JsonPropertyName("ros_cast_available")] public bool RosCastAvailable { get; init; }
+    [JsonPropertyName("last_cast")] public string LastCast { get; init; } = "";
     /// <summary>Number of ROSBOT's own attack targets (Context.AttackActors) at the last plugin scan.</summary>
     [JsonPropertyName("ros_attack_targets")] public int RosAttackTargets { get; init; }
     /// <summary>ROSBOT's target settings (scan_range, density_limit, elite / goblin / normal / minion / warden weight); -1 = unreadable.</summary>
@@ -169,7 +174,11 @@ public sealed record RosbotBridgeSkill(
     [property: JsonPropertyName("cooldown_ms")] int CooldownMs,
     [property: JsonPropertyName("resource_ok")] bool ResourceOk,
     [property: JsonPropertyName("charges")] int Charges,
-    [property: JsonPropertyName("channel")] bool Channel);
+    [property: JsonPropertyName("channel")] bool Channel)
+{
+    /// <summary>ROSBOT hotbar slot (Left, Right, Pos1-Pos4, Potion), "" when unknown or from an older plugin.</summary>
+    [JsonPropertyName("slot")] public string Slot { get; init; } = "";
+}
 
 /// <summary>Live pickup (item vanished next to the hero) or stash event.</summary>
 public sealed record RosbotBridgePickup(

@@ -7,7 +7,8 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Combat assist, cast side: the plugin holds ROSBOT and only positions the hero, so ROSBOT casts nothing; the combat macro casts instead.
+/// Combat assist, cast side when the plugin does not cast itself (cast_by_plugin off: setting off or ROSBOT's cast entry not found): the
+/// plugin holds ROSBOT and positions the hero, so ROSBOT casts nothing; the combat macro casts instead.
 /// On the 1 s TickDriver it starts the combat macro while the plugin reports combat (assist on, any plugin mode: follow, standby,
 /// commands, idle under the hold; in game, alive) and stops it when the fight ends, only when this service started it (a macro the user
 /// started stays on). A macro the user stopped meanwhile (smart pause keys, hotkey) is not started again until the next fight.
@@ -28,7 +29,7 @@ public static class RosbotCombatAssistService
     private static void OnTick()
     {
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
-        bool fight = snapshot.RosbotBridgeFresh && snapshot.RosbotBridge is { AssistEnabled: true, Combat: true, InGame: true, Dead: false };
+        bool fight = snapshot.RosbotBridgeFresh && snapshot.RosbotBridge is { AssistEnabled: true, Combat: true, CastByPlugin: false, InGame: true, Dead: false };
         bool started = fight && !_fighting;
         _fighting = fight;
         var dispatcher = System.Windows.Application.Current?.Dispatcher;

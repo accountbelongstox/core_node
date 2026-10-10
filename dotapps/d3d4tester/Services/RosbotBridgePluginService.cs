@@ -330,6 +330,7 @@ public static class RosbotBridgePluginService
         if (!string.IsNullOrWhiteSpace(uiId)) lines.Add($"{CommandKeyUiId}={uiId.Trim()}");
         if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{CommandKeyValue}={value.Trim()}");
         lines.Add($"{CommandKeyAssist}={AssistEnabled}");
+        lines.Add($"{CommandKeyCast}={PluginCastEnabled}");
         if (!WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName), lines)) return null;
         ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId} assist={AssistEnabled}");
         if (rememberFollow && action == RosbotPluginConstants.BridgeActionFollow)
@@ -396,6 +397,9 @@ public static class RosbotBridgePluginService
     /// <summary>Shared combat assist setting (ConfigKeys.BridgeAssist), sent with every command.</summary>
     public static bool AssistEnabled => ConfigBinding.GetValue(ConfigKeys.BridgeAssist, ConfigKeys.BridgeAssistDefault);
 
+    /// <summary>Shared "plugin casts" setting (ConfigKeys.BridgePluginCast), sent with every command.</summary>
+    public static bool PluginCastEnabled => ConfigBinding.GetValue(ConfigKeys.BridgePluginCast, ConfigKeys.BridgePluginCastDefault);
+
     /// <summary>Write the pickup filter for the plugin (pickup_filter.txt: auto line + one name fragment per line).</summary>
     public static bool SavePickupFilter(bool autoAtRiftEnd, IEnumerable<string> patterns)
     {
@@ -447,6 +451,7 @@ public static class RosbotBridgePluginService
     private const string CommandKeyUiId = "ui_id";
     private const string CommandKeyValue = "value";
     private const string CommandKeyAssist = "assist";
+    private const string CommandKeyCast = "cast";
     private const string FilterKeyAuto = "auto";
     private const string TempSuffix = ".tmp";
 

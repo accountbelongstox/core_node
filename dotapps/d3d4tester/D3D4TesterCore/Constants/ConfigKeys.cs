@@ -128,6 +128,9 @@ public static partial class ConfigKeys
     public const string RosbotDebugLevelFull = "rosbot.debug_level_full";
     public const bool RosbotDebugLevelFullDefault = true;
     public const bool BridgeAssistDefault = false;
+    /// <summary>Combat assist casts with ROSBOT's own cast entry (plugin RosCaster) when found, else the combat macro casts. Default on.</summary>
+    public const string BridgePluginCast = "rosbot.bridge_plugin_cast";
+    public const bool BridgePluginCastDefault = true;
     public const string BridgeFollowTownPortalKeyDefault = "t";
     /// <summary>
     /// Map teleport run by the plugin right after ROSBOT starts (ROSBOT paused meanwhile): D3 UI element ids / paths clicked in order,

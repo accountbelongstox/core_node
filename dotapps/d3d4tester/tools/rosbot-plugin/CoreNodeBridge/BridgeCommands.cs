@@ -23,7 +23,7 @@ internal sealed class CommandResult
 }
 
 /// <summary>
-/// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id, value, assist), written
+/// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id, value, assist, cast), written
 /// atomically by the app (never over a command not taken yet), taken (moved away, then read) on the plugin's own timer once the
 /// worker is free and executed on a worker thread, one at a time, so the plugin keeps
 /// scanning and writing state.json while a command waits for the game (e.g. movement while ROSBOT is paused). A command still running
@@ -61,6 +61,7 @@ internal sealed class BridgeCommands
     public const string ActionHold = "hold";
     public const string ActionAssist = "assist";
     private const string AssistKey = "assist";
+    private const string CastKey = "cast";
     private const string AssistOff = "off";
     private const string HoldOff = "off";
     private const char UiSequenceSeparator = '|';
@@ -96,8 +97,9 @@ internal sealed class BridgeCommands
     private DateTime _filterStamp = DateTime.MinValue;
     private List<string> _patterns = new();
 
-    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby, PulseHold hold, CombatAssist assist)
+    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby, PulseHold hold, CombatAssist assist, CombatProbe probe)
     {
+        _probe = probe;
         _dir = dir;
         _log = log;
         _follow = follow;
@@ -107,6 +109,7 @@ internal sealed class BridgeCommands
     }
 
     private readonly CombatAssist _assist;
+    private readonly CombatProbe _probe;
 
     private readonly PulseHold _hold;
 
@@ -269,6 +272,7 @@ internal sealed class BridgeCommands
         result.Action = cmd.TryGetValue("action", out var action) ? action : "";
         cmd.TryGetValue("target", out var target);
         if (cmd.TryGetValue(AssistKey, out var assistLine) && bool.TryParse(assistLine, out bool assistOn)) _assist.Set(assistOn);
+        if (cmd.TryGetValue(CastKey, out var castLine) && bool.TryParse(castLine, out bool castOn)) _assist.PluginCast = castOn;
         try
         {
             switch (result.Action)
@@ -375,7 +379,7 @@ internal sealed class BridgeCommands
                 case ScriptProbe.Action:
                     return ScriptProbe.Run(result, _dir);
                 case CombatProbe.ActionAttackTest:
-                    return CombatProbe.AttackTest(result, cmd.TryGetValue("value", out var attackValue) ? attackValue : "");
+                    return _probe.AttackTest(result, cmd.TryGetValue("value", out var attackValue) ? attackValue : "");
                 case CombatProbe.ActionPowerApi:
                     return CombatProbe.PowerApi(result, _dir);
                 case SkillCheck.Action:
