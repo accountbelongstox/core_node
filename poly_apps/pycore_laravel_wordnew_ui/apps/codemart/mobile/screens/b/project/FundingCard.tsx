@@ -5,9 +5,7 @@ import type { CmProjectDetail } from '../../../../api/CmApiTypes';
 import { CM_PROTECTED_ROUTE } from '../../../../components/public-home/cmPublicRoutes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmProjectFunding } from '../../../../shared/useCmProjectFunding';
-import { MobileButton, MobileCard, MobileNotice, MobileSkeletonBlock, useMobileFeedback } from '../../../ui';
-import { MobileConfirmSheet } from '../parts/MobileConfirmSheet';
-import { MobileKeyValue } from '../parts/MobileKeyValue';
+import { MobileButton, MobileCard, MobileNotice, MobileSkeletonBlock, useMobileFeedback, MobileConfirmSheet, MobileKeyValues } from '../../../ui';
 
 /** Owner funds the accepted proposal into escrow; the server moves the project to open and answers insufficient_balance with a top-up hint. */
 export const FundingCard: React.FC<{ project: CmProjectDetail; onFunded: () => Promise<void> }> = ({ project, onFunded }) => {
@@ -30,7 +28,7 @@ export const FundingCard: React.FC<{ project: CmProjectDetail; onFunded: () => P
       <p className="cmm-card-lead">{t('funding.description')}</p>
       {loading ? <MobileSkeletonBlock height={64} /> : (
         <div className="cmm-stack-tight">
-          <MobileKeyValue
+          <MobileKeyValues
             items={[
               { label: t('funding.amountLabel'), value: fundingAmount !== null ? format.money(fundingAmount, project.currency) : t('common.unavailable') },
               wallet && { label: t('funding.availableLabel'), value: format.money(wallet.available_balance, wallet.currency) },

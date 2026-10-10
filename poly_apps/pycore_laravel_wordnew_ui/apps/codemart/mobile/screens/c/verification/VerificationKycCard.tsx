@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { IdCard } from 'lucide-react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmKycForm } from '../../../../shared/useCmVerification';
-import { MobileButton, MobileCard, MobileField, MobileNotice, MobileSheet } from '../../../ui';
-import { MobileImagePicker } from '../parts/MobileImagePicker';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileCard, MobileField, MobileNotice, MobileSheet, MobileImagePicker, useInlineFeedback } from '../../../ui';
 
 interface VerificationKycCardProps {
   rejected: boolean;

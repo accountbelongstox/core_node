@@ -2,8 +2,7 @@ import React from 'react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmWalletTopUp } from '../../../../shared/useCmWalletActions';
-import { MobileButton, MobileField, MobileSheet } from '../../../ui';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileField, MobileSheet, useInlineFeedback } from '../../../ui';
 import { WalletBankInstructions } from './WalletBankInstructions';
 
 interface WalletTopUpSheetProps {

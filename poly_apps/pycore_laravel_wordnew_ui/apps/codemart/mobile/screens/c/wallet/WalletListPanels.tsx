@@ -10,8 +10,7 @@ import {
   useCmWalletTransactions,
   useCmWalletWithdrawals,
 } from '../../../../shared/useCmWallet';
-import { MobileListRow, MobileStatusBadge } from '../../../ui';
-import { MobilePagedList } from '../parts/MobilePagedList';
+import { MobileListRow, MobileStatusBadge, MobilePagedList } from '../../../ui';
 
 interface WalletListPanelProps {
   refreshToken: number;

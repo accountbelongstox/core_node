@@ -22,21 +22,7 @@ import { cmFormatPercent } from '../../../../components/workspace/cmWorkspaceFor
 import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../../../../components/public-home/cmPublicRoutes';
 import { useCmAdminFormat, useCmAdminOverview } from '../../../../admin/useCmAdminData';
 import { setCmUiMode } from '../../../../shared/cmUiMode';
-import {
-  MobileButton,
-  MobileCard,
-  MobileChipRow,
-  MobileErrorState,
-  MobileList,
-  MobileListRow,
-  MobileNotice,
-  MobileScreen,
-  MobileSectionHeader,
-  MobileSkeletonBlock,
-  MobileStatChip,
-  MobileStatusBadge,
-} from '../../../ui';
-import { MobileKeyValues } from '../parts/MobileKeyValues';
+import { MobileButton, MobileCard, MobileChipRow, MobileErrorState, MobileList, MobileListRow, MobileNotice, MobileScreen, MobileSectionHeader, MobileSkeletonBlock, MobileStatChip, MobileStatusBadge, MobileKeyValues } from '../../../ui';
 import { useAdminText } from './MobileAdminParts';
 
 const QUEUE_ICONS: Record<string, LucideIcon> = {

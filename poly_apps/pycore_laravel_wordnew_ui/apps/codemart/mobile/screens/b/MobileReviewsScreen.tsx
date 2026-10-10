@@ -5,12 +5,11 @@ import type { CmReviewSubmission } from '../../../api/CmApiTypes';
 import { useCmFormat } from '../../../components/workspace/cmWorkspaceFormat';
 import { useCmBootstrap } from '../../../contexts/CmBootstrapContext';
 import { CM_REVIEW_RATING_VALUES, useCmReviewerApplication, useCmReviewerQueue } from '../../../shared/useCmReviews';
-import { MobileButton, MobileCard, MobileListState, MobilePager, MobileScreen, MobileStatusBadge, useMobileFeedback } from '../../ui';
+import { MobileButton, MobileCard, MobileListState, MobilePager, MobileScreen, MobileStatusBadge, useMobileFeedback, MobileTagList } from '../../ui';
 import { MobileCommentField } from './parts/MobileCommentField';
 import { MobileEntityCard } from './parts/MobileEntityCard';
 import { MobileRatingPicker } from './parts/MobileRatingPicker';
 import { MobileReviewSheet } from './parts/MobileReviewSheet';
-import { MobileTagList } from './parts/MobileTagList';
 import './styles/cm-mobile-work.css';
 
 const ReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<void> }> = ({ onPassed }) => {

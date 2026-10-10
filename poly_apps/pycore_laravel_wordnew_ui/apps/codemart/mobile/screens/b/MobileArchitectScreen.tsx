@@ -6,8 +6,7 @@ import { CM_PROTECTED_ROUTE, cmProjectPath } from '../../../components/public-ho
 import { cmFormatNumber, useCmFormat } from '../../../components/workspace/cmWorkspaceFormat';
 import { useCmPolicy } from '../../../contexts/useCmPolicy';
 import { CM_ARCHITECT_METRIC_STAT_KEYS, useCmArchitect } from '../../../shared/useCmArchitect';
-import { MobileButton, MobileCard, MobileErrorState, MobileList, MobileListRow, MobileScreen, MobileSectionHeader, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback } from '../../ui';
-import { MobileConfirmSheet } from './parts/MobileConfirmSheet';
+import { MobileButton, MobileCard, MobileErrorState, MobileList, MobileListRow, MobileScreen, MobileSectionHeader, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback, MobileConfirmSheet } from '../../ui';
 import './styles/cm-mobile-work.css';
 
 /** Mobile architect hub: eligibility, application and activation, assigned projects (plan milestones and tasks in the project) and projects to accept. */

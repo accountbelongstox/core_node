@@ -3,11 +3,10 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import type { CmReviewSubmission } from '../../../../api/CmApiTypes';
 import { CM_REVIEW_RATING_VALUES, CM_REVIEW_RECOMMENDATIONS, useCmReviewDecision } from '../../../../shared/useCmReviews';
-import { MobileButton, MobileField, MobileSectionHeader, MobileSheet, useMobileFeedback } from '../../../ui';
+import { MobileButton, MobileField, MobileSectionHeader, MobileSheet, useMobileFeedback, MobileTagList } from '../../../ui';
 import { MobileCommentField } from './MobileCommentField';
 import { MobileRatingPicker } from './MobileRatingPicker';
 import { MobileSubmissionFiles } from './MobileSubmissionFiles';
-import { MobileTagList } from './MobileTagList';
 
 interface MobileReviewSheetProps {
   submission: CmReviewSubmission;

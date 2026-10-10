@@ -8,9 +8,7 @@ import type { CmPagedList } from '../../../../components/workspace/useCmPagedLis
 import { useCmAdminActionBuilders, useCmAdminActionState, type CmAdminActionState } from '../../../../admin/useCmAdminActions';
 import { useCmAdminFormat } from '../../../../admin/useCmAdminData';
 import type { CmAdminUserSummary } from '../../../../admin/CmAdminTypes';
-import { MobileButton, MobileCard, MobileField, MobileListState, MobileNotice, MobilePager, MobileSheet } from '../../../ui';
-import { MobileKeyValues, type MobileKeyValue } from '../parts/MobileKeyValues';
-import { MobilePills } from '../parts/MobilePills';
+import { MobileButton, MobileCard, MobileField, MobileListState, MobileNotice, MobilePager, MobileSheet, MobileKeyValues, type MobileKeyValue, MobilePills } from '../../../ui';
 
 const ALL_FILTER = '';
 
