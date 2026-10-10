@@ -425,8 +425,8 @@ terminal: {
     },
     images: {
       attach: '添加图片',
-      attachDocument: '添加文档（PDF、文本、Office、压缩包）',
-      documents: '已添加的文档',
+      attachDocument: '添加文件（任意格式）',
+      documents: '已添加的文件',
       remove: '移除图片',
       preview: '查看大图',
       closePreview: '关闭预览',

@@ -86,11 +86,9 @@ const UPLOAD_COMPRESS_POLICY: ImageCompressPolicy = {
 const AUDIO_MIME = /^audio\//i;
 /** System recorders may hand over a recording without a type; its extension decides. */
 const AUDIO_EXTENSION = /\.(m4a|aac|amr|3gp|3gpp|ogg|oga|opus|webm|wav|mp3|flac)$/i;
-/** Documents travel as they are (no compression, no recognition); pycore stores them next to the images. */
-const DOCUMENT_EXTENSIONS: readonly string[] = RELAY_CONTRACT.terminal_attachments.document_extensions;
-const DOCUMENT_EXTENSION = new RegExp(`\\.(${DOCUMENT_EXTENSIONS.join('|')})$`, 'i');
-/** `accept` of the document picker. */
-export const TERMINAL_DOCUMENT_ACCEPT = [...DOCUMENT_EXTENSIONS.map((extension) => `.${extension}`), 'application/pdf', 'text/*'].join(',');
+/** Files of any other format travel as they are (no compression, no recognition); pycore stores them next to the images. */
+/** `accept` of the document picker: every format. */
+export const TERMINAL_DOCUMENT_ACCEPT = '*/*';
 const MIB = 1024 * 1024;
 const ERROR_KEYS = {
   notImage: 'terminal.images.notImage',
@@ -123,12 +121,12 @@ export function isTerminalAudioFile(file: File): boolean {
 }
 
 export function isTerminalDocumentFile(file: File): boolean {
-  if (isTerminalImageFile(file) || isTerminalAudioFile(file)) return false;
-  return DOCUMENT_EXTENSION.test(file.name);
+  return !isTerminalImageFile(file) && !isTerminalAudioFile(file);
 }
 
+/** Every file format can be attached. */
 export function isTerminalAttachmentFile(file: File): boolean {
-  return isTerminalImageFile(file) || isTerminalAudioFile(file) || isTerminalDocumentFile(file);
+  return file instanceof Blob;
 }
 
 function attachmentKindOf(file: File): PcTerminalAttachmentKind {

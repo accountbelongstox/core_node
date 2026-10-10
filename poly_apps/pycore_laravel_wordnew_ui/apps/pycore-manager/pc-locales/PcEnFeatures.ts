@@ -425,8 +425,8 @@ terminal: {
     },
     images: {
       attach: 'Attach images',
-      attachDocument: 'Attach documents (PDF, text, Office, archives)',
-      documents: 'Attached documents',
+      attachDocument: 'Attach files (any format)',
+      documents: 'Attached files',
       remove: 'Remove image',
       preview: 'Open the full image',
       closePreview: 'Close preview',
