@@ -31,6 +31,8 @@ public static class TtdHvmMetadataAnalyzer
         int methodExitCode;
         int moduleExitCode = 0;
         int exitCode;
+        JsonElement entries;
+        JsonElement helperCalls;
 
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("TTD HVM metadata analysis requires Windows.");
@@ -42,8 +44,11 @@ public static class TtdHvmMetadataAnalyzer
         using (JsonDocument helperReport = JsonDocument.Parse(
                    await File.ReadAllTextAsync(fullHelperReportPath, token).ConfigureAwait(false)))
         {
-            handles = helperReport.RootElement.GetProperty("Calls").EnumerateArray()
+            entries = helperReport.RootElement.TryGetProperty("Calls", out helperCalls)
+                ? helperCalls : helperReport.RootElement.GetProperty("UnidentifiedMethods");
+            handles = entries.EnumerateArray()
                 .Select(call => call.GetProperty("MethodHandle").GetString()!)
+                .Select(NormalizePointer)
                 .Where(handle => !string.Equals(handle, "0x0", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
@@ -79,8 +84,8 @@ public static class TtdHvmMetadataAnalyzer
                 Methods = methods.Where(method => method.DefinitionToken != 0).Select(method =>
                     new HvmMethodHandleMetadata(method.Handle, method.Name, method.DefinitionToken,
                         method.ModuleHandle, method.ModulePath)),
-                Failures = handles.Where(handle => methods.All(method =>
-                    !string.Equals(method.Handle, handle, StringComparison.OrdinalIgnoreCase))).ToArray()
+                Failures = handles.Where(handle => methods.All(method => method.DefinitionToken == 0
+                    || !string.Equals(method.Handle, handle, StringComparison.OrdinalIgnoreCase))).ToArray()
             }, new JsonSerializerOptions { WriteIndented = true }), token).ConfigureAwait(false);
             return new TtdHvmMetadataAnalysisReport(fullOutputPath, exitCode, handles.Length,
                 methods.Count(method => method.DefinitionToken != 0), modules.Count);
