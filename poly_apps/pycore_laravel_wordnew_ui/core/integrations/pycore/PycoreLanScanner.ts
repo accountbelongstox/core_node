@@ -20,6 +20,8 @@ export interface LanScanResult {
   ms: number;
   /** Machine name pycore reports ('' when refused). */
   hostname: string;
+  /** Raw /api/status body (identity: machine id, platform, LAN IPs); null when refused. */
+  payload: unknown;
 }
 
 export interface LanScanOptions {
@@ -38,9 +40,9 @@ async function probe(host: string, port: number, timeoutMs: number | undefined, 
   const url = `${pycoreHttpProto()}://${host}:${port}`;
   const answer = await probeHttpService(`${url}${PYCORE_HTTP_PATHS.status}`, timeoutMs, signal);
   if (!answer) return null;
-  if (REFUSED.has(answer.status)) return { host, url, state: 'refused', ms: answer.ms, hostname: '' };
+  if (REFUSED.has(answer.status)) return { host, url, state: 'refused', ms: answer.ms, hostname: '', payload: null };
   const payload = answer.body as { is_http_service?: boolean; hostname?: string } | null;
-  return { host, url, state: payload?.is_http_service ? 'up' : 'no_route', ms: answer.ms, hostname: String(payload?.hostname || '') };
+  return { host, url, state: payload?.is_http_service ? 'up' : 'no_route', ms: answer.ms, hostname: String(payload?.hostname || ''), payload };
 }
 
 /** Scan `hosts`; resolves with every host that answered (pycore up first, fastest first). */
@@ -54,7 +56,7 @@ export async function scanLanPycore(hosts: string[], options: LanScanOptions = {
     options.onProgress?.(done, hosts.length);
     if (!result) return;
     found.push(result);
-    if (result.state !== 'no_route') recordPycoreProbe(result.url, result.state === 'up' ? 'up' : 'rejected', result.ms, { hostname: result.hostname });
+    if (result.state !== 'no_route') recordPycoreProbe(result.url, result.state === 'up' ? 'up' : 'rejected', result.ms, result.payload);
     options.onResult?.(result);
   }, options.signal);
   return found.sort((left, right) => (left.state === 'up' ? 0 : 1) - (right.state === 'up' ? 0 : 1) || left.ms - right.ms);

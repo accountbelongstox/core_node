@@ -1,79 +1,28 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { Download, Paperclip, Upload } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { cmApi } from '../../api/CmApi';
-import type { CmAttachment, CmListPage } from '../../api/CmApiTypes';
-import { cmErrorMessage } from '../../api/cmErrors';
-import { useCmPolicy } from '../../contexts/useCmPolicy';
+import { useCmProjectAttachments } from '../../shared/useCmProjectAttachments';
 import { CmPager } from './CmPager';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
-import { cmFileAccept, cmFileTypeAllowed, cmFormatNumber, cmTotalPages, useCmFormat } from './cmWorkspaceFormat';
-import { useCmPagedList } from './useCmPagedList';
+import { cmFileAccept, cmFormatNumber, useCmFormat } from './cmWorkspaceFormat';
 
 const BYTES_PER_KB = 1024;
-const KB_PER_MB = 1024;
-
-/** First server field message of a validation failure, when present. */
-function firstServerFieldMessage(response: unknown): string | null {
-  const body = (response as { debugInfo?: Record<string, unknown> })?.debugInfo;
-  for (const bag of [body?.data, body?.details]) {
-    if (bag && typeof bag === 'object' && !Array.isArray(bag)) {
-      for (const messages of Object.values(bag as Record<string, unknown>)) {
-        if (Array.isArray(messages) && typeof messages[0] === 'string' && messages[0]) return messages[0];
-      }
-    }
-  }
-  return null;
-}
-
-const extractAttachments = (data: CmListPage<CmAttachment>) => ({
-  items: Array.isArray(data.items) ? data.items : [],
-  totalPages: cmTotalPages(data),
-});
 
 export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: boolean }> = ({ projectId, canUpload }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
-  const fetcher = useCallback((page: number) => cmApi.getProjectAttachments(projectId, page), [projectId]);
-  const list = useCmPagedList(fetcher, extractAttachments, 'attachments.loadFailed');
-  const { maxAttachmentKb, allowedDocumentTypes } = useCmPolicy();
+  const { list, progress, downloadingId, allowedDocumentTypes, upload: uploadFile, download } = useCmProjectAttachments(projectId, notice);
   const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
-  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [inputKey, setInputKey] = useState(0);
 
   const upload = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (!file || progress !== null) return;
-    notice.clear();
-    if (file.size > maxAttachmentKb * BYTES_PER_KB) {
-      notice.error(t('attachments.tooLarge', { size: Math.round(maxAttachmentKb / KB_PER_MB) }));
-      return;
-    }
-    if (!cmFileTypeAllowed(file.name, allowedDocumentTypes)) {
-      notice.error(t('attachments.wrongType', { types: allowedDocumentTypes.join(', ') }));
-      return;
-    }
-    setProgress(0);
-    const response = await cmApi.uploadProjectAttachment(projectId, file, setProgress);
-    setProgress(null);
-    if (response.success) {
-      notice.success(t('attachments.uploaded'));
+    if (!file) return;
+    if (await uploadFile(file)) {
       setFile(null);
       setInputKey((key) => key + 1);
-      await list.load(1);
-    } else {
-      notice.error(firstServerFieldMessage(response) ?? cmErrorMessage(t, response, 'attachments.uploadFailed'));
     }
-  };
-
-  const download = async (attachment: CmAttachment): Promise<void> => {
-    notice.clear();
-    setDownloadingId(attachment.id);
-    const response = await cmApi.downloadProjectAttachment(projectId, attachment);
-    setDownloadingId(null);
-    if (!response.success) notice.error(cmErrorMessage(t, response, 'attachments.downloadFailed'));
   };
 
   return (

@@ -139,6 +139,10 @@ public sealed class HvmVirtualOperandResolver
             .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.ILBytes.Length).ToArray());
         List<string> failures = new();
         HashSet<uint> decodedMethodTokens = new();
+        Dictionary<uint, int> acceptedCallIndexes = new();
+        Dictionary<uint, CilMethodBody> originalBodies = new();
+        Dictionary<uint, int> mappedOperandCounts = new();
+        HashSet<uint> invalidLocalMethods = new();
         int mappedOperands = 0;
         int unresolvedOperands = 0;
         int resolvedLocals;
@@ -223,11 +227,23 @@ public sealed class HvmVirtualOperandResolver
             }
             decodedMethods++;
             decodedMethodTokens.Add(methodGroup.Key);
+            acceptedCallIndexes[methodGroup.Key] = acceptedCapture.CallIndex == 0
+                ? acceptedOperands[0].JitCallIndex : acceptedCapture.CallIndex;
+            originalBodies[methodGroup.Key] = originalBody;
+            mappedOperandCounts[methodGroup.Key] = methodMappedOperands;
             mappedOperands += methodMappedOperands;
         }
 
-        resolvedLocals = ResolveLocals(targetModule, targetMethods, decodedMethodTokens, operands, localTypes, modulePaths,
-            sourceModules, failures);
+        resolvedLocals = ResolveLocals(targetModule, targetMethods, acceptedCallIndexes, operands, localTypes, modulePaths,
+            sourceModules, failures, invalidLocalMethods);
+        foreach (uint methodToken in invalidLocalMethods)
+        {
+            targetMethods[unchecked((int)methodToken)].CilMethodBody = originalBodies[methodToken];
+            decodedMethodTokens.Remove(methodToken);
+            decodedMethods--;
+            rejectedMethods++;
+            mappedOperands -= mappedOperandCounts[methodToken];
+        }
 
         Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? Directory.GetCurrentDirectory());
         int removedInvalidCustomAttributeCount = InvalidCustomAttributeRemover.Remove(targetModule);
@@ -304,10 +320,10 @@ public sealed class HvmVirtualOperandResolver
     }
 
     private static int ResolveLocals(ModuleDefinition targetModule,
-        IReadOnlyDictionary<int, MethodDefinition> targetMethods, ISet<uint> decodedMethodTokens,
+        IReadOnlyDictionary<int, MethodDefinition> targetMethods, IReadOnlyDictionary<uint, int> acceptedCallIndexes,
         IEnumerable<HvmContextOperand> operands,
         HvmLocalTypeDocument localTypes, IReadOnlyDictionary<string, string> modulePaths,
-        IDictionary<string, ModuleDefinition> sourceModules, ICollection<string> failures)
+        IDictionary<string, ModuleDefinition> sourceModules, ICollection<string> failures, ISet<uint> invalidMethods)
     {
         Dictionary<int, uint> methodTokens = operands.GroupBy(item => item.JitCallIndex)
             .ToDictionary(group => group.Key, group => group.First().MethodToken);
@@ -319,7 +335,8 @@ public sealed class HvmVirtualOperandResolver
         foreach (IGrouping<int, HvmLocalType> group in localTypes.Locals.GroupBy(item => item.JitCallIndex))
         {
             if (!methodTokens.TryGetValue(group.Key, out uint methodToken)
-                || !decodedMethodTokens.Contains(methodToken)
+                || !acceptedCallIndexes.TryGetValue(methodToken, out int acceptedCallIndex)
+                || acceptedCallIndex != group.Key
                 || !targetMethods.TryGetValue(unchecked((int)methodToken), out MethodDefinition? method)
                 || method.CilMethodBody == null)
                 continue;
@@ -329,6 +346,7 @@ public sealed class HvmVirtualOperandResolver
                 .OrderBy(item => ParsePointer(item.ArgumentPointer))
                 .ToArray();
             var replacementLocals = new List<CilLocalVariable>();
+            var operandReplacements = new List<(CilInstruction Instruction, CilLocalVariable Local)>();
             bool valid = true;
             foreach (HvmLocalType capturedLocal in capturedLocals)
             {
@@ -353,7 +371,11 @@ public sealed class HvmVirtualOperandResolver
                 }
                 replacementLocals.Add(new CilLocalVariable(signature));
             }
-            if (!valid) continue;
+            if (!valid)
+            {
+                invalidMethods.Add(methodToken);
+                continue;
+            }
 
             CilLocalVariable[] oldLocals = method.CilMethodBody.LocalVariables.ToArray();
             foreach (CilInstruction instruction in method.CilMethodBody.Instructions)
@@ -366,9 +388,15 @@ public sealed class HvmVirtualOperandResolver
                     valid = false;
                     break;
                 }
-                instruction.Operand = replacementLocals[index];
+                operandReplacements.Add((instruction, replacementLocals[index]));
             }
-            if (!valid) continue;
+            if (!valid)
+            {
+                invalidMethods.Add(methodToken);
+                continue;
+            }
+            foreach (var replacement in operandReplacements)
+                replacement.Instruction.Operand = replacement.Local;
             method.CilMethodBody.LocalVariables.Clear();
             foreach (CilLocalVariable local in replacementLocals)
                 method.CilMethodBody.LocalVariables.Add(local);

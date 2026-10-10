@@ -1,91 +1,27 @@
-import React, { useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import React from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
-import { notifyAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
-import { setAuthToken } from '../../../core/auth/AuthSession';
-import { useAuthSession } from '../../../core/auth/useAuthSession';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import { cmApi } from '../api/CmApi';
-import { cmErrorCode } from '../api/cmErrors';
-import { cmAuthApi } from '../auth/CmAuthApi';
 import { CmAuthLayout } from '../auth/CmAuthLayout';
-import {
-  CM_LOGIN_REDIRECT_PARAM,
-  cmClearReturnPath,
-  cmClearSessionExpired,
-  cmDefaultLandingPath,
-  cmSafeReturnPath,
-  cmSessionExpired,
-  cmStoredReturnPath,
-} from '../auth/cmAuthSession';
 import { CmPasswordInput } from '../auth/CmPasswordInput';
-import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from '../components/public-home/cmPublicRoutes';
-
-type CmLoginField = 'identifier' | 'password';
-
-const INVALID_CREDENTIAL_CODES = ['AUTH_USER_NOT_FOUND', 'AUTH_INVALID_PASSWORD'];
-const HTTP_UNPROCESSABLE = 422;
-const HTTP_TOO_MANY_REQUESTS = 429;
-
-function loginErrorKey(response: APIResponse<unknown>): string {
-  const code = cmErrorCode(response);
-  if (code && INVALID_CREDENTIAL_CODES.includes(code)) return 'publicAuth.login.errors.invalidCredentials';
-  if (response.status === HTTP_TOO_MANY_REQUESTS) return 'publicAuth.errors.throttled';
-  if (response.status === 0 || response.isNetworkError || response.isTimeout) return 'publicAuth.errors.network';
-  if (response.status === HTTP_UNPROCESSABLE) return 'publicAuth.login.errors.invalidCredentials';
-  return 'publicAuth.login.errors.failed';
-}
+import { CM_PUBLIC_ROUTE } from '../components/public-home/cmPublicRoutes';
+import { useCmLogin } from '../shared/useCmLogin';
 
 export const CmLoginPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const authenticated = useAuthSession();
-  const completingRef = useRef(false);
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<CmLoginField, string>>>({});
-  const [errorKey, setErrorKey] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [sessionExpired] = useState(cmSessionExpired);
-  const returnPath = cmSafeReturnPath(searchParams.get(CM_LOGIN_REDIRECT_PARAM)) ?? cmStoredReturnPath();
+  const login = useCmLogin();
+  const { fieldErrors, errorKey, pending, sessionExpired, returnPath } = login;
 
-  if (authenticated && !completingRef.current) {
-    return <Navigate to={returnPath ?? CM_PROTECTED_ROUTE.dashboard} replace />;
-  }
+  if (login.redirectTo) return <Navigate to={login.redirectTo} replace />;
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    const errors: Partial<Record<CmLoginField, string>> = {};
-    if (!identifier.trim()) errors.identifier = 'publicAuth.login.errors.identifierRequired';
-    if (!password) errors.password = 'publicAuth.login.errors.passwordRequired';
-    setFieldErrors(errors);
-    setErrorKey(null);
-    if (Object.keys(errors).length > 0) return;
-    setPending(true);
-    const response = await cmAuthApi.login(identifier.trim(), password);
-    if (!response.success || !response.data?.token) {
-      setPending(false);
-      setErrorKey(loginErrorKey(response));
-      return;
-    }
-    completingRef.current = true;
-    setAuthToken(response.data.token);
-    notifyAuthLoginSuccess(response.data.user, null);
-    let target = returnPath;
-    if (!target) {
-      const bootstrap = await cmApi.getBootstrap();
-      target = cmDefaultLandingPath(Boolean(bootstrap.data?.is_admin));
-    }
-    cmClearReturnPath();
-    cmClearSessionExpired();
-    navigate(target, { replace: true });
+    void login.submit();
   };
 
   return (
     <CmAuthLayout titleKey="publicAuth.login.title" leadKey="publicAuth.login.lead" icon={<LogIn aria-hidden="true" />}>
-      <form className="cm-public-form" onSubmit={(event) => void submit(event)} noValidate>
+      <form className="cm-public-form" onSubmit={submit} noValidate>
         {sessionExpired && !errorKey && (
           <p className="cm-public-form__notice" role="status">{t('publicAuth.login.sessionExpired')}</p>
         )}
@@ -95,11 +31,8 @@ export const CmLoginPage: React.FC = () => {
         <label>
           <span>{t('publicAuth.login.identifier')}</span>
           <input
-            value={identifier}
-            onChange={(event) => {
-              setIdentifier(event.target.value);
-              setFieldErrors((current) => ({ ...current, identifier: undefined }));
-            }}
+            value={login.identifier}
+            onChange={(event) => login.setIdentifier(event.target.value)}
             autoComplete="username"
             autoCapitalize="none"
             spellCheck={false}
@@ -115,11 +48,8 @@ export const CmLoginPage: React.FC = () => {
             <Link className="cm-public-form__link" to={CM_PUBLIC_ROUTE.forgotPassword}>{t('publicAuth.forgot.link')}</Link>
           </span>
           <CmPasswordInput
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
-              setFieldErrors((current) => ({ ...current, password: undefined }));
-            }}
+            value={login.password}
+            onChange={(event) => login.setPassword(event.target.value)}
             autoComplete="current-password"
             aria-invalid={Boolean(fieldErrors.password)}
             aria-describedby="cm-login-password-error"

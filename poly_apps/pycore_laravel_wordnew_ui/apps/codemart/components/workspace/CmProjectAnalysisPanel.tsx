@@ -1,21 +1,18 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { cmApi } from '../../api/CmApi';
-import type { CmProjectAnalysis, CmProjectDetail } from '../../api/CmApiTypes';
-import { cmErrorMessage } from '../../api/cmErrors';
-import { useCmIdempotencyKey } from '../../api/useCmIdempotencyKey';
-import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
+import type { CmProjectDetail } from '../../api/CmApiTypes';
+import {
+  CM_ANALYSIS_COMPLETED_STATUS,
+  CM_ANALYSIS_FAILED_STATUS,
+  CM_ANALYSIS_REVISION_MIN_LENGTH,
+  useCmProjectAnalysis,
+} from '../../shared/useCmProjectAnalysis';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { CmStatusBadge } from './CmStatusBadge';
 import { cmFormatNumber, useCmFormat } from './cmWorkspaceFormat';
 
-const ANALYSIS_POLL_MS = 4000;
 const DRAFT_STATUS = 'draft';
-const PROPOSAL_REVIEW_STATUS = 'proposal_review';
-const COMPLETED_STATUS = 'completed';
-const FAILED_STATUS = 'failed';
-const REVISION_MIN_LENGTH = 10;
 const LIST_FIELDS = [
   { key: 'keywords', labelKey: 'analysis.keywords' },
   { key: 'recommended_languages', labelKey: 'analysis.languages' },
@@ -34,152 +31,12 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
-  const idempotency = useCmIdempotencyKey();
-  const { openStates } = useCmBootstrap();
-  const activeStates = openStates('analysis');
-  const activeStatesRef = useRef(activeStates);
-  activeStatesRef.current = activeStates;
-  const [data, setData] = useState<CmProjectAnalysis | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [revisionNotes, setRevisionNotes] = useState('');
+  const model = useCmProjectAnalysis(project, isOwner, onProjectChanged, notice);
+  const { data, analysis, loading, loadError, busy, active, analysisAvailable, stuckWithoutWorker, canAnalyze, canRevise, revisionNotes, revisionValid } = model;
   const [showRevision, setShowRevision] = useState(false);
-  const pollTimer = useRef<number | null>(null);
-  const wasActive = useRef(false);
-  const aliveRef = useRef(false);
-  const generationRef = useRef(0);
-  const projectChangedRef = useRef(onProjectChanged);
-  projectChangedRef.current = onProjectChanged;
-  const translate = useRef(t);
-  translate.current = t;
-
-  const loadRef = useRef<() => Promise<void>>(async () => undefined);
-
-  /** While an analysis runs, poll just that analysis (`GET /ai-analysis/{id}`); the full view reloads once it settles. */
-  const pollAnalysis = useCallback(async (analysisId: number): Promise<void> => {
-    const generation = generationRef.current;
-    const isCurrent = (): boolean => aliveRef.current && generation === generationRef.current;
-    const response = await cmApi.getAnalysisResult(analysisId);
-    if (!isCurrent()) return;
-    const stillActive = response.success && response.data !== null && activeStatesRef.current.includes(response.data.status);
-    if (stillActive) {
-      pollTimer.current = window.setTimeout(() => { void pollAnalysis(analysisId); }, ANALYSIS_POLL_MS);
-      return;
-    }
-    await loadRef.current();
-  }, []);
-
-  const load = useCallback(async (): Promise<void> => {
-    const generation = generationRef.current;
-    const isCurrent = (): boolean => aliveRef.current && generation === generationRef.current;
-    if (!isCurrent()) return;
-    const response = await cmApi.getProjectAnalysis(project.id);
-    if (!isCurrent()) return;
-    setLoading(false);
-    if (!response.success || !response.data) {
-      setLoadError(cmErrorMessage(translate.current, response, 'analysis.loadFailed'));
-      return;
-    }
-    setLoadError(null);
-    // Never poll when the analysis task is switched off: a row stuck in
-    // processing/revising will never finish, so treat it as inactive.
-    const taskEnabled = response.data.analysis_available !== false;
-    const active = taskEnabled && activeStatesRef.current.includes(response.data.analysis?.status ?? '');
-    setData(response.data);
-    if (wasActive.current && !active) {
-      await projectChangedRef.current();
-      if (!isCurrent()) return;
-    }
-    wasActive.current = active;
-    if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
-    const activeId = response.data.analysis?.analysis_id ?? null;
-    pollTimer.current = active && activeId !== null
-      ? window.setTimeout(() => { void pollAnalysis(activeId); }, ANALYSIS_POLL_MS)
-      : null;
-  }, [project.id, pollAnalysis]);
-  loadRef.current = load;
-
-  useEffect(() => {
-    aliveRef.current = true;
-    void load();
-    return () => {
-      aliveRef.current = false;
-      generationRef.current += 1;
-      wasActive.current = false;
-      if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
-      pollTimer.current = null;
-    };
-  }, [load]);
-
-  const analysis = data?.analysis ?? null;
-  const analysisId = analysis?.analysis_id ?? null;
-
-  useEffect(() => {
-    idempotency.reset();
-  }, [analysisId, idempotency.reset]);
-
-  const active = activeStates.includes(analysis?.status ?? '');
-  const analysisAvailable = data?.analysis_available !== false;
-  const stuckWithoutWorker = active && !analysisAvailable;
-  const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active && analysisAvailable;
-  const canRevise = isOwner && analysisAvailable && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
-  const revisionValid = revisionNotes.trim().length >= REVISION_MIN_LENGTH;
-
-  const analyze = async (): Promise<void> => {
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.analyzeProject(project.id);
-    setBusy(false);
-    if (response.success) notice.success(t('analysis.started'));
-    else notice.error(cmErrorMessage(t, response, 'analysis.startFailed'));
-    await load();
-  };
-
-  const accept = async (): Promise<void> => {
-    if (!analysis) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.acceptAnalysis(analysis.analysis_id, idempotency.current());
-    setBusy(false);
-    if (response.success) {
-      idempotency.reset();
-      notice.success(t('analysis.acceptedWithAmount', { amount: format.money(response.data?.funding_amount ?? '', analysis.currency ?? project.currency) }));
-      await load();
-      await onProjectChanged();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'analysis.acceptFailed'));
-    }
-  };
-
-  const confirmBudget = async (): Promise<void> => {
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.confirmProjectBudget(project.id);
-    setBusy(false);
-    if (response.success) {
-      notice.success(t('analysis.budgetConfirmed'));
-      await onProjectChanged();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'analysis.confirmBudgetFailed'));
-    }
-  };
 
   const requestRevision = async (): Promise<void> => {
-    if (!analysis || !revisionValid) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.requestAnalysisRevision(analysis.analysis_id, revisionNotes.trim());
-    setBusy(false);
-    if (response.success) {
-      notice.success(t('analysis.revisionSent'));
-      setShowRevision(false);
-      setRevisionNotes('');
-      await load();
-      await onProjectChanged();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'analysis.revisionFailed'));
-    }
+    if (await model.requestRevision()) setShowRevision(false);
   };
 
   return (
@@ -189,7 +46,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
       {loading ? (
         <CmLoadingState compact />
       ) : loadError ? (
-        <CmErrorState compact message={loadError} onRetry={() => void load()} />
+        <CmErrorState compact message={loadError} onRetry={() => void model.reload()} />
       ) : !analysis ? (
         isOwner && project.status === DRAFT_STATUS
           ? (analysisAvailable ? <p className="cm-field-hint">{t('analysis.noneOwner')}</p> : null)
@@ -203,8 +60,8 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
           </div>
           {active && !stuckWithoutWorker && <p className="cm-analysis-waiting"><Loader2 aria-hidden="true" className="cm-spin" /> {t('analysis.waiting')}</p>}
           {stuckWithoutWorker && <CmNotice notice={{ tone: 'info', text: t('analysis.notProcessed') }} />}
-          {analysis.status === FAILED_STATUS && <CmNotice notice={{ tone: 'error', text: t('analysis.failedHint') }} />}
-          {analysis.status === COMPLETED_STATUS && (
+          {analysis.status === CM_ANALYSIS_FAILED_STATUS && <CmNotice notice={{ tone: 'error', text: t('analysis.failedHint') }} />}
+          {analysis.status === CM_ANALYSIS_COMPLETED_STATUS && (
             <>
               <dl className="cm-kv">
                 {analysis.estimated_cost !== null && <div><dt>{t('analysis.costLabel')}</dt><dd>{format.money(analysis.estimated_cost, analysis.currency ?? project.currency)}</dd></div>}
@@ -230,7 +87,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
               {(data?.can_accept || canRevise) && (
                 <div className="cm-table-actions cm-section-card__actions">
                   {data?.can_accept && (
-                    <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void accept()}>
+                    <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void model.accept()}>
                       {busy ? t('common.saving') : t('analysis.accept')}
                     </button>
                   )}
@@ -249,10 +106,10 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
                     <textarea
                       rows={3}
                       value={revisionNotes}
-                      onChange={(event) => setRevisionNotes(event.target.value)}
+                      onChange={(event) => model.setRevisionNotes(event.target.value)}
                       placeholder={t('analysis.revisionPlaceholder')}
                     />
-                    {revisionNotes !== '' && !revisionValid && <small className="cm-field-error">{t('analysis.revisionTooShort', { min: REVISION_MIN_LENGTH })}</small>}
+                    {revisionNotes !== '' && !revisionValid && <small className="cm-field-error">{t('analysis.revisionTooShort', { min: CM_ANALYSIS_REVISION_MIN_LENGTH })}</small>}
                   </label>
                   <div className="cm-table-actions">
                     <button type="button" className="cm-workspace-button is-primary" disabled={busy || !revisionValid} onClick={() => void requestRevision()}>
@@ -266,18 +123,18 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
           )}
         </div>
       )}
-      {!loading && !analysisAvailable && isOwner && project.status === DRAFT_STATUS && (
+      {model.canConfirmBudget && (
         <div className="cm-section-card__actions cm-analysis-fallback">
           <p className="cm-field-hint">{t('analysis.budgetFallbackHint', { amount: format.money(project.budget ?? '', project.currency) })}</p>
-          <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void confirmBudget()}>
+          <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void model.confirmBudget()}>
             {busy ? t('common.saving') : t('analysis.confirmBudget')}
           </button>
         </div>
       )}
       {canAnalyze && (
         <div className="cm-section-card__actions">
-          <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void analyze()}>
-            <Sparkles aria-hidden="true" /> {busy ? t('analysis.starting') : (analysis?.status === FAILED_STATUS ? t('analysis.retry') : t('analysis.run'))}
+          <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void model.analyze()}>
+            <Sparkles aria-hidden="true" /> {busy ? t('analysis.starting') : (analysis?.status === CM_ANALYSIS_FAILED_STATUS ? t('analysis.retry') : t('analysis.run'))}
           </button>
         </div>
       )}

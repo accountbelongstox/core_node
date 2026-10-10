@@ -176,7 +176,7 @@ export const PcLogPanel: React.FC = () => {
           <Trash2 className="w-3 h-3" /> {t('floatingLog.clear')}
         </button>
       </div>
-      <div ref={containerRef} style={{ overflowAnchor: 'none' }} className="flex-1 min-h-0 overflow-auto bg-slate-950/95 p-3 text-[11px] font-mono leading-relaxed">
+      <div ref={containerRef} style={{ overflowAnchor: 'none' }} className="flex-1 min-h-0 overflow-auto bg-slate-950 p-3 text-[11px] font-mono leading-relaxed">
         {shownLogs.length === 0 ? (
           <div className="text-slate-600">{t(errorsOnly && logs.length ? 'floatingLog.noErrors' : 'floatingLog.empty')}</div>
         ) : (

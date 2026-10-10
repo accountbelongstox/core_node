@@ -433,6 +433,27 @@ terminal: {
         permission: 'Clipboard access was denied by the browser.',
         unsupported: 'This browser cannot read the clipboard.',
       },
+      camera: {
+        action: 'Take a photo with the camera and attach it',
+        failed: 'The camera photo could not be taken.',
+        permission: 'Camera access was denied; allow it in the app settings.',
+      },
+      ocr: {
+        title: 'Text recognized in the image',
+        badge: {
+          running: 'Recognizing text on this device…',
+          done: 'Show the recognized text',
+          empty: 'No text found in the image',
+          error: 'Text recognition failed',
+        },
+        copy: 'Copy',
+        copied: 'Copied',
+        insert: 'Insert into the message',
+        close: 'Close',
+        running: 'Recognizing text on this device…',
+        empty: 'No text was found in this image.',
+        failed: 'Text recognition failed ({{code}}).',
+      },
       liveScreenshot: {
         action: 'Pull a live screenshot of this terminal window into the message',
         failed: 'The live terminal screenshot could not be captured.',

@@ -1,49 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { Calculator, RotateCw } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmErrorMessage } from '../api/cmErrors';
-import { cmPublicApi, type CmEstimateLimits, type CmEstimateOptions, type CmPublicEstimateResult } from '../api/CmPublicApi';
 import { CmPublicIllustration, CmPublicSection } from '../components/public-home/CmPublicBlocks';
 import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { useCmProtectedNavigate } from '../components/public-home/useCmProtectedNavigate';
+import { CM_ESTIMATE_COUNT_FIELDS, useCmEstimate } from '../shared/useCmEstimate';
 import { CM_WHOLE_MONEY_DIGITS, cmFormatMoneyRange, cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
 
-interface CmEstimateDraft {
-  complexity: string;
-  budgetType: string;
-  platforms: string;
-  features: string;
-}
-
-type CmEstimateCountField = 'platforms' | 'features';
-
-const HOURLY_BUDGET_TYPE = 'hourly';
 const ESTIMATE_HOW_STEPS = ['policy', 'range', 'proposal'];
-const ESTIMATE_COUNT_FIELDS: readonly CmEstimateCountField[] = ['platforms', 'features'];
-
-function clampCount(value: string, limits: CmEstimateLimits): string {
-  const parsed = value.trim() === '' ? Number.NaN : Number(value);
-  return String(Math.max(limits.min, Math.min(limits.max, Number.isFinite(parsed) ? Math.round(parsed) : limits.min)));
-}
-
-function clampDraft(draft: CmEstimateDraft, options: CmEstimateOptions): CmEstimateDraft {
-  return {
-    ...draft,
-    platforms: clampCount(draft.platforms, options.platforms),
-    features: clampCount(draft.features, options.features),
-  };
-}
-
-function initialDraft(options: CmEstimateOptions): CmEstimateDraft {
-  return {
-    complexity: options.default_complexity,
-    budgetType: options.default_budget_type,
-    platforms: String(options.platforms.default),
-    features: String(options.features.default),
-  };
-}
 
 /**
  * Public project-estimate page. Options and limits come from Laravel, which
@@ -52,78 +18,9 @@ function initialDraft(options: CmEstimateOptions): CmEstimateDraft {
 export const CmEstimatePage: React.FC = () => {
   const { t, i18n } = useTranslation('cm');
   const openProtected = useCmProtectedNavigate();
-  const [options, setOptions] = useState<CmEstimateOptions | null>(null);
-  const [optionsLoading, setOptionsLoading] = useState(true);
-  const [optionsError, setOptionsError] = useState<string | null>(null);
-  const [optionsAttempt, setOptionsAttempt] = useState(0);
-  const [draft, setDraft] = useState<CmEstimateDraft | null>(null);
-  const [result, setResult] = useState<CmPublicEstimateResult | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const runEstimate = useCallback(async (next: CmEstimateDraft) => {
-    setPending(true);
-    setError(null);
-    const response = await cmPublicApi.estimate({
-      complexity: next.complexity,
-      platforms: Number(next.platforms),
-      features: Number(next.features),
-      budget_type: next.budgetType || undefined,
-    });
-    if (response.success && response.data) {
-      setResult(response.data);
-    } else {
-      setResult(null);
-      setError(cmErrorMessage(t, response, 'estimate.failed'));
-    }
-    setPending(false);
-  }, [t]);
-
-  useEffect(() => {
-    let active = true;
-    setOptionsLoading(true);
-    setOptionsError(null);
-    void cmPublicApi.getEstimateOptions().then((response) => {
-      if (!active) return;
-      setOptionsLoading(false);
-      if (!response.success || !response.data) {
-        setOptionsError(cmErrorMessage(t, response, 'estimate.optionsFailed'));
-        return;
-      }
-      const nextDraft = initialDraft(response.data);
-      setOptions(response.data);
-      setDraft(nextDraft);
-      void runEstimate(nextDraft);
-    });
-    return () => {
-      active = false;
-    };
-    // Options load once per explicit retry; translations must not refetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optionsAttempt]);
-
-  const updateDraft = (patch: Partial<CmEstimateDraft>): void => {
-    setDraft((current) => (current ? { ...current, ...patch } : current));
-  };
-
-  const commitCount = (field: CmEstimateCountField): void => {
-    if (!options) return;
-    setDraft((current) => (current ? { ...current, [field]: clampCount(current[field], options[field]) } : current));
-  };
-
-  const submitEstimate = (): void => {
-    if (!draft || !options) return;
-    const next = clampDraft(draft, options);
-    setDraft(next);
-    void runEstimate(next);
-  };
-
-  const currency = result?.currency || options?.currency || null;
+  const estimate = useCmEstimate();
+  const { options, optionsLoading, optionsError, draft, result, pending, error, currency, isHourly, teamRoles, updateDraft, commitCount } = estimate;
   const moneyRange = (min: string | number, max: string | number): string => cmFormatMoneyRange(min, max, currency, i18n.language, CM_WHOLE_MONEY_DIGITS);
-  const teamRoles = result?.team_roles && result.team_roles.length > 0
-    ? result.team_roles
-    : (result?.recommended_team ?? []).map((role) => ({ role, count: 1 }));
-  const isHourly = result?.budget_type === HOURLY_BUDGET_TYPE;
 
   return (
     <CmPublicPage
@@ -140,7 +37,7 @@ export const CmEstimatePage: React.FC = () => {
             {optionsError && (
               <div className="cm-public-form__notice is-error" role="alert">
                 <span>{optionsError}</span>
-                <button type="button" className="cm-public-form__link" onClick={() => setOptionsAttempt((current) => current + 1)}>
+                <button type="button" className="cm-public-form__link" onClick={() => estimate.retryOptions()}>
                   <RotateCw aria-hidden="true" /> {t('estimate.retry')}
                 </button>
               </div>
@@ -151,7 +48,7 @@ export const CmEstimatePage: React.FC = () => {
                 className="cm-estimate-form cm-estimate-form--options"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  submitEstimate();
+                  estimate.submit();
                 }}
               >
                 <label>
@@ -172,7 +69,7 @@ export const CmEstimatePage: React.FC = () => {
                     </select>
                   </label>
                 )}
-                {ESTIMATE_COUNT_FIELDS.map((field) => (
+                {CM_ESTIMATE_COUNT_FIELDS.map((field) => (
                   <label key={field}>
                     <span>{t(`estimate.${field}`)}</span>
                     <input
@@ -198,7 +95,7 @@ export const CmEstimatePage: React.FC = () => {
               <div className="cm-public-form__notice is-error" role="alert">
                 <span>{error}</span>
                 {draft && (
-                  <button type="button" className="cm-public-form__link" onClick={submitEstimate}>
+                  <button type="button" className="cm-public-form__link" onClick={estimate.submit}>
                     <RotateCw aria-hidden="true" /> {t('estimate.retry')}
                   </button>
                 )}

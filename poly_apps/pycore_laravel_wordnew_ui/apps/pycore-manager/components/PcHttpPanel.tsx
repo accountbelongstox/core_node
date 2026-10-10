@@ -81,7 +81,7 @@ export const PcHttpPanel: React.FC = () => {
         </div>
       )}
       {relayMode && showRelayStats ? (
-        <div className="flex-1 min-h-0 overflow-auto bg-slate-950/95">
+        <div className="flex-1 min-h-0 overflow-auto bg-slate-950">
           <PcRelayStats />
         </div>
       ) : (<>
@@ -120,7 +120,7 @@ export const PcHttpPanel: React.FC = () => {
       </div>
 
       {/* rows */}
-      <div className="flex-1 min-h-0 overflow-auto bg-slate-950/95">
+      <div className="flex-1 min-h-0 overflow-auto bg-slate-950">
         {rows.length === 0 ? (
           <div className="p-3 text-[11px] text-slate-600">{t('httpDebug.empty')}</div>
         ) : (

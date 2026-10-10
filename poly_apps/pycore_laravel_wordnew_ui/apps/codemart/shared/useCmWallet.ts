@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
-import type { CmListPage, CmWallet, CmWalletTransaction } from '../api/CmApiTypes';
+import type { CmInvoice, CmListPage, CmPayment, CmRefund, CmWallet, CmWalletTransaction, CmWithdrawal } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { cmHumanize, cmTotalPages } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedList } from '../components/workspace/useCmPagedList';
@@ -52,6 +52,25 @@ const extractTransactions = (data: CmListPage<CmWalletTransaction>) => ({
 export function useCmWalletTransactions(): CmPagedList<CmWalletTransaction> {
   return useCmPagedList(fetchTransactions, extractTransactions, 'wallet.transactionsLoadFailed');
 }
+
+const extractPage = <T>(data: CmListPage<T>) => ({
+  items: Array.isArray(data.items) ? data.items : [],
+  totalPages: cmTotalPages(data),
+});
+
+const fetchPayments = (page: number) => cmApi.getPayments(page);
+const fetchInvoices = (page: number) => cmApi.getInvoices(page);
+const fetchRefunds = (page: number) => cmApi.getRefunds(page);
+const fetchWithdrawals = (page: number) => cmApi.getWithdrawals(page);
+const extractPayments = extractPage<CmPayment>;
+const extractInvoices = extractPage<CmInvoice>;
+const extractRefunds = extractPage<CmRefund>;
+const extractWithdrawals = extractPage<CmWithdrawal>;
+
+export const useCmWalletPayments = (): CmPagedList<CmPayment> => useCmPagedList(fetchPayments, extractPayments, 'wallet.paymentsLoadFailed');
+export const useCmWalletInvoices = (): CmPagedList<CmInvoice> => useCmPagedList(fetchInvoices, extractInvoices, 'wallet.invoicesLoadFailed');
+export const useCmWalletRefunds = (): CmPagedList<CmRefund> => useCmPagedList(fetchRefunds, extractRefunds, 'wallet.refundsLoadFailed');
+export const useCmWalletWithdrawals = (): CmPagedList<CmWithdrawal> => useCmPagedList(fetchWithdrawals, extractWithdrawals, 'wallet.withdrawalsLoadFailed');
 
 export interface CmWalletBalance {
   key: 'available' | 'frozen' | 'balance';

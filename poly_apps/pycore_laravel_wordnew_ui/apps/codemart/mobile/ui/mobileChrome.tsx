@@ -32,6 +32,13 @@ export function useMobileChrome(): MobileChrome | null {
   return useContext(MobileChromeContext);
 }
 
+/** The frame state for components that only exist inside the app frame. */
+export function useMobileFrame(): MobileChrome {
+  const chrome = useContext(MobileChromeContext);
+  if (!chrome) throw new Error('useMobileFrame must be used inside the mobile app frame');
+  return chrome;
+}
+
 /**
  * Screen-level frame bindings: the title for the app bar, optional app bar
  * actions (rendered into the bar's action slot) and the pull-to-refresh handler.
