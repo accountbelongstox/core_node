@@ -32,3 +32,6 @@ D:\programing\core_node\dotcore\DotCore.TemplateMatcher\obj\Debug\net8.0-windows
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.TemplateMatcher.deps.json
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.TemplateMatcher.dll
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.TemplateMatcher.pdb
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.TemplateMatcher.deps.json
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.TemplateMatcher.dll
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.TemplateMatcher.pdb

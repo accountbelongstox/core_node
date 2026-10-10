@@ -30,3 +30,6 @@ D:\programing\core_node\dotcore\DotCore.Infrastructure\obj\Debug\net8.0\DotCore.
 D:\programing\core_node\dotcore\DotCore.Infrastructure\obj\Debug\net8.0\refint\DotCore.Infrastructure.dll
 D:\programing\core_node\dotcore\DotCore.Infrastructure\obj\Debug\net8.0\DotCore.Infrastructure.pdb
 D:\programing\core_node\dotcore\DotCore.Infrastructure\obj\Debug\net8.0\ref\DotCore.Infrastructure.dll
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.Infrastructure.deps.json
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.Infrastructure.dll
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.Infrastructure.pdb
