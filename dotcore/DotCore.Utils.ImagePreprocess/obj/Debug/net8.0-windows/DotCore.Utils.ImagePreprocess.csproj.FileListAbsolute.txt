@@ -14,3 +14,6 @@ D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-w
 D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\refint\DotCore.Utils.ImagePreprocess.dll
 D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.pdb
 D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\ref\DotCore.Utils.ImagePreprocess.dll
+E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.Utils.ImagePreprocess.deps.json
+E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.Utils.ImagePreprocess.dll
+E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.Utils.ImagePreprocess.pdb

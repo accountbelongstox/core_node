@@ -7,6 +7,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core.Navigation;
 using DotApps.d3d4tester.ViewModels;
+using DotApps.d3d4tester.ViewModels.Base;
 using DotCore.YoloDetect;
 using OpenCvSharp;
 
