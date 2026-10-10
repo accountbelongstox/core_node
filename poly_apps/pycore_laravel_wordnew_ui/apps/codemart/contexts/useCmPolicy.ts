@@ -10,6 +10,7 @@ export interface CmPolicyValues {
   reviewCommentMinLength: number;
   reviewerRetryDays: number;
   reviewerPassScore: number;
+  reviewerExamCount: number;
   passwordMinLength: number;
   testimonialMaxQuoteLength: number;
   walletTopUpMinAmount: number;
@@ -32,6 +33,7 @@ export function useCmPolicy(): CmPolicyValues {
   const reviewCommentMinLength = policy?.review_comment_min_length ?? CM_POLICY_FALLBACK.reviewCommentMinLength;
   const reviewerRetryDays = policy?.reviewer_retry_days ?? CM_POLICY_FALLBACK.reviewerRetryDays;
   const reviewerPassScore = policy?.reviewer_pass_score ?? CM_POLICY_FALLBACK.reviewerPassScore;
+  const reviewerExamCount = policy?.reviewer_exam_count ?? CM_POLICY_FALLBACK.reviewerExamCount;
   const passwordMinLength = policy?.password_min_length ?? CM_POLICY_FALLBACK.passwordMinLength;
   const testimonialMaxQuoteLength = policy?.testimonial_max_quote_length ?? CM_POLICY_FALLBACK.testimonialMaxQuoteLength;
   const walletTopUpMinAmount = policy?.wallet_top_up_min_amount ?? CM_POLICY_FALLBACK.walletTopUpMinAmount;
@@ -48,6 +50,7 @@ export function useCmPolicy(): CmPolicyValues {
       reviewCommentMinLength,
       reviewerRetryDays,
       reviewerPassScore,
+      reviewerExamCount,
       passwordMinLength,
       testimonialMaxQuoteLength,
       walletTopUpMinAmount,
@@ -59,7 +62,7 @@ export function useCmPolicy(): CmPolicyValues {
     }),
     [
       currency, aiEstimateCurrency, projectMinBudget, reviewCommentMinLength, reviewerRetryDays, reviewerPassScore,
-      passwordMinLength, testimonialMaxQuoteLength, walletTopUpMinAmount, walletTopUpMaxAmount, maxAttachmentKb,
+      reviewerExamCount, passwordMinLength, testimonialMaxQuoteLength, walletTopUpMinAmount, walletTopUpMaxAmount, maxAttachmentKb,
       maxKycImageKb, paymentMethods, paymentCreatableTypes,
     ],
   );

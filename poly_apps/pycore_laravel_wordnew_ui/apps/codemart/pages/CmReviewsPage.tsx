@@ -68,7 +68,7 @@ const CmCommentField: React.FC<{ label: string; value: string; onChange: (value:
 
 const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<void> }> = ({ onPassed }) => {
   const { t } = useTranslation('cm');
-  const { reviewCommentMinLength, reviewerRetryDays } = useCmPolicy();
+  const { reviewCommentMinLength, reviewerRetryDays, reviewerExamCount, reviewerPassScore } = useCmPolicy();
   const notice = useCmNotice();
   const [application, setApplication] = useState<CmReviewerApplicationStart | null>(null);
   const [drafts, setDrafts] = useState<CmTestDraft[]>([]);
@@ -122,11 +122,11 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
   return (
     <section className="cm-section-card">
       <h2><Star aria-hidden="true" /> {t('reviews.applyTitle')}</h2>
-      <p className="cm-section-card__lead">{t('reviews.applyBody')}</p>
+      <p className="cm-section-card__lead">{t('reviews.applyBody', { count: reviewerExamCount, score: reviewerPassScore })}</p>
       {!application && (
         <ol className="cm-flow-steps is-compact">
           {(['start', 'rate', 'result'] as const).map((step, index) => (
-            <li key={step}><strong>{index + 1}</strong><span>{t(`reviews.applySteps.${step}`)}</span></li>
+            <li key={step}><strong>{index + 1}</strong><span>{t(`reviews.applySteps.${step}`, { count: reviewerExamCount })}</span></li>
           ))}
         </ol>
       )}

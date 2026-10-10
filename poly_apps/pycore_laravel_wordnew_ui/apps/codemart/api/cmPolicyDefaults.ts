@@ -11,6 +11,7 @@ export const CM_POLICY_FALLBACK = {
   reviewCommentMinLength: 20,
   reviewerRetryDays: 7,
   reviewerPassScore: 85,
+  reviewerExamCount: 3,
   passwordMinLength: 8,
   testimonialMaxQuoteLength: 1000,
   walletTopUpMinAmount: 100,
