@@ -12,7 +12,7 @@ reconciles the server again.
 """
 
 import time
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, Mapping
 
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -121,9 +121,6 @@ class ServerSchemaGate:
     def paused_for(self, base_url: str) -> float:
         """``paused_seconds`` of the server one endpoint URL belongs to."""
         return self.paused_seconds(laravel_endpoint_manager.delivery_namespace(base_url))
-
-    def paused_for_any(self, namespaces: List[str]) -> float:
-        return max((self.paused_seconds(namespace) for namespace in namespaces), default=0.0)
 
 
 server_schema_gate = ServerSchemaGate()
