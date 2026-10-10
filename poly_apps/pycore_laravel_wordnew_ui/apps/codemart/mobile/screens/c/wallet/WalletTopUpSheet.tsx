@@ -3,7 +3,7 @@ import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmWalletTopUp } from '../../../../shared/useCmWalletActions';
 import { MobileButton, MobileField, MobileSheet } from '../../../ui';
-import { useSheetFeedback } from '../parts/useSheetFeedback';
+import { useInlineFeedback } from '../parts/useInlineFeedback';
 import { WalletBankInstructions } from './WalletBankInstructions';
 
 interface WalletTopUpSheetProps {
@@ -17,7 +17,7 @@ interface WalletTopUpSheetProps {
 export const WalletTopUpSheet: React.FC<WalletTopUpSheetProps> = ({ open, currency, onClose, onCreated }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { feedback, notice, clear } = useSheetFeedback();
+  const { feedback, notice, clear } = useInlineFeedback();
   const topUp = useCmWalletTopUp(feedback, onCreated);
 
   const close = (): void => {

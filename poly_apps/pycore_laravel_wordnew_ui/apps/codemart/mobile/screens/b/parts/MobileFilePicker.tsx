@@ -35,7 +35,7 @@ export const MobileFilePicker: React.FC<MobileFilePickerProps> = ({ label, files
           {files.map((file, index) => (
             <li key={`${file.name}-${index}`}>
               <span>{file.name}</span>
-              <button type="button" className="cmm-icon-btn" aria-label={t('common.remove')} disabled={disabled} onClick={() => onChange(files.filter((_, position) => position !== index))}>
+              <button type="button" className="cmm-icon-btn" aria-label={t('mobile.work.removeFile')} disabled={disabled} onClick={() => onChange(files.filter((_, position) => position !== index))}>
                 <X aria-hidden="true" />
               </button>
             </li>

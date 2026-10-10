@@ -124,6 +124,7 @@ def main() -> int:
                                           "text-to-image only; the gateway accepts no reference image, so the result is an unfaithful monkey and has no text", raw))
         for cid, tool in (("c-chatgpt-r1", "ChatGPT via mcp-chrome"), ("c-gemini-r1", "Gemini via mcp-chrome")):
             upsert(manifest, unavailable(cid, "C", 1, tool, "mcp-chrome endpoint 127.0.0.1:12306 was not listening, so the signed-in Chrome could not be driven"))
+    manifest["forms"] = {form: [b[0] - PAD, b[1] - PAD, b[2] - b[0] + 2 * PAD, b[3] - b[1] + 2 * PAD] for form, b in FORM_BBOX.items()}
     pick_default(manifest)
     if args.default:
         manifest["default"] = args.default
