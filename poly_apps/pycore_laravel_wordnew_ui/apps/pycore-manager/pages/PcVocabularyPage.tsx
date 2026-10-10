@@ -43,22 +43,22 @@ export default function PcVocabularyPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-4">
-      <header className="flex items-center gap-2">
-        <BookOpen className="w-6 h-6 text-sky-400" />
-        <div>
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 min-w-0">
+      <header className="flex items-start gap-2">
+        <BookOpen className="w-6 h-6 mt-0.5 shrink-0 text-sky-400" />
+        <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-100">{t('vocabularyPage.title')}</h1>
           <p className="text-sm text-slate-400">{t('vocabularyPage.subtitle')}</p>
         </div>
       </header>
 
       {/* Sub-tab bar */}
-      <div className="flex items-center gap-1 border-b border-slate-700/60 overflow-x-auto">
+      <div className="flex items-center gap-1 border-b border-slate-700/60 overflow-x-auto overflow-y-hidden no-scrollbar">
         {VOCAB_TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => switchTab(tab.key)}
-            className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
+            className={`px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 transition-colors ${
               activeTab === tab.key
                 ? 'border-sky-400 text-sky-300'
                 : 'border-transparent text-slate-400 hover:text-slate-200'

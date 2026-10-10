@@ -33,7 +33,7 @@ import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
-import { getServiceUrlEntries, getTailnetServerPeers } from '../../network/TailnetDiscovery';
+import { getServiceUrlEntries, getTailnetPeers, getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { isNativeAppShell } from '../../network/NativeShell';
 import { isPrivateIpv4 } from '../../network/LanDiscovery';
 import { isLoopbackHost } from '../../network/hostDetection';
@@ -265,8 +265,9 @@ function relayBackendPreset(): PycoreEndpoint | null {
 /** The page's own backend when nothing (valid) is stored. */
 function defaultTarget(): PycoreTarget {
   if (isNativeAppShell()) {
-    // The contract machines (GPU first), then discovered tailnet machines; relay last.
-    const preferred = listPycoreEndpoints().find((endpoint) => endpoint.kind !== 'relay' && endpoint.tailnetOnline !== false)
+    // A machine the live tailnet list reports online (contract machines first); relay last.
+    // An entry the list does not confirm (a contract machine absent from the tailnet) never is the default.
+    const preferred = listPycoreEndpoints().find((endpoint) => endpoint.kind !== 'relay' && endpoint.tailnetOnline === true)
       ?? relayBackendPreset();
     if (preferred) return { kind: preferred.kind, url: preferred.url };
   }
@@ -466,15 +467,27 @@ function tailnetEndpoints(): PycoreEndpoint[] {
 }
 
 /**
+ * Tailscale's online flag of a machine in the live list; false for a machine a
+ * non-empty list does not contain (it is not on this tailnet); unknown without a list.
+ */
+function tailnetPresence(hostname: string): boolean | undefined {
+  const peers = getTailnetPeers().peers;
+  if (peers.length === 0) return undefined;
+  return peers.find((peer) => peer.dnsName.toLowerCase() === hostname)?.online ?? false;
+}
+
+/**
  * The pycore mount of a contract service URL on the tailnet: a contract entry
  * names a machine (e.g. the GPU machine's `/laravel-api`); its pycore is that
- * machine's `/pycore-api` mount, never the Laravel URL itself.
+ * machine's `/pycore-api` mount, never the Laravel URL itself. Its availability
+ * is the live tailnet list's, never assumed from the static entry.
  */
 function contractMachineEndpoint(entry: { label: string; url: string }): PycoreEndpoint | null {
   const parsed = parseBackendUrl(entry.url);
   if (!parsed || parsed.protocol !== 'https:' || !tailnetDomainOf(parsed.hostname)) return null;
-  const target = targetFromUrl(`https://${parsed.hostname.toLowerCase()}${PROXY_PATH}`);
-  return target ? { ...target, label: entry.label, source: 'contract_url' } : null;
+  const hostname = parsed.hostname.toLowerCase();
+  const target = targetFromUrl(`https://${hostname}${PROXY_PATH}`);
+  return target ? { ...target, label: entry.label, source: 'contract_url', tailnetOnline: tailnetPresence(hostname) } : null;
 }
 
 /**

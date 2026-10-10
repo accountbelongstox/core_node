@@ -8,12 +8,13 @@
  * the terminal node tabs and the target switcher list them - and their peers documents join the
  * tailnet discovery, so a machine that runs Tailscale / Headscale lists the tailnet even when
  * the UI's own machine does not. The native app has no page machine: it scans its own Wi-Fi
- * segments (LanInfo plugin) and the tailnet peers through LanDiscovery.
+ * segments (LanInfo plugin) through LanDiscovery. Tailnet machines are never scanned on the direct
+ * port: pycore serves the tailnet only through each machine's HTTPS mount (already a candidate).
  */
 import { ChangeSignal } from '../../events/ChangeSignal';
 import { protocolFetch } from '../../network/ProtocolFetch';
 import { LAN_MACHINES_ROUTE, TAILNET_PEERS_ROUTE } from '../../contracts/ServiceContract';
-import { addTailnetPublishers, getTailnetPeers, refreshTailnetPeers } from '../../network/TailnetDiscovery';
+import { addTailnetPublishers, refreshTailnetPeers } from '../../network/TailnetDiscovery';
 import { discoverServices, lanSegmentOf } from '../../network/LanDiscovery';
 import { currentLanInfo } from '../../network/LanInfo';
 import { isNativeAppShell } from '../../network/NativeShell';
@@ -101,7 +102,7 @@ async function scanFromBrowser(base: string): Promise<Omit<LanMachinesSnapshot, 
   return { segments: [segment], machines, scanning: false };
 }
 
-/** Native app: the device's own LAN segments plus the tailnet peers, probed for pycore. */
+/** Native app: the device's own LAN segments, probed for pycore. */
 async function scanFromDevice(): Promise<Omit<LanMachinesSnapshot, 'source' | 'updatedAt'>> {
   const info = await currentLanInfo().catch(() => null);
   const segments = info?.lan ? info.addresses.map((entry) => lanSegmentOf(entry.address, entry.prefixLength)) : [];
@@ -110,7 +111,6 @@ async function scanFromDevice(): Promise<Omit<LanMachinesSnapshot, 'source' | 'u
     path: PYCORE_HTTP_PATHS.status,
     scheme: pycoreHttpProto(),
     segments,
-    tailnet: getTailnetPeers(),
     match: (probe) => {
       const body = probe.body as { is_http_service?: boolean; hostname?: string } | null;
       return body?.is_http_service ? { hostname: String(body.hostname || '') } : null;

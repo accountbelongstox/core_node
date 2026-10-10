@@ -38,6 +38,23 @@ html[data-theme="pycore"] body {
   border-radius: 16px;
 }
 
+/* Sticky page chrome right padding: phones keep a plain gutter; wider screens
+   reserve the shell dock gutter (shellChrome.ts) so the expanded dock panel
+   never covers header controls. */
+.pc-dock-gutter-r {
+  padding-right: 0.75rem;
+}
+@media (min-width: 640px) {
+  .pc-dock-gutter-r {
+    padding-right: 1.5rem;
+  }
+}
+@media (min-width: 768px) {
+  .pc-dock-gutter-r {
+    padding-right: max(1.5rem, var(--shell-dock-right-gutter, 264px));
+  }
+}
+
 /* Opaque surface for floating overlays (docks, popovers) that sit above page content. */
 .pc-overlay {
   background: var(--pc-surface);

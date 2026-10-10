@@ -32,26 +32,28 @@ import {
   getPycoreLanRoute,
   getPycoreProbe,
   getPycoreSelectedTarget,
-  laravelRelayDeviceId,
   listPycoreEndpoints,
   normalizePycoreBackendUrl,
   probePycoreEndpoints,
   pycoreLink,
-  rememberPycoreLanUrls,
   refreshTailnetPeers,
   rememberPycoreTarget,
   setPycoreLanEndpoints,
   setPycoreLanRoute,
   setPycoreSessionTarget,
-  setPycoreTarget,
   subscribePycoreProbes,
   switchPycoreTarget,
   type PycoreEndpoint,
   type PycoreProbeResult,
 } from '../../../core/integrations/pycore';
-import { laravelApi } from '../../../core/integrations/laravel';
+import {
+  choosePycoreFirstRunTarget,
+  orderPycoreEndpoints,
+  pycoreHostKey,
+  readPycoreWorkNodeRoster,
+  type PycoreWorkNodeRoster,
+} from '../../../core/integrations/pycore/PycoreFirstRun';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
-import { WORK_NODE_GPU_CLASS } from '../services/WordNewPycoreNodes';
 
 /**
  * idle: not started · probing: detecting · online: the selection answers ·
@@ -83,57 +85,12 @@ const RECHECK_INTERVAL_MS = 5 * 60_000;
 const FIRST_RUN_RETRY_MS = 15_000;
 /** After the LAN route was left, or while the selection is unreachable, detection tries the LAN again after this long. */
 const LAN_RETRY_MS = 60_000;
-/** The first-run choice waits at most this long for Laravel's online work-node roster. */
-const WORK_NODE_ROSTER_TIMEOUT_MS = 4_000;
-/** First-run rank of a reachable entry: a GPU work node, a CPU work node, any other pycore. */
-const RANK_GPU_NODE = 0;
-const RANK_CPU_NODE = 1;
-const RANK_OTHER = 2;
 
 /** LAN label suffix of a roster entry in the candidate list. */
 const LAN_LABEL_SUFFIX = ' · LAN';
 
 /** First DNS label of an entry's host, lower case ('' when not a URL). */
-export function hostKey(url: string): string {
-  try {
-    return new URL(url).hostname.toLowerCase().split('.')[0];
-  } catch {
-    return '';
-  }
-}
-
-interface WorkNodeRoster {
-  /** First-run rank per host label: a GPU node, a CPU node. */
-  ranks: Map<string, number>;
-  /** LAN URLs per host label: the online nodes' reports over the last remembered ones. */
-  lanUrls: Map<string, string[]>;
-}
-
-/**
- * Laravel's online work nodes by the host label pycore claims with: the machines that generate
- * (they hold clips) and the LAN URLs they serve. Empty when Laravel does not answer in time.
- */
-async function workNodeRoster(): Promise<WorkNodeRoster> {
-  const roster: WorkNodeRoster = { ranks: new Map(), lanUrls: new Map() };
-  try {
-    const response = await Promise.race([
-      laravelApi.getWorkNodes(true),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), WORK_NODE_ROSTER_TIMEOUT_MS)),
-    ]);
-    for (const node of response?.nodes ?? []) {
-      const host = String(node.label ?? '').toLowerCase().split('.')[0];
-      if (!node.online || !host) continue;
-      const rank = node.compute_class === WORK_NODE_GPU_CLASS ? RANK_GPU_NODE : RANK_CPU_NODE;
-      roster.ranks.set(host, Math.min(rank, roster.ranks.get(host) ?? rank));
-      const lan = (node.lan_urls ?? []).filter((url) => typeof url === 'string' && url !== '');
-      if (lan.length > 0) roster.lanUrls.set(host, [...new Set([...(roster.lanUrls.get(host) ?? []), ...lan])]);
-    }
-  } catch {
-    // No roster: the remembered LAN URLs only, and the first run falls back to the fastest reachable entry.
-  }
-  roster.lanUrls = rememberPycoreLanUrls(roster.lanUrls);
-  return roster;
-}
+export const hostKey = pycoreHostKey;
 
 /** The persisted selection URL ('' when none). */
 function readSelection(): string {
@@ -142,16 +99,7 @@ function readSelection(): string {
 
 /** Reachable first (fastest first); otherwise the list's own preference order. */
 function ordered(endpoints: PycoreEndpoint[]): WordNewPycoreCandidate[] {
-  return endpoints
-    .map((endpoint, index) => ({ endpoint: { ...endpoint, probe: getPycoreProbe(endpoint.url) }, index }))
-    .sort((left, right) => {
-      const leftUp = left.endpoint.probe?.state === 'up';
-      const rightUp = right.endpoint.probe?.state === 'up';
-      if (leftUp !== rightUp) return leftUp ? -1 : 1;
-      if (leftUp && rightUp) return (left.endpoint.probe?.ms ?? Infinity) - (right.endpoint.probe?.ms ?? Infinity);
-      return left.index - right.index;
-    })
-    .map(({ endpoint }) => endpoint);
+  return orderPycoreEndpoints(endpoints);
 }
 
 class WordNewPycoreLinkService {
@@ -297,7 +245,7 @@ class WordNewPycoreLinkService {
    * The LAN URLs of the roster become candidates; the fastest answering one of the selected
    * machine (never under a session entry) becomes the route.
    */
-  private async applyLanRoute(roster: WorkNodeRoster, active: string, generation: number): Promise<void> {
+  private async applyLanRoute(roster: PycoreWorkNodeRoster, active: string, generation: number): Promise<void> {
     const entries = [...roster.lanUrls].flatMap(([host, urls]) => urls.map((url) => ({ url, label: `${host}${LAN_LABEL_SUFFIX}` })));
     setPycoreLanEndpoints(entries);
     const own = this.snapshot.temporaryUrl || !active ? [] : (roster.lanUrls.get(hostKey(active)) ?? []).filter((url) => url !== active);
@@ -357,24 +305,13 @@ class WordNewPycoreLinkService {
     addTailnetDiscoveryOrigins(wfNewEndpoints.getAllEndpoints().map((endpoint) => endpoint.url));
     const known = this.snapshot.state === 'online' || this.snapshot.state === 'reconnecting';
     this.publish({ ...this.snapshot, state: known ? this.snapshot.state : 'probing', candidates: this.candidates() });
-    const [roster] = await Promise.all([workNodeRoster(), refreshTailnetPeers()]);
+    const [roster] = await Promise.all([readPycoreWorkNodeRoster(), refreshTailnetPeers()]);
     const endpoints = listPycoreEndpoints().filter((endpoint) => endpoint.source !== 'lan');
     await probePycoreEndpoints(endpoints.filter((endpoint) => endpoint.kind !== 'relay'), PROBE_TIMEOUT_MS);
-    let selectedUrl = readSelection();
-    // First run only: a reachable GPU work node, else a reachable CPU work node, else the fastest
-    // reachable entry (the paired relay when nothing answers) becomes the selection.
-    if (!selectedUrl && generation === this.generation) {
-      const reachable = ordered(endpoints)
-        .filter((endpoint) => endpoint.probe?.state === 'up')
-        .map((endpoint, index) => ({ endpoint, index, rank: roster.ranks.get(hostKey(endpoint.url)) ?? RANK_OTHER }))
-        .sort((left, right) => left.rank - right.rank || left.index - right.index)[0]?.endpoint;
-      const relay = laravelRelayDeviceId() !== null ? endpoints.find((endpoint) => endpoint.kind === 'relay') : undefined;
-      const first = reachable ?? relay;
-      if (first && setPycoreTarget(first.url, { reload: false })) {
-        selectedUrl = first.url;
-        pycoreLink.retarget();
-      }
-    }
+    // First run only (shared rule): the persisted selection, else a reachable entry chosen and stored now.
+    const selectedUrl = await choosePycoreFirstRunTarget({
+      roster, probe: false, isCurrent: () => generation === this.generation,
+    });
     const active = this.snapshot.temporaryUrl || selectedUrl;
     await this.applyLanRoute(roster, active, generation);
     const selected = listPycoreEndpoints().find((endpoint) => endpoint.url === active);

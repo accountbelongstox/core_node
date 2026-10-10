@@ -254,7 +254,7 @@ export default function VocabWordsTab() {
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-slate-700">
         <table className="w-full text-sm">
-          <thead className="bg-slate-800/60 text-slate-400">
+          <thead className="bg-slate-800/60 text-slate-400 whitespace-nowrap">
             <tr>
               <th className="px-2 py-2 w-8">
                 <input type="checkbox" checked={rows.length > 0 && selected.size === rows.length}
@@ -280,11 +280,11 @@ export default function VocabWordsTab() {
                     <td className="px-2 py-2">
                       <input type="checkbox" checked={isSel} onChange={() => toggle(md5)} className="accent-sky-400" />
                     </td>
-                    <td className="px-2 py-2 font-medium text-slate-100">{row.content || row.word}</td>
-                    <td className="px-2 py-2 text-slate-300 max-w-xs">
+                    <td className="px-2 py-2 font-medium text-slate-100 min-w-[6rem] max-w-[10rem] break-words">{row.content || row.word}</td>
+                    <td className="px-2 py-2 text-slate-300 min-w-[10rem] max-w-[14rem] sm:max-w-xs">
                       <div className="truncate">{(row.translations || []).join('; ')}</div>
                     </td>
-                    <td className="px-2 py-2 text-slate-400">{row.phonetic || row.us_phonetic || '—'}</td>
+                    <td className="px-2 py-2 text-slate-400 whitespace-nowrap">{row.phonetic || row.us_phonetic || '—'}</td>
                     <td className="px-2 py-2 text-center"><PresenceBadge ok={!!row.has_translation} yesLabel={t(VL.translationBadge)} noLabel="—" /></td>
                     <td className="px-2 py-2 text-center"><PresenceBadge ok={!!row.has_audio} yesLabel={t(VL.audioBadge)} noLabel="—" /></td>
                     <td className="px-2 py-2 text-center"><PresenceBadge ok={isWordRowValid(row)} yesLabel={t(VL.validBadge)} noLabel="—" /></td>

@@ -193,8 +193,34 @@ configure_redis() {
 }
 
 # Function to setup Redis service (for testing only)
+# A hard stop can leave a truncated/zero-padded tail in the AOF increment file; Redis then
+# refuses to start ("Bad file format reading the append only file"). Only for a stopped
+# service: back up the AOF dir, then let redis-check-aof drop the invalid tail.
+repair_redis_aof() {
+    local aof_dir="$REDIS_DATA_DIR/appendonlydir"
+    local manifest="$aof_dir/appendonly.aof.manifest"
+    local backup_dir=""
+
+    command_exists redis-check-aof || return 0
+    [ -f "$manifest" ] || return 0
+    if $USE_SUDO redis-check-aof "$manifest" >/dev/null 2>&1; then
+        return 0
+    fi
+    backup_dir="${aof_dir}.corrupt-$(date +%Y%m%d%H%M%S)"
+    echo "[$SCRIPT_INDEX] AOF check failed; backing up to $backup_dir and truncating the invalid tail..."
+    $USE_SUDO cp -a "$aof_dir" "$backup_dir"
+    echo y | $USE_SUDO redis-check-aof --fix "$manifest" >/dev/null 2>&1
+    safe_chown_R redis:redis "$aof_dir"
+    echo "[$SCRIPT_INDEX] AOF repaired"
+}
+
 setup_redis_service_for_testing() {
     echo "[$SCRIPT_INDEX] Setting up Redis service for testing..."
+
+    if ! systemctl is-active --quiet redis-server; then
+        repair_redis_aof
+        $USE_SUDO systemctl reset-failed redis-server 2>/dev/null
+    fi
 
     # Start Redis service temporarily for testing
     if $USE_SUDO systemctl start redis-server; then
@@ -239,7 +265,9 @@ configure_redis_service_startup() {
 
         # Start Redis service if not running
         if ! systemctl is-active --quiet redis-server; then
+            repair_redis_aof
             echo "[$SCRIPT_INDEX] Starting Redis service..."
+            $USE_SUDO systemctl reset-failed redis-server 2>/dev/null
             $USE_SUDO systemctl start redis-server
             echo "[$SCRIPT_INDEX] Redis service started"
         fi
