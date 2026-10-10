@@ -631,7 +631,9 @@ server: {
         site_deleted: "FrankenPHP site deleted; a recoverable backup was retained",
         site_enabled: "FrankenPHP site enabled",
         site_disabled: "FrankenPHP site disabled",
-        delete_confirm: "Delete FrankenPHP site {site}? Its configuration will be moved to recoverable backup storage."
+        delete_confirm: "Delete FrankenPHP site {site}? Its configuration will be moved to recoverable backup storage.",
+        confirm_stop: "Stop FrankenPHP? Every site it serves, possibly including this manager, goes offline.",
+        confirm_restart: "Restart FrankenPHP? Connections will be briefly interrupted."
       },
       nginx: {
         sites: "Nginx Sites",

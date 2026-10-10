@@ -218,7 +218,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             <div>
               <label className={labelCls}>{t('uiVocab.wordDetailModal.translations_label')}</label>
               <textarea className={`${inputCls} font-mono`} rows={3} value={translations}
-                onChange={(e) => setTranslations(e.target.value)} placeholder="苹果&#10;果实" />
+                onChange={(e) => setTranslations(e.target.value)} placeholder={t('uiVocab.wordDetailModal.translations_placeholder')} />
             </div>
 
             {/* phonetics */}

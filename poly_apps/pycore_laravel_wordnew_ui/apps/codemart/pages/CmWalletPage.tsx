@@ -127,6 +127,8 @@ const CmWalletTopUp: React.FC<{ currency: string; onCreated: () => Promise<void>
   const minAmount = Number(policy?.wallet_top_up_min_amount ?? 0);
   const maxAmount = Number(policy?.wallet_top_up_max_amount ?? 0);
   const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('');
+  const selectedMethod = methods.includes(method) ? method : methods[0] ?? '';
   const [bankInfo, setBankInfo] = useState<CmDepositBankInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const value = Number(amount);
@@ -134,11 +136,11 @@ const CmWalletTopUp: React.FC<{ currency: string; onCreated: () => Promise<void>
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (busy || amount === '' || amountInvalid || methods.length === 0) return;
+    if (busy || amount === '' || amountInvalid || !selectedMethod) return;
     setBusy(true);
     notice.clear();
     setBankInfo(null);
-    const response = await cmApi.createDeposit({ role_type: WALLET_TOP_UP_PURPOSE, amount: value, payment_method: methods[0] }, idempotency.current());
+    const response = await cmApi.createDeposit({ role_type: WALLET_TOP_UP_PURPOSE, amount: value, payment_method: selectedMethod }, idempotency.current());
     setBusy(false);
     if (response.success && response.data) {
       idempotency.reset();
@@ -171,8 +173,18 @@ const CmWalletTopUp: React.FC<{ currency: string; onCreated: () => Promise<void>
           />
           {amountInvalid && <small className="cm-field-error">{t('wallet.topUp.range', { min: format.money(minAmount, currency), max: format.money(maxAmount, currency) })}</small>}
         </label>
+        {methods.length > 1 && (
+          <label>
+            <span>{t('wallet.columnMethod')}</span>
+            <select value={selectedMethod} onChange={(event) => { idempotency.reset(); setMethod(event.target.value); }}>
+              {methods.map((value) => (
+                <option key={value} value={value}>{t(`wallet.methods.${value}`)}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="cm-project-form__actions">
-          <button type="submit" className="is-primary" disabled={busy || amount === '' || amountInvalid}>
+          <button type="submit" className="is-primary" disabled={busy || amount === '' || amountInvalid || !selectedMethod}>
             {busy ? t('common.saving') : t('wallet.topUp.submit')}
           </button>
         </div>

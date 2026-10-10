@@ -8,6 +8,7 @@ import type { APIResponse } from '../../../core/integrations/laravel/transport/T
 import { cmApi } from '../api/CmApi';
 import type { CmRegisterPayload } from '../api/CmApiTypes';
 import { cmErrorCode, cmErrorMessage } from '../api/cmErrors';
+import { CM_PASSWORD_MIN_LENGTH } from '../api/cmPolicyDefaults';
 import { cmPublicApi } from '../api/CmPublicApi';
 import { CmAuthLayout } from '../auth/CmAuthLayout';
 import { CmPasswordInput } from '../auth/CmPasswordInput';
@@ -31,7 +32,6 @@ type CmFieldErrors<F extends string> = Partial<Record<F, string>>;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_MIN = 3;
 const USERNAME_MAX = 50;
-const PASSWORD_MIN = 8;
 const REAL_NAME_MAX = 100;
 const ROLE_CHOICES: CmRoleChoice[] = ['developer', 'client'];
 const EMPTY_REGISTER: CmRegisterDraft = {
@@ -77,7 +77,7 @@ function validateRegister(draft: CmRegisterDraft): CmFieldErrors<CmRegisterField
   const username = draft.username.trim();
   if (username.length < USERNAME_MIN || username.length > USERNAME_MAX) errors.username = 'publicAuth.register.errors.usernameLength';
   if (!EMAIL_PATTERN.test(draft.email.trim())) errors.email = 'publicAuth.errors.emailInvalid';
-  if (draft.password.length < PASSWORD_MIN) errors.password = 'publicAuth.errors.passwordLength';
+  if (draft.password.length < CM_PASSWORD_MIN_LENGTH) errors.password = 'publicAuth.errors.passwordLength';
   if (draft.passwordConfirmation !== draft.password) errors.passwordConfirmation = 'publicAuth.errors.passwordMismatch';
   const realName = draft.realName.trim();
   if (!realName) errors.realName = 'publicAuth.register.errors.realNameRequired';
@@ -88,7 +88,7 @@ function validateRegister(draft: CmRegisterDraft): CmFieldErrors<CmRegisterField
 
 const CmFieldError: React.FC<{ id: string; messageKey?: string }> = ({ id, messageKey }) => {
   const { t } = useTranslation('cm');
-  return messageKey ? <small className="cm-public-form__error" id={id}>{t(messageKey)}</small> : null;
+  return messageKey ? <small className="cm-public-form__error" id={id}>{t(messageKey, { min: CM_PASSWORD_MIN_LENGTH })}</small> : null;
 };
 
 const CmSignInLink: React.FC<{ labelKey?: string }> = ({ labelKey = 'nav.login' }) => {
@@ -333,7 +333,7 @@ export const CmPasswordResetPage: React.FC = () => {
     setError(null);
     const errors: CmFieldErrors<CmResetField> = {};
     if (!EMAIL_PATTERN.test(email.trim())) errors.email = 'publicAuth.errors.emailInvalid';
-    if (password.length < PASSWORD_MIN) errors.password = 'publicAuth.errors.passwordLength';
+    if (password.length < CM_PASSWORD_MIN_LENGTH) errors.password = 'publicAuth.errors.passwordLength';
     if (passwordConfirmation !== password) errors.passwordConfirmation = 'publicAuth.errors.passwordMismatch';
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;

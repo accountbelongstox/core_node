@@ -17,6 +17,7 @@ import { formatBytes } from '@/core/utils/formatBytes';
 import { commonClasses } from '@/shared/styles/theme';
 import { AlertBox, EmptyState, Field, StatusBadge } from '../../common';
 import { LaravelLoginModal } from '@/shared/auth/LaravelLoginModal';
+import { useConfirmAction } from '@/apps/laravel-manager/hooks';
 
 const POLL_INTERVAL_MS = 2000;
 const HISTORY_LIMIT = 6;
@@ -153,6 +154,7 @@ const SyncResultsPanel: React.FC<{ session: ManagedDataSyncSession; t: Translate
 
 export const DataSyncTab: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { requestConfirm, confirmDialog } = useConfirmAction();
   const [endpoints, setEndpoints] = useState<DataSyncManagedEndpoint[]>(() => dataSyncModel.endpoints());
   const [oldEndpointId, setOldEndpointId] = useState(() => dataSyncModel.endpoints().find((endpoint) => endpoint.current)?.id ?? '');
   const [newServerInput, setNewServerInput] = useState('');
@@ -291,9 +293,12 @@ export const DataSyncTab: React.FC = () => {
   }, [endpoints, oldEndpointId]);
 
   // A changed pair invalidates the negotiated direction.
+  const probeSeqRef = useRef(0);
   useEffect(() => {
+    probeSeqRef.current += 1;
     setProbe(null);
     setProbeError(null);
+    setProbing(false);
   }, [newServerInput, oldEndpointId]);
 
   const pairIdsRef = useRef<[string, string]>(['', '']);
@@ -381,11 +386,15 @@ export const DataSyncTab: React.FC = () => {
 
   const runProbe = useCallback(async () => {
     if (!oldEndpointId || newServerInput.trim() === '' || sameNodeSelected) return;
+    const seq = ++probeSeqRef.current;
     setProbing(true);
     setProbeError(null);
     try {
-      setProbe(await dataSyncModel.probeDirection(oldEndpointId, newServerInput));
+      const result = await dataSyncModel.probeDirection(oldEndpointId, newServerInput);
+      if (seq !== probeSeqRef.current) return;
+      setProbe(result);
     } catch (probeFailure) {
+      if (seq !== probeSeqRef.current) return;
       setProbe(null);
       if (probeFailure instanceof DataSyncApiError && probeFailure.status === 401 && newServerNode) {
         setAuthEndpoint((current) => current ?? newServerNode);
@@ -398,7 +407,7 @@ export const DataSyncTab: React.FC = () => {
           : (probeFailure instanceof Error && probeFailure.message ? probeFailure.message : t('dbSync.errors.probe')),
       );
     } finally {
-      setProbing(false);
+      if (seq === probeSeqRef.current) setProbing(false);
     }
   }, [oldEndpointId, newServerInput, sameNodeSelected, newServerNode, t]);
 
@@ -412,8 +421,9 @@ export const DataSyncTab: React.FC = () => {
     }
   }, [loadWorkspace, newServerInput, runProbe]);
 
-  const start = async () => {
-    if (!oldEndpointId || sameNodeSelected) return;
+  const runStart = async () => {
+    if (!oldEndpointId || sameNodeSelected || busy) return;
+    const probeSeqAtStart = probeSeqRef.current;
     setBusy(true);
     setActionError(null);
     setNotice(null);
@@ -425,7 +435,7 @@ export const DataSyncTab: React.FC = () => {
       let direction = probe;
       if (!direction && newServerInput.trim() !== '') {
         direction = await dataSyncModel.probeDirection(oldEndpointId, newServerInput);
-        setProbe(direction);
+        if (probeSeqAtStart === probeSeqRef.current) setProbe(direction);
       }
       if (direction?.direction === 'pull') {
         // The fetcher drives the pull: keep its sessions visible by managing
@@ -477,6 +487,21 @@ export const DataSyncTab: React.FC = () => {
     }
   };
 
+  const start = () => {
+    if (!oldEndpointId || sameNodeSelected || busy) return;
+    if (newServerInput.trim() === '') {
+      void runStart();
+      return;
+    }
+    requestConfirm({
+      title: t('dbSync.start'),
+      message: t('dbSync.confirmStart', { old: oldEndpoint ? oldEndpoint.description : oldEndpointId, new: newServerNode ? newServerNode.description : newServerInput.trim() }),
+      variant: 'danger',
+      confirmText: t('dbSync.start'),
+      action: runStart
+    });
+  };
+
   const togglePause = async () => {
     if (!selectedDriver) return;
     setBusy(true);
@@ -493,17 +518,29 @@ export const DataSyncTab: React.FC = () => {
     }
   };
 
-  const cancelSelected = async () => {
-    if (!selectedActive) return;
+  const runCancel = async (target: ManagedDataSyncSession) => {
+    if (busy) return;
     setBusy(true);
     setActionError(null);
     try {
-      replaceSession(await dataSyncModel.cancel(selectedActive));
+      replaceSession(await dataSyncModel.cancel(target));
     } catch (cancelError) {
       setActionError(cancelError instanceof Error && cancelError.message ? cancelError.message : t('dbSync.errors.control'));
     } finally {
       setBusy(false);
     }
+  };
+
+  const cancelSelected = () => {
+    if (!selectedActive || busy) return;
+    const target = selectedActive;
+    requestConfirm({
+      title: t('dbSync.cancel'),
+      message: t('dbSync.confirmCancel'),
+      variant: 'danger',
+      confirmText: t('dbSync.cancel'),
+      action: () => runCancel(target)
+    });
   };
 
   const bindTarget = async () => {
@@ -521,6 +558,7 @@ export const DataSyncTab: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       <div className={`${commonClasses.card} p-4 space-y-4`}>
         <div className="flex items-center gap-2">
           <ArrowRightLeft className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />

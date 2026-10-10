@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Languages, ArrowRightLeft, Copy, Check, Eraser } from 'lucide-react';
-import { useToolModel } from '@/apps/laravel-manager/hooks';
+import { useToolModel, useClipboard } from '@/apps/laravel-manager/hooks';
 import { AI_TOOLS } from '@/apps/laravel-manager/config/tools.config';
 import ToolWrapper from '@/shared/ui/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
@@ -9,6 +9,7 @@ import { commonClasses } from '@/shared/styles/theme';
 import { AI_BODY, AI_GRID_2, AiBentoCard, AiToolActions, AiToolAlert } from '@/shared/ui/AiToolUi';
 
 const TranslationForm: React.FC = () => {
+  const { copy } = useClipboard();
   const { t } = useTranslation();
   const config = AI_TOOLS.translation;
   const { execute, loading, error, history, isFavorite, toggleFavorite, clearError } = useToolModel(config);
@@ -58,7 +59,7 @@ const TranslationForm: React.FC = () => {
 
   const handleCopy = async () => {
     if (!translatedText) return;
-    await navigator.clipboard.writeText(translatedText);
+    if (!(await copy(translatedText))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

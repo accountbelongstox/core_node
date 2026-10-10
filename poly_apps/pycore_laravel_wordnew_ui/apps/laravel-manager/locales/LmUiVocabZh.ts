@@ -270,6 +270,7 @@ export const lmZhUiVocab = {
       uk_phonetic: "英式音标",
       validity_note: "有效性备注",
       validity_note_placeholder: "该单词有效/无效的原因",
+      translations_placeholder: "苹果\n果实",
       word_details_label: "单词详情（JSON — 释义 / 词性 / 例句）",
       images: "图片",
       tts_ready: "就绪",

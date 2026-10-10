@@ -1194,6 +1194,17 @@ export const cmZh: CmTranslationDict = {
     themeLead: '界面的主题配色。',
     accountTitle: '账户',
     accountLead: '姓名、公司资料、认证和角色在各自页面管理。',
+    password: {
+      title: '登录密码',
+      lead: '修改你登录时使用的密码，其他已登录的设备不会退出。',
+      current: '当前密码',
+      next: '新密码',
+      confirm: '确认新密码',
+      submit: '修改密码',
+      changed: '密码已修改。',
+      currentIncorrect: '当前密码不正确。',
+      failed: '密码修改失败，请重试。',
+    },
   },
   admin: {
     badge: '管理后台',
@@ -2221,7 +2232,7 @@ export const cmZh: CmTranslationDict = {
     },
     errors: {
       emailInvalid: '请输入有效的邮箱地址。',
-      passwordLength: '密码至少需要 8 个字符。',
+      passwordLength: '密码至少需要 {{min}} 个字符。',
       passwordMismatch: '两次输入的密码不一致。',
       throttled: '尝试次数过多，请稍后再试。',
       network: '无法连接服务器，请检查网络后重试。',

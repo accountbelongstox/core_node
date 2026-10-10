@@ -15,6 +15,7 @@ export const CM_ACCOUNT_ROUTE = {
   logout: accountRoute(LARAVEL_API_ROUTE.auth.logout),
   forgotPassword: accountRoute(LARAVEL_API_ROUTE.auth.forgotPassword),
   resetPassword: accountRoute(LARAVEL_API_ROUTE.auth.resetPassword),
+  changePassword: accountRoute(LARAVEL_API_ROUTE.auth.password),
 } as const;
 
 export interface CmLoginUser {
@@ -43,6 +44,16 @@ export class CmAuthApi extends BaseAPI {
       url: CM_ACCOUNT_ROUTE.login,
       method: 'POST',
       data: { username, password },
+      root: true,
+      retry: false,
+    });
+  }
+
+  changePassword(currentPassword: string, newPassword: string, confirmPassword: string): Promise<APIResponse<unknown>> {
+    return this.request<unknown>({
+      url: CM_ACCOUNT_ROUTE.changePassword,
+      method: 'POST',
+      data: { current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword },
       root: true,
       retry: false,
     });

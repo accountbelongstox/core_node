@@ -1192,6 +1192,17 @@ export const cmEn = {
     themeLead: 'Accent color scheme of the interface.',
     accountTitle: 'Account',
     accountLead: 'Your name, company details, verification, and roles are managed on their own pages.',
+    password: {
+      title: 'Password',
+      lead: 'Change the password you use to sign in. Other sessions stay signed in.',
+      current: 'Current password',
+      next: 'New password',
+      confirm: 'Confirm new password',
+      submit: 'Change password',
+      changed: 'Your password was changed.',
+      currentIncorrect: 'The current password is incorrect.',
+      failed: 'The password could not be changed. Try again.',
+    },
   },
   admin: {
     badge: 'Administration',
@@ -2219,7 +2230,7 @@ export const cmEn = {
     },
     errors: {
       emailInvalid: 'Please enter a valid email address.',
-      passwordLength: 'The password must be at least 8 characters.',
+      passwordLength: 'The password must be at least {{min}} characters.',
       passwordMismatch: 'The passwords do not match.',
       throttled: 'Too many attempts. Please wait a moment and try again.',
       network: 'The server could not be reached. Check your connection and try again.',

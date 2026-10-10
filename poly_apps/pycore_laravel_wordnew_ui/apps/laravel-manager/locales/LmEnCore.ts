@@ -94,6 +94,8 @@ dbSync: {
       pause: "Pause",
       resume: "Resume",
       cancel: "Cancel",
+      confirmStart: "Start synchronization from {{old}} to {{new}}? Data on the receiving server will be overwritten (a backup is kept).",
+      confirmCancel: "Cancel the running synchronization session?",
       receiverBlocked: "This node is receiving data. New outbound sessions are disabled until the incoming session finishes.",
       manifestDraftBlocked: "A local manifest session is already waiting for a receiver. Bind its address or enter another receiver above.",
       session: "Synchronization session",

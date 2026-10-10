@@ -147,9 +147,12 @@ const TTSForm: React.FC = () => {
       setPlaying(false);
     } else {
       audioRef.current.src = audioUrl;
-      audioRef.current.play();
       setCurrentAudio(audioUrl);
-      setPlaying(true);
+      setError(null);
+      audioRef.current.play().then(() => setPlaying(true)).catch(() => {
+        setPlaying(false);
+        setError(t('vocabulary.audio_play_failed'));
+      });
     }
   };
 
@@ -348,6 +351,8 @@ const TTSForm: React.FC = () => {
       <audio
         ref={audioRef}
         onEnded={() => setPlaying(false)}
+        onPause={() => setPlaying(false)}
+        onError={() => setPlaying(false)}
         className="hidden"
       />
     </ToolWrapper>

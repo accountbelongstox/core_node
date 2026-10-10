@@ -270,6 +270,7 @@ export const lmEnUiVocab = {
       uk_phonetic: "UK phonetic",
       validity_note: "Validity note",
       validity_note_placeholder: "why this word is (in)valid",
+      translations_placeholder: "apple\nfruit",
       word_details_label: "Word details (JSON — definitions / POS / examples)",
       images: "Images",
       tts_ready: "ready",

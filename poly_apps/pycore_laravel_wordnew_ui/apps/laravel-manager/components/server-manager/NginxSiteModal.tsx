@@ -117,6 +117,9 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   };
 
   useEffect(() => {
+    if (!isOpen) return;
+    setSelectedPolyApp('');
+    setSaving(false);
     if (site) {
       setFormData({
         site_name: site.site_name,
@@ -147,7 +150,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
         dns_provider: 'none'
       });
     }
-  }, [site]);
+  }, [site, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,7 +288,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                 onChange={(e) => handlePolyAppChange(e.target.value)}
                 className={commonClasses.input}
                 disabled={loadingApps}
-                required
+                required={!isEdit}
               >
                 <option value="">{tu('uiServer.nginx_site_modal.select_polyapp_placeholder')}</option>
                 {polyApps.map((app) => (

@@ -249,9 +249,7 @@ const VocabularyLearning: React.FC = () => {
   }, [selectedTask]);
 
   useEffect(() => {
-    if (tts.data?.audio_url && audioRef.current) {
-      audioRef.current.src = mediaUrl(tts.data.audio_url);
-      audioRef.current.load();
+    if (tts.data?.audio_url) {
       // A new clip starts from the beginning and paused (the previous clip's state must not leak).
       setIsPlaying(false);
       setCurrentTime(0);
@@ -568,11 +566,12 @@ const VocabularyLearning: React.FC = () => {
   const handleGenerateTTS = async () => {
     if (!translation.data?.translated_text) return;
 
+    const ttsLanguage = translation.data.target_language || targetLanguage;
     setTTS(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.appQyV1.generateTTS({
         text: translation.data.translated_text,
-        language: targetLanguage,
+        language: ttsLanguage,
         voice_type: 'female',
         speed: 1.0
       });
@@ -585,7 +584,7 @@ const VocabularyLearning: React.FC = () => {
           status: 'success'
         });
         toast.success(t.tts_success);
-        logSuccess('vocab', `TTS generated (${targetLanguage}, ${translation.data.translated_text.length} chars)`);
+        logSuccess('vocab', `TTS generated (${ttsLanguage}, ${translation.data.translated_text.length} chars)`);
       } else {
         throw new Error(response.error || t.tts_failed);
       }

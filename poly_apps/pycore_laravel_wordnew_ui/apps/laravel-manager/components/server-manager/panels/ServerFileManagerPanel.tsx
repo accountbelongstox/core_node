@@ -1,3 +1,4 @@
+import { offerBlobFile } from '@/core/browser/FileDownload';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronUp,
@@ -210,14 +211,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
   const handleDownload = async (filePath: string) => {
     try {
       const blob = await api.serverManagerV1.downloadFileBlob(filePath);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filePath.split(/[/\\]/).pop() || 'download';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      offerBlobFile(filePath.split(/[/\\]/).pop() || 'download', blob);
     } catch (e: any) {
       setError(e.message);
     }

@@ -3,6 +3,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Copy, type LucideIcon } from 'lucide-react';
 import { copyToClipboard } from '@/apps/laravel-manager/utils/exportResult';
+import { offerBlobFile } from '@/core/browser/FileDownload';
 import { useToolRun } from '../../toolRunner';
 import type { ToolUsageEntry } from '../../toolUsageStore';
 import type { CodePaneProps } from './CodePane';
@@ -24,15 +25,7 @@ export const formatBytes = (bytes: number): string => {
 export const utf8Length = (text: string): number => new TextEncoder().encode(text).length;
 
 export const downloadBlob = (blob: Blob, filename: string): void => {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = 'none';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  offerBlobFile(filename, blob);
 };
 
 export const downloadText = (text: string, filename: string, mime: string): void => downloadBlob(new Blob([text], { type: `${mime};charset=utf-8` }), filename);
