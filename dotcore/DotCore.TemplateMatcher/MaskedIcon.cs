@@ -144,18 +144,35 @@ public static class MaskedIconMatcher
         return best;
     }
 
-    /// <summary>Candidates ranked by score (best first), at most <paramref name="top"/>; candidates without an icon are skipped.</summary>
+    /// <summary>Region scale and fit ratio of the coarse pass of <see cref="Rank{T}"/> (one size on a half-size region).</summary>
+    public const double CoarseScale = 0.5;
+    private static readonly IReadOnlyList<double> CoarseFitRatios = new[] { 0.92 };
+
+    /// <summary>
+    /// Candidates ranked by score (best first), at most <paramref name="top"/>; candidates without an icon are skipped. With more than
+    /// <paramref name="coarseKeep"/> candidates a coarse pass (half-size region, one size) keeps that many for the full pass.
+    /// </summary>
     public static IReadOnlyList<(T Item, double Score)> Rank<T>(Mat region, IEnumerable<T> candidates, Func<T, MaskedIcon?> icon, int top = 3,
-        IReadOnlyList<double>? fitRatios = null)
+        IReadOnlyList<double>? fitRatios = null, int coarseKeep = 48)
     {
         using var bgr = ScaledTemplate.ToBgr(region);
-        var scored = new ConcurrentBag<(T Item, double Score)>();
-        Parallel.ForEach(candidates, c =>
+        var list = candidates.Select(c => (Item: c, Icon: icon(c))).Where(c => c.Icon != null).ToList();
+        if (list.Count > coarseKeep && coarseKeep > 0)
         {
-            if (icon(c) is not { } i) return;
-            double s = Score(bgr, i, fitRatios);
-            if (s > -1) scored.Add((c, s));
+            using var small = bgr.Resize(new Size(Math.Max(1, (int)(bgr.Cols * CoarseScale)), Math.Max(1, (int)(bgr.Rows * CoarseScale))), 0, 0, InterpolationFlags.Area);
+            list = ScoreAll(small, list, CoarseFitRatios).Take(coarseKeep).Select(s => (s.Item, (MaskedIcon?)icon(s.Item))).ToList();
+        }
+        return ScoreAll(bgr, list, fitRatios).Take(Math.Max(1, top)).ToList();
+    }
+
+    private static List<(T Item, double Score)> ScoreAll<T>(Mat bgr, List<(T Item, MaskedIcon? Icon)> list, IReadOnlyList<double>? fitRatios)
+    {
+        var scored = new ConcurrentBag<(T Item, double Score)>();
+        Parallel.ForEach(list, c =>
+        {
+            double s = Score(bgr, c.Icon!, fitRatios);
+            if (s > -1) scored.Add((c.Item, s));
         });
-        return scored.OrderByDescending(s => s.Score).Take(Math.Max(1, top)).ToList();
+        return scored.OrderByDescending(s => s.Score).ToList();
     }
 }

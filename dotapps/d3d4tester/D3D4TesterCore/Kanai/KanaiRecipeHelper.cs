@@ -26,7 +26,6 @@ public static class KanaiRecipeHelper
     public static readonly string[] ConvertMaterials = { MaterialForgottenSoul, MaterialVeiledCrystal, MaterialArcaneDust };
 
     private const int MaxReforge = 10;
-    private const double TooltipLeftRatio = 0.25;
     private const string LogTag = "[KanaiRecipe]";
     private static readonly string[] CritChanceKeywords = { "Critical Hit Chance", "暴击几率", "暴擊機率", "暴击率" };
     private static readonly string[] CritDamageKeywords = { "Critical Hit Damage", "暴击伤害", "暴擊傷害" };
@@ -53,7 +52,7 @@ public static class KanaiRecipeHelper
             var read = BlacksmithHandler.Instance.ReadSlotTier(shared, row, col);
             string tier = read?.Tier ?? BagSlotValues.TierNormal;
             bool ancientPlus = tier != BagSlotValues.TierNormal;
-            bool doubleCrit = activeMode != ModeUntilAncient && HasDoubleCrit(shared, bag);
+            bool doubleCrit = activeMode != ModeUntilAncient && HasDoubleCrit(shared);
             bool done = activeMode switch
             {
                 ModeDoubleCrit => doubleCrit,
@@ -100,7 +99,7 @@ public static class KanaiRecipeHelper
     };
 
     /// <summary>Right-click the item into the cube, Fill, Transmute, then flip pages so the result goes back to the bag.</summary>
-    private static void Transmute(GameInterfaceData shared, int itemX, int itemY, int helperDelayMs, bool returnByPrevFirst)
+    internal static void Transmute(GameInterfaceData shared, int itemX, int itemY, int helperDelayMs, bool returnByPrevFirst)
     {
         var (ox, oy) = shared.WindowOffset;
         var click = StateAwareClickHandler.Instance;
@@ -151,16 +150,9 @@ public static class KanaiRecipeHelper
     private static bool IsLegendary(string quality) => quality is BagSlotValues.QualityLegendary or BagSlotValues.QualityLegendarySet;
 
     /// <summary>OCR the item tooltip (left of the bag, shown while the slot is hovered) for both crit chance and crit damage.</summary>
-    private static bool HasDoubleCrit(GameInterfaceData shared, BagCoordinates bag)
+    private static bool HasDoubleCrit(GameInterfaceData shared)
     {
-        var (ox, oy) = shared.WindowOffset;
-        var (w, h) = shared.GameWindowSize;
-        int left = (int)(w * TooltipLeftRatio);
-        int width = bag.TopLeft.X - left;
-        if (width <= 0 || h <= 0) return false;
-        using Bitmap? tooltip = ScreenCaptureService.GetScreenshotProvider().CaptureRegion(ox + left, oy, width, h);
-        if (tooltip == null) return false;
-        string text = OcrHelper.GetResult(tooltip)?.Text ?? "";
+        string text = string.Join('\n', KanaiTooltipReader.Capture(shared) ?? Array.Empty<string>());
         return CritChanceKeywords.Any(k => text.Contains(k, StringComparison.OrdinalIgnoreCase))
                && CritDamageKeywords.Any(k => text.Contains(k, StringComparison.OrdinalIgnoreCase));
     }
