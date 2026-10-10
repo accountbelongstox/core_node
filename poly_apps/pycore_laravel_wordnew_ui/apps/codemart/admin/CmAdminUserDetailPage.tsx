@@ -9,6 +9,7 @@ import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
+import { useCmAdminActionBuilders } from './useCmAdminActions';
 import { CmAdminKycDocumentViewer } from './CmAdminPages';
 import {
   CmAdminActivityTable,
@@ -34,7 +35,6 @@ export const CmAdminUserDetailPage: React.FC = () => {
   const [grantStatusChoice, setGrantStatusChoice] = useState('');
   const grantStatuses = stateRule('role_admin_grantable');
   const grantStatus = grantStatuses.includes(grantStatusChoice) ? grantStatusChoice : grantStatuses[0] ?? '';
-  const reasonRequiredStates = stateRule('role_reason_required');
 
   const load = useCallback(async (): Promise<void> => {
     if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -55,6 +55,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
   }, [numericId, t]);
 
   const action = useCmAdminAction(load);
+  const actions = useCmAdminActionBuilders(action.ask);
 
   useEffect(() => {
     void load();
@@ -63,44 +64,11 @@ export const CmAdminUserDetailPage: React.FC = () => {
   const heldRoles = new Set((detail?.roles ?? []).map((role) => role.role_type));
   const grantableRoles = roles.filter((role) => !heldRoles.has(role));
 
-  const changeRole = (role: CmAdminUserRole, target: string): void => {
-    const reasonRequired = reasonRequiredStates.includes(target);
-    const roleLabel = t(`roles.${role.role_type}`, { defaultValue: role.role_type });
-    const targetLabel = t(`states.role.${target}`, { defaultValue: target });
-    action.ask({
-      title: t('admin.userDetail.changeRoleTitle', { role: roleLabel, status: targetLabel }),
-      body: t('admin.userDetail.changeRoleBody', {
-        user: detail?.account.username ?? numericId,
-        from: t(`states.role.${role.role_status}`, { defaultValue: role.role_status }),
-        to: targetLabel,
-        effect: t(`admin.userDetail.effect.${target}`, { defaultValue: '' }),
-      }),
-      confirmLabel: t(`admin.userDetail.transition.${target}`, { defaultValue: targetLabel }),
-      tone: reasonRequired ? 'danger' : 'primary',
-      reason: reasonRequired ? 'required' : 'optional',
-      successKey: 'admin.roleUpdated',
-      run: (reason) => cmAdminApi.setRoleStatus(numericId, role.role_type, target, reason),
-    });
-  };
+  const changeRole = (role: CmAdminUserRole, target: string): void => actions.changeRoleStatus(numericId, detail?.account.username, role, target);
 
   const grant = (): void => {
     if (!grantRole) return;
-    const roleLabel = t(`roles.${grantRole}`, { defaultValue: grantRole });
-    action.ask({
-      title: t('admin.userDetail.grantTitle', { role: roleLabel }),
-      body: t('admin.userDetail.grantBody', {
-        user: detail?.account.username ?? numericId,
-        status: t(`states.role.${grantStatus}`),
-      }),
-      confirmLabel: t('admin.userDetail.grant'),
-      reason: 'optional',
-      successKey: 'admin.userDetail.granted',
-      run: async (reason) => {
-        const response = await cmAdminApi.grantRole(numericId, grantRole, grantStatus, reason);
-        if (response.success) setGrantRole('');
-        return response;
-      },
-    });
+    actions.grantRole(numericId, detail?.account.username, grantRole, grantStatus, () => setGrantRole(''));
   };
 
   const account = detail?.account;
@@ -185,7 +153,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                             <button
                               key={target}
                               type="button"
-                              className={`cm-workspace-button ${reasonRequiredStates.includes(target) ? 'is-danger' : 'is-primary'}`}
+                              className={`cm-workspace-button ${actions.reasonRequiredRoleStates.includes(target) ? 'is-danger' : 'is-primary'}`}
                               onClick={() => changeRole(role, target)}
                             >
                               {t(`admin.userDetail.transition.${target}`, { defaultValue: target })}

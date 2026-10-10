@@ -10,6 +10,7 @@ const CmTermsPage = lazy(() => import('./pages/CmInfoPages').then((module) => ({
 const CmInformationPage = lazy(() => import('./pages/CmInfoPages').then((module) => ({ default: module.CmInformationPage })));
 const CmDownloadPage = lazy(() => import('./pages/CmDownloadPage'));
 const CmShowcasePage = lazy(() => import('./pages/CmShowcasePage'));
+const CmBrandGalleryPage = lazy(() => import('./pages/CmBrandGalleryPage'));
 const CmLoginPage = lazy(() => import('./pages/CmLoginPage'));
 const CmRegisterPage = lazy(() => import('./pages/CmPublicAuthPages').then((module) => ({ default: module.CmRegisterPage })));
 const CmForgotPasswordPage = lazy(() => import('./pages/CmPublicAuthPages').then((module) => ({ default: module.CmForgotPasswordPage })));
@@ -34,6 +35,7 @@ export const CM_PUBLIC_PAGES: CmPublicPageDef[] = [
   { id: 'terms', path: 'terms', Component: CmTermsPage },
   { id: 'information', path: 'information', Component: CmInformationPage },
   { id: 'showcase', path: 'showcase', Component: CmShowcasePage },
+  { id: 'brand-gallery', path: 'brand-gallery', Component: CmBrandGalleryPage },
   { id: 'login', path: 'login', Component: CmLoginPage },
   { id: 'register', path: 'register', Component: CmRegisterPage },
   { id: 'forgot-password', path: 'forgot-password', Component: CmForgotPasswordPage },

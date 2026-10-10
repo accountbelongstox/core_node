@@ -1,66 +1,43 @@
 import React, { useCallback, useState } from 'react';
 import { CalendarDays, ClipboardCheck, Plus, RefreshCw, Star, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmApi } from '../api/CmApi';
-import type { CmLineComment, CmReviewerApplicationStart, CmReviewSubmission } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
+import type { CmReviewSubmission } from '../api/CmApiTypes';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
-import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmSubmissionFiles } from '../components/workspace/CmSubmissionFiles';
-import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-import { useCmPagedList } from '../components/workspace/useCmPagedList';
-
-const REVIEW_RECOMMENDATIONS = ['approved', 'needs_revision', 'rejected'] as const;
-const RATING_VALUES = [1, 2, 3, 4, 5] as const;
-const DEFAULT_RATING = 3;
-const PASSED_STATUS = 'passed';
-
-interface CmLineCommentDraft {
-  file: string;
-  line: string;
-  comment: string;
-}
-
-interface CmTestDraft {
-  quality_rating: number;
-  readability_rating: number;
-  efficiency_rating: number;
-  comments: string;
-}
-
-const emptyDraft = (): CmTestDraft => ({
-  quality_rating: DEFAULT_RATING,
-  readability_rating: DEFAULT_RATING,
-  efficiency_rating: DEFAULT_RATING,
-  comments: '',
-});
+import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import {
+  CM_REVIEW_RATING_VALUES,
+  CM_REVIEW_RECOMMENDATIONS,
+  useCmReviewDecision,
+  useCmReviewerApplication,
+  useCmReviewerQueue,
+} from '../shared/useCmReviews';
 
 const CmRatingSelect: React.FC<{ label: string; value: number | ''; onChange: (value: number | '') => void; allowEmpty?: string }> = ({ label, value, onChange, allowEmpty }) => (
   <label className="cm-rating-field">
     <span>{label}</span>
     <select value={value} onChange={(event) => onChange(event.target.value === '' ? '' : Number(event.target.value))}>
       {allowEmpty && <option value="">{allowEmpty}</option>}
-      {RATING_VALUES.map((score) => (
+      {CM_REVIEW_RATING_VALUES.map((score) => (
         <option key={score} value={score}>{score}</option>
       ))}
     </select>
   </label>
 );
 
-const CmCommentField: React.FC<{ label: string; value: string; onChange: (value: string) => void; placeholder: string }> = ({ label, value, onChange, placeholder }) => {
+const CmCommentField: React.FC<{ label: string; value: string; min: number; onChange: (value: string) => void; placeholder: string }> = ({ label, value, min, onChange, placeholder }) => {
   const { t } = useTranslation('cm');
-  const { reviewCommentMinLength } = useCmPolicy();
   const length = value.trim().length;
   return (
     <label className="cm-stacked-field">
       <span>{label}</span>
-      <textarea rows={3} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-invalid={length > 0 && length < reviewCommentMinLength} />
-      <small className={length > 0 && length < reviewCommentMinLength ? 'cm-field-error' : 'cm-field-hint'}>
-        {t('reviews.commentCounter', { count: length, min: reviewCommentMinLength })}
+      <textarea rows={3} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-invalid={length > 0 && length < min} />
+      <small className={length > 0 && length < min ? 'cm-field-error' : 'cm-field-hint'}>
+        {t('reviews.commentCounter', { count: length, min })}
       </small>
     </label>
   );
@@ -68,56 +45,12 @@ const CmCommentField: React.FC<{ label: string; value: string; onChange: (value:
 
 const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<void> }> = ({ onPassed }) => {
   const { t } = useTranslation('cm');
-  const { reviewCommentMinLength, reviewerRetryDays, reviewerExamCount, reviewerPassScore } = useCmPolicy();
   const notice = useCmNotice();
-  const [application, setApplication] = useState<CmReviewerApplicationStart | null>(null);
-  const [drafts, setDrafts] = useState<CmTestDraft[]>([]);
-  const [busy, setBusy] = useState(false);
-
-  const apply = async (): Promise<void> => {
-    setBusy(true);
-    notice.clear();
-    const response = await cmApi.applyReviewer();
-    setBusy(false);
-    if (response.success && response.data) {
-      setApplication(response.data);
-      setDrafts(response.data.test_cases.map(() => emptyDraft()));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'reviews.applyFailed', { days: reviewerRetryDays }));
-    }
-  };
-
-  const updateDraft = (index: number, patch: Partial<CmTestDraft>): void => {
-    setDrafts((current) => current.map((draft, position) => (position === index ? { ...draft, ...patch } : draft)));
-  };
-
-  const draftsValid = drafts.length > 0 && drafts.every((draft) => draft.comments.trim().length >= reviewCommentMinLength);
-
-  const submitTest = async (): Promise<void> => {
-    if (!application || busy || !draftsValid) return;
-    setBusy(true);
-    notice.clear();
-    const reviews = application.test_cases.map((testCase, index) => ({
-      code_snippet_id: testCase.code_snippet_id,
-      quality_rating: drafts[index].quality_rating,
-      readability_rating: drafts[index].readability_rating,
-      efficiency_rating: drafts[index].efficiency_rating,
-      comments: drafts[index].comments.trim(),
-    }));
-    const response = await cmApi.submitReviewerTest(application.application_id, reviews);
-    setBusy(false);
-    if (response.success && response.data) {
-      if (response.data.status === PASSED_STATUS) {
-        setApplication(null);
-        await onPassed(t('reviews.testPassed'));
-      } else {
-        notice.error(t('reviews.testFailed', { score: response.data.similarity_score, days: reviewerRetryDays }));
-        setApplication(null);
-      }
-    } else {
-      notice.error(cmErrorMessage(t, response, 'reviews.testSubmitFailed'));
-    }
-  };
+  const model = useCmReviewerApplication(onPassed, notice);
+  const { application, drafts, busy, draftsValid, updateDraft } = model;
+  const reviewerExamCount = model.examCount;
+  const reviewerPassScore = model.passScore;
+  const reviewCommentMinLength = model.commentMinLength;
 
   return (
     <section className="cm-section-card">
@@ -131,7 +64,7 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
         </ol>
       )}
       {!application && (
-        <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void apply()}>
+        <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void model.apply()}>
           {busy ? t('common.loading') : t('reviews.apply')}
         </button>
       )}
@@ -147,11 +80,11 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
                 <CmRatingSelect label={t('reviews.readability')} value={drafts[index].readability_rating} onChange={(value) => updateDraft(index, { readability_rating: Number(value) })} />
                 <CmRatingSelect label={t('reviews.efficiency')} value={drafts[index].efficiency_rating} onChange={(value) => updateDraft(index, { efficiency_rating: Number(value) })} />
               </div>
-              <CmCommentField label={t('reviews.comments')} value={drafts[index].comments} onChange={(value) => updateDraft(index, { comments: value })} placeholder={t('reviews.commentsPlaceholder')} />
+              <CmCommentField label={t('reviews.comments')} value={drafts[index].comments} min={reviewCommentMinLength} onChange={(value) => updateDraft(index, { comments: value })} placeholder={t('reviews.commentsPlaceholder')} />
             </article>
           ))}
           <div className="cm-table-actions">
-            <button type="button" className="cm-workspace-button is-primary" disabled={busy || !draftsValid} onClick={() => void submitTest()}>
+            <button type="button" className="cm-workspace-button is-primary" disabled={busy || !draftsValid} onClick={() => void model.submitTest()}>
               {busy ? t('common.saving') : t('reviews.submitTest')}
             </button>
             {!draftsValid && <small className="cm-field-hint">{t('reviews.testIncomplete', { min: reviewCommentMinLength })}</small>}
@@ -166,90 +99,53 @@ const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<v
 const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChanged: (message: string) => Promise<void> }> = ({ submission, onChanged }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const { reviewCommentMinLength } = useCmPolicy();
-  const [quality, setQuality] = useState(DEFAULT_RATING);
-  const [readability, setReadability] = useState(DEFAULT_RATING);
-  const [efficiency, setEfficiency] = useState(DEFAULT_RATING);
-  const [security, setSecurity] = useState<number | ''>('');
-  const [recommendation, setRecommendation] = useState('');
-  const [comments, setComments] = useState('');
-  const [lineComments, setLineComments] = useState<CmLineCommentDraft[]>([]);
-  const [busy, setBusy] = useState(false);
-  const valid = comments.trim().length >= reviewCommentMinLength;
-
-  const updateLine = (index: number, patch: Partial<CmLineCommentDraft>): void => {
-    setLineComments((current) => current.map((line, position) => (position === index ? { ...line, ...patch } : line)));
-  };
-
-  const submitReview = async (): Promise<void> => {
-    if (busy || !valid) return;
-    setBusy(true);
-    notice.clear();
-    const lines: CmLineComment[] = lineComments
-      .filter((line) => line.comment.trim() !== '')
-      .map((line) => ({ file: line.file.trim(), line: line.line ? Number(line.line) : undefined, comment: line.comment.trim() }));
-    const response = await cmApi.submitCodeReview(submission.id, {
-      quality_rating: quality,
-      readability_rating: readability,
-      efficiency_rating: efficiency,
-      security_rating: security === '' ? null : security,
-      recommendation: recommendation || null,
-      comments: comments.trim(),
-      line_comments: lines.length > 0 ? lines : null,
-    });
-    setBusy(false);
-    if (response.success) {
-      await onChanged(t('reviews.submittedWithScore', { score: response.data?.code_score ?? '' }));
-    } else {
-      notice.error(cmErrorMessage(t, response, 'reviews.submitFailed'));
-    }
-  };
+  const form = useCmReviewDecision(submission.id, onChanged, notice);
 
   return (
     <div className="cm-inline-form cm-review-form">
       <h4>{t('reviews.formTitle')}</h4>
       <div className="cm-rating-row">
-        <CmRatingSelect label={t('reviews.quality')} value={quality} onChange={(value) => setQuality(Number(value))} />
-        <CmRatingSelect label={t('reviews.readability')} value={readability} onChange={(value) => setReadability(Number(value))} />
-        <CmRatingSelect label={t('reviews.efficiency')} value={efficiency} onChange={(value) => setEfficiency(Number(value))} />
-        <CmRatingSelect label={t('reviews.security')} value={security} onChange={setSecurity} allowEmpty={t('submissions.noRating')} />
+        <CmRatingSelect label={t('reviews.quality')} value={form.quality} onChange={(value) => form.setQuality(Number(value))} />
+        <CmRatingSelect label={t('reviews.readability')} value={form.readability} onChange={(value) => form.setReadability(Number(value))} />
+        <CmRatingSelect label={t('reviews.efficiency')} value={form.efficiency} onChange={(value) => form.setEfficiency(Number(value))} />
+        <CmRatingSelect label={t('reviews.security')} value={form.security} onChange={form.setSecurity} allowEmpty={t('submissions.noRating')} />
         <label className="cm-rating-field">
           <span>{t('reviews.recommendation')}</span>
-          <select value={recommendation} onChange={(event) => setRecommendation(event.target.value)}>
+          <select value={form.recommendation} onChange={(event) => form.setRecommendation(event.target.value)}>
             <option value="">{t('reviews.noRecommendation')}</option>
-            {REVIEW_RECOMMENDATIONS.map((value) => (
+            {CM_REVIEW_RECOMMENDATIONS.map((value) => (
               <option key={value} value={value}>{t(`submissions.decisions.${value}`)}</option>
             ))}
           </select>
         </label>
       </div>
-      <CmCommentField label={t('reviews.comments')} value={comments} onChange={setComments} placeholder={t('reviews.commentsPlaceholder')} />
+      <CmCommentField label={t('reviews.comments')} value={form.comments} min={form.commentMinLength} onChange={form.setComments} placeholder={t('reviews.commentsPlaceholder')} />
       <div className="cm-drawer__section">
         <h3>{t('reviews.lineComments')} <small className="cm-field-hint">{t('common.optional')}</small></h3>
-        {lineComments.map((line, index) => (
+        {form.lineComments.map((line, index) => (
           <div key={index} className="cm-line-comment-row">
-            <input value={line.file} onChange={(event) => updateLine(index, { file: event.target.value })} placeholder={t('reviews.lineFile')} aria-label={t('reviews.lineFile')} />
-            <input type="number" min={1} value={line.line} onChange={(event) => updateLine(index, { line: event.target.value })} placeholder={t('reviews.lineNumber')} aria-label={t('reviews.lineNumber')} />
-            <input value={line.comment} onChange={(event) => updateLine(index, { comment: event.target.value })} placeholder={t('reviews.lineComment')} aria-label={t('reviews.lineComment')} />
+            <input value={line.file} onChange={(event) => form.updateLine(index, { file: event.target.value })} placeholder={t('reviews.lineFile')} aria-label={t('reviews.lineFile')} />
+            <input type="number" min={1} value={line.line} onChange={(event) => form.updateLine(index, { line: event.target.value })} placeholder={t('reviews.lineNumber')} aria-label={t('reviews.lineNumber')} />
+            <input value={line.comment} onChange={(event) => form.updateLine(index, { comment: event.target.value })} placeholder={t('reviews.lineComment')} aria-label={t('reviews.lineComment')} />
             <button
               type="button"
               className="cm-workspace-button is-small"
               aria-label={t('reviews.removeLineComment')}
-              onClick={() => setLineComments((current) => current.filter((_, position) => position !== index))}
+              onClick={() => form.removeLine(index)}
             >
               <Trash2 aria-hidden="true" />
             </button>
           </div>
         ))}
         <div>
-          <button type="button" className="cm-workspace-button is-small" onClick={() => setLineComments((current) => [...current, { file: '', line: '', comment: '' }])}>
+          <button type="button" className="cm-workspace-button is-small" onClick={form.addLineComment}>
             <Plus aria-hidden="true" /> {t('reviews.addLineComment')}
           </button>
         </div>
       </div>
       <div className="cm-table-actions">
-        <button type="button" className="cm-workspace-button is-primary" disabled={busy || !valid} onClick={() => void submitReview()}>
-          {busy ? t('common.saving') : t('reviews.submitReview')}
+        <button type="button" className="cm-workspace-button is-primary" disabled={form.busy || !form.valid} onClick={() => void form.submit()}>
+          {form.busy ? t('common.saving') : t('reviews.submitReview')}
         </button>
       </div>
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
@@ -257,18 +153,12 @@ const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChange
   );
 };
 
-const extractReviews = (data: { pending_reviews: CmReviewSubmission[]; pagination: unknown }) => ({
-  items: Array.isArray(data.pending_reviews) ? data.pending_reviews : [],
-  totalPages: cmTotalPages(data.pagination as Parameters<typeof cmTotalPages>[0]),
-});
-const fetchReviews = (page: number) => cmApi.getReviewTasks(page);
-
 export const CmReviewsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { hasCapability, hasRole, refresh } = useCmBootstrap();
   const canReview = hasCapability('review.read') && hasRole('reviewer', 'active');
-  const list = useCmPagedList(fetchReviews, extractReviews, 'reviews.loadFailed', canReview);
+  const list = useCmReviewerQueue(canReview);
   const pageNotice = useCmNotice();
   const [openId, setOpenId] = useState<number | null>(null);
 

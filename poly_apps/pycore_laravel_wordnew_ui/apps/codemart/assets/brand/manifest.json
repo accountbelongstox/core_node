@@ -1,0 +1,210 @@
+{
+ "version": 1,
+ "source": {
+  "file": "source/codemart-logo-source.jpg",
+  "width": 619,
+  "height": 162
+ },
+ "default": "b-hand-r1",
+ "candidates": [
+  {
+   "id": "c-gateway-r1",
+   "method": "C",
+   "round": 1,
+   "tool": "pycore ai_gateway (cloudflare sdxl, text prompt only)",
+   "kind": "raster",
+   "status": "ok",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "text-to-image only; the gateway accepts no reference image, so the result is an unfaithful monkey and has no text",
+   "score": {
+    "iou": 0.1523,
+    "ssim": 0.6534,
+    "score": 0.4028
+   },
+   "files": {
+    "mark": {
+     "png": "mark.png"
+    }
+   }
+  },
+  {
+   "id": "c-chatgpt-r1",
+   "method": "C",
+   "round": 1,
+   "tool": "ChatGPT via mcp-chrome",
+   "kind": "raster",
+   "status": "unavailable",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "mcp-chrome endpoint 127.0.0.1:12306 was not listening, so the signed-in Chrome could not be driven",
+   "score": null,
+   "files": {}
+  },
+  {
+   "id": "c-gemini-r1",
+   "method": "C",
+   "round": 1,
+   "tool": "Gemini via mcp-chrome",
+   "kind": "raster",
+   "status": "unavailable",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "mcp-chrome endpoint 127.0.0.1:12306 was not listening, so the signed-in Chrome could not be driven",
+   "score": null,
+   "files": {}
+  },
+  {
+   "id": "a-potrace-r1",
+   "method": "A",
+   "round": 1,
+   "tool": "potrace",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:13:05Z",
+   "note": "potrace on an 8x bicubic upscale, default smoothing",
+   "score": {
+    "iou": 0.9367,
+    "ssim": 0.9442,
+    "score": 0.9405
+   },
+   "nodes": 859,
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "a-potrace-r2",
+   "method": "A",
+   "round": 2,
+   "tool": "potrace",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:13:06Z",
+   "note": "potrace, stronger blur and curve smoothing",
+   "score": {
+    "iou": 0.9365,
+    "ssim": 0.9436,
+    "score": 0.94
+   },
+   "nodes": 708,
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "a-vtracer-r1",
+   "method": "A",
+   "round": 1,
+   "tool": "vtracer",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:13:06Z",
+   "note": "vtracer spline mode on the same upscaled binary regions",
+   "score": {
+    "iou": 0.9412,
+    "ssim": 0.9444,
+    "score": 0.9428
+   },
+   "nodes": 1807,
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "b-hand-r1",
+   "method": "B",
+   "round": 1,
+   "tool": "geometry-fit",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:13:07Z",
+   "note": "rounded rects, fillets, mirrored Bezier head and stroked letters fitted to the source by pixel diff",
+   "score": {
+    "iou": 0.9327,
+    "ssim": 0.9422,
+    "score": 0.9374
+   },
+   "nodes": 291,
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  }
+ ],
+ "ranking": [
+  "a-vtracer-r1",
+  "a-potrace-r1",
+  "a-potrace-r2",
+  "b-hand-r1",
+  "c-gateway-r1"
+ ],
+ "default_rule": {
+  "tie_band": 0.01,
+  "tie_break": "fewest path nodes"
+ }
+}

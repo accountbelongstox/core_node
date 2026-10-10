@@ -1,4 +1,30 @@
-/** Content structure of the public information pages; the copy lives in the `infoPages` locale keys. */
+import type { CmImageName } from '../assets/cmImageRegistry';
+import type { CmProcessStepId } from '../components/public-home/CmProcessIllustration';
+import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from '../components/public-home/cmPublicRoutes';
+
+/** Content structure of the public home and information pages; the copy lives in the `publicHome` and `infoPages` locale keys. */
+
+export const CM_HOME_HERO_SLIDES: ReadonlyArray<{ titleKey: string; subtitleKey: string; variant: string; image: CmImageName }> = [
+  { titleKey: 'publicHome.hero.slide1Title', subtitleKey: 'publicHome.hero.slide1Subtitle', variant: 'delivery', image: 'hero-delivery' },
+  { titleKey: 'publicHome.hero.slide2Title', subtitleKey: 'publicHome.hero.slide2Subtitle', variant: 'milestones', image: 'hero-marketplace' },
+  { titleKey: 'publicHome.hero.slide3Title', subtitleKey: 'publicHome.hero.slide3Subtitle', variant: 'specialists', image: 'hero-escrow' },
+];
+
+export const CM_HOME_ROLE_IDS = ['client', 'developer', 'architect', 'reviewer'];
+
+export const CM_HOME_PROCESS_STEPS: Array<{
+  id: CmProcessStepId;
+  titleKey: string;
+  bodyKey: string;
+  actionKey: string;
+  route: string;
+}> = [
+  { id: 'brief', titleKey: 'publicHome.process.briefTitle', bodyKey: 'publicHome.process.briefBody', actionKey: 'publicHome.process.briefAction', route: CM_PROTECTED_ROUTE.projectCreate },
+  { id: 'proposal', titleKey: 'publicHome.process.proposalTitle', bodyKey: 'publicHome.process.proposalBody', actionKey: 'publicHome.process.proposalAction', route: CM_PROTECTED_ROUTE.projects },
+  { id: 'funding', titleKey: 'publicHome.process.fundingTitle', bodyKey: 'publicHome.process.fundingBody', actionKey: 'publicHome.process.fundingAction', route: CM_PUBLIC_ROUTE.services },
+  { id: 'marketplace', titleKey: 'publicHome.process.marketplaceTitle', bodyKey: 'publicHome.process.marketplaceBody', actionKey: 'publicHome.process.marketplaceAction', route: CM_PUBLIC_ROUTE.showcaseOpenWork },
+  { id: 'review', titleKey: 'publicHome.process.reviewTitle', bodyKey: 'publicHome.process.reviewBody', actionKey: 'publicHome.process.reviewAction', route: CM_PUBLIC_ROUTE.delivery },
+];
 
 export type CmLegalPageId = 'privacy' | 'terms';
 

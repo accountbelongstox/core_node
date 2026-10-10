@@ -9,6 +9,7 @@ import { CmPager } from '../components/workspace/CmPager';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
+import { useCmAdminActionBuilders } from './useCmAdminActions';
 import {
   CmAdminDate,
   CmAdminKeyValues,
@@ -19,31 +20,11 @@ import {
   CmAdminToolbar,
   CmAdminUserLink,
   useCmAdminAction,
-  useCmAdminFormat,
   useCmAdminList,
   useCmAdminParam,
 } from './CmAdminShared';
-import {
-  type CmAdminDepositRow,
-  type CmAdminDisputeResolution,
-  type CmAdminEscrowRefundResult,
-  type CmAdminEscrowRow,
-  type CmAdminPaymentRow,
-  type CmAdminProjectRow,
-  type CmAdminRefundRow,
-  type CmAdminUserSummary,
-  type CmAdminWithdrawalRow,
-} from './CmAdminTypes';
-
 function projectActivityPath(projectId: number): string {
   return cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { resource_type: 'project', resource_id: projectId });
-}
-
-/** Display name used inside confirmation sentences. */
-function useCmAdminUserName() {
-  const { t } = useTranslation('cm');
-  return (user: CmAdminUserSummary | null | undefined, userId?: number | null): string =>
-    user?.username || user?.name || (userId ? t('admin.userNumber', { id: userId }) : t('admin.unknownUser'));
 }
 
 const CmAdminProjectRef: React.FC<{ projectId: number | null | undefined; title?: string | null }> = ({ projectId, title }) => {
@@ -58,50 +39,14 @@ const CmAdminProjectRef: React.FC<{ projectId: number | null | undefined; title?
 
 export const CmAdminDepositsPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const format = useCmAdminFormat();
-  const userName = useCmAdminUserName();
   const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const filters = useMemo(() => ({ status }), [status]);
   const list = useCmAdminList((query) => cmAdminApi.deposits(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const params = (item: CmAdminDepositRow) => ({
-    id: item.id,
-    amount: format.money(item.amount),
-    user: userName(item.user, item.user_id),
-    role: t(`roles.${item.role_type}`, { defaultValue: item.role_type }),
-  });
-
-  const confirm = (item: CmAdminDepositRow): void => action.ask({
-    title: t('admin.deposits.confirmTitle', params(item)),
-    body: t('admin.deposits.confirmBody', params(item)),
-    confirmLabel: t('admin.confirmDeposit'),
-    successKey: 'admin.depositConfirmed',
-    run: () => cmAdminApi.confirmDeposit(item.id),
-  });
-
-  const reject = (item: CmAdminDepositRow): void => action.ask({
-    title: t('admin.deposits.rejectTitle', params(item)),
-    body: t('admin.deposits.rejectBody', params(item)),
-    confirmLabel: t('admin.reject'),
-    tone: 'danger',
-    reason: 'required',
-    reasonLabel: t('admin.dialog.reasonForUser'),
-    successKey: 'admin.deposits.rejected',
-    run: (notes) => cmAdminApi.rejectDeposit(item.id, notes),
-  });
-
-  const refund = (item: CmAdminDepositRow): void => action.ask({
-    title: t('admin.deposits.refundTitle', params(item)),
-    body: t('admin.deposits.refundBody', params(item)),
-    confirmLabel: t('admin.deposits.refund'),
-    tone: 'danger',
-    reason: 'optional',
-    reasonLabel: t('admin.dialog.notes'),
-    successKey: 'admin.deposits.refunded',
-    run: (notes) => cmAdminApi.refundDeposit(item.id, notes),
-  });
+  const actions = useCmAdminActionBuilders(action.ask);
+  const { confirmDeposit: confirm, rejectDeposit: reject, refundDeposit: refund } = actions;
 
   return (
     <main className="cm-workspace-page">
@@ -176,53 +121,14 @@ export const CmAdminDepositsPage: React.FC = () => {
 
 export const CmAdminRefundsPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const format = useCmAdminFormat();
-  const userName = useCmAdminUserName();
   const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const filters = useMemo(() => ({ status }), [status]);
   const list = useCmAdminList((query) => cmAdminApi.refunds(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const params = (item: CmAdminRefundRow) => ({
-    id: item.id,
-    payment: item.payment_id,
-    amount: format.money(item.amount, item.currency),
-    payer: userName(item.payer),
-    payee: userName(item.payee),
-    requester: userName(item.requester, item.requested_by),
-  });
-
-  const approve = (item: CmAdminRefundRow): void => action.ask({
-    title: t('admin.refunds.approveTitle', params(item)),
-    body: t('admin.refunds.approveBody', params(item)),
-    confirmLabel: t('admin.approve'),
-    reason: 'optional',
-    reasonLabel: t('admin.dialog.notes'),
-    successKey: 'admin.refunds.approved',
-    run: (notes) => cmAdminApi.approveRefund(item.id, notes),
-  });
-
-  const reject = (item: CmAdminRefundRow): void => action.ask({
-    title: t('admin.refunds.rejectTitle', params(item)),
-    body: t('admin.refunds.rejectBody', params(item)),
-    confirmLabel: t('admin.reject'),
-    tone: 'danger',
-    reason: 'required',
-    reasonLabel: t('admin.dialog.reasonForUser'),
-    successKey: 'admin.refunds.rejected',
-    run: (notes) => cmAdminApi.rejectRefund(item.id, notes),
-  });
-
-  const processItem = (item: CmAdminRefundRow): void => action.ask({
-    title: t('admin.refunds.processTitle', params(item)),
-    body: t('admin.refunds.processBody', params(item)),
-    confirmLabel: t('admin.refunds.process'),
-    reason: 'optional',
-    reasonLabel: t('admin.dialog.notes'),
-    successKey: 'admin.refunds.processed',
-    run: (notes) => cmAdminApi.processRefund(item.id, notes),
-  });
+  const actions = useCmAdminActionBuilders(action.ask);
+  const { approveRefund: approve, rejectRefund: reject, processRefund: processItem } = actions;
 
   return (
     <main className="cm-workspace-page">
@@ -313,8 +219,6 @@ export const CmAdminRefundsPage: React.FC = () => {
 
 export const CmAdminWithdrawalsPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const format = useCmAdminFormat();
-  const userName = useCmAdminUserName();
   const { states, openStates } = useCmBootstrap();
   const openWithdrawalStates = openStates('withdrawal');
   const [status, setStatus] = useState(useCmAdminParam('status'));
@@ -322,42 +226,8 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.withdrawals(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const params = (item: CmAdminWithdrawalRow) => ({
-    id: item.id,
-    amount: format.money(item.amount, item.currency),
-    user: userName(item.user),
-  });
-
-  const approve = (item: CmAdminWithdrawalRow): void => action.ask({
-    title: t('admin.withdrawals.approveTitle', params(item)),
-    body: t('admin.withdrawals.approveBody', params(item)),
-    confirmLabel: t('admin.approve'),
-    reason: 'optional',
-    reasonLabel: t('admin.dialog.notes'),
-    successKey: 'admin.withdrawals.approved',
-    run: (notes) => cmAdminApi.approveWithdrawal(item.id, notes),
-  });
-
-  const reject = (item: CmAdminWithdrawalRow): void => action.ask({
-    title: t('admin.withdrawals.rejectTitle', params(item)),
-    body: t('admin.withdrawals.rejectBody', params(item)),
-    confirmLabel: t('admin.reject'),
-    tone: 'danger',
-    reason: 'required',
-    reasonLabel: t('admin.dialog.reasonForUser'),
-    successKey: 'admin.withdrawals.rejected',
-    run: (notes) => cmAdminApi.rejectWithdrawal(item.id, notes),
-  });
-
-  const pay = (item: CmAdminWithdrawalRow): void => action.ask({
-    title: t('admin.withdrawals.payTitle', params(item)),
-    body: t('admin.withdrawals.payBody', params(item)),
-    confirmLabel: t('admin.withdrawals.pay'),
-    reason: 'optional',
-    reasonLabel: t('admin.withdrawals.payNotes'),
-    successKey: 'admin.withdrawals.paid',
-    run: (notes) => cmAdminApi.payWithdrawal(item.id, notes),
-  });
+  const actions = useCmAdminActionBuilders(action.ask);
+  const { approveWithdrawal: approve, rejectWithdrawal: reject, payWithdrawal: pay } = actions;
 
   return (
     <main className="cm-workspace-page">
@@ -432,8 +302,6 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
 
 const CmAdminPaymentsTable: React.FC = () => {
   const { t } = useTranslation('cm');
-  const format = useCmAdminFormat();
-  const userName = useCmAdminUserName();
   const { states, policyList } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [type, setType] = useState(useCmAdminParam('type'));
@@ -441,24 +309,7 @@ const CmAdminPaymentsTable: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.payments(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const resolve = (item: CmAdminPaymentRow, resolution: CmAdminDisputeResolution): void => {
-    const params = {
-      id: item.id,
-      amount: format.money(item.amount, item.currency),
-      payer: userName(item.payer),
-      payee: userName(item.payee),
-    };
-    action.ask({
-      title: t(`admin.payments.resolve.${resolution}Title`, params),
-      body: t(`admin.payments.resolve.${resolution}Body`, params),
-      confirmLabel: t(`admin.payments.resolve.${resolution}`),
-      tone: resolution === 'refund' ? 'danger' : 'primary',
-      reason: 'optional',
-      reasonLabel: t('admin.dialog.notes'),
-      successKey: 'admin.payments.resolved',
-      run: (notes) => cmAdminApi.resolveDispute(item.id, resolution, notes),
-    });
-  };
+  const { resolveDispute: resolve, disputeResolutions } = useCmAdminActionBuilders(action.ask);
 
   return (
     <>
@@ -507,7 +358,7 @@ const CmAdminPaymentsTable: React.FC = () => {
                 <td>
                   {item.status === 'disputed' ? (
                     <div className="cm-table-actions">
-                      {policyList('dispute_resolutions').map((resolution) => (
+                      {disputeResolutions.map((resolution) => (
                         <button
                           key={resolution}
                           type="button"
@@ -533,8 +384,6 @@ const CmAdminPaymentsTable: React.FC = () => {
 
 const CmAdminEscrowsTable: React.FC = () => {
   const { t } = useTranslation('cm');
-  const format = useCmAdminFormat();
-  const userName = useCmAdminUserName();
   const { states } = useCmBootstrap();
   const [status, setStatus] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -542,25 +391,7 @@ const CmAdminEscrowsTable: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.escrows(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const refund = (item: CmAdminEscrowRow): void => {
-    const params = { id: item.id, amount: format.money(item.remaining_amount, item.currency), payer: userName(item.payer) };
-    action.ask({
-      title: t('admin.payments.escrowRefund.title', params),
-      body: t('admin.payments.escrowRefund.body', params),
-      confirmLabel: t('admin.payments.escrowRefund.action'),
-      tone: 'danger',
-      reason: 'optional',
-      reasonLabel: t('admin.dialog.notes'),
-      successKey: 'admin.payments.escrowRefund.nothingLeft',
-      successText: (data) => {
-        const result = data as CmAdminEscrowRefundResult | null;
-        return result && !result.replayed
-          ? t('admin.payments.escrowRefund.done', { amount: format.money(result.refunded_amount, item.currency) })
-          : t('admin.payments.escrowRefund.nothingLeft');
-      },
-      run: (notes) => cmAdminApi.refundEscrow(item.id, notes),
-    });
-  };
+  const { refundEscrow: refund } = useCmAdminActionBuilders(action.ask);
 
   return (
     <>
@@ -654,9 +485,7 @@ export const CmAdminPaymentsPage: React.FC = () => {
 
 export const CmAdminProjectsPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const userName = useCmAdminUserName();
-  const { states, terminalStates } = useCmBootstrap();
-  const closedProjectStates = terminalStates('project');
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [search, setSearch] = useState(useCmAdminParam('search'));
   const [clientId, setClientId] = useState(useCmAdminParam('client_id'));
@@ -664,23 +493,7 @@ export const CmAdminProjectsPage: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.projects(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const intervene = (item: CmAdminProjectRow, target: string): void => {
-    const targetLabel = t(`states.project.${target}`, { defaultValue: target });
-    action.ask({
-      title: t('admin.projects.changeTitle', { title: item.title, status: targetLabel }),
-      body: t('admin.projects.changeBody', {
-        from: t(`states.project.${item.status}`, { defaultValue: item.status }),
-        to: targetLabel,
-        client: userName(item.client, item.client_id),
-        effect: t(`admin.projects.effect.${target}`, { defaultValue: '' }),
-      }),
-      confirmLabel: t(`admin.projects.action.${target}`, { defaultValue: targetLabel }),
-      tone: closedProjectStates.includes(target) ? 'danger' : 'primary',
-      reason: 'required',
-      successKey: 'admin.projects.updated',
-      run: (reason) => cmAdminApi.setProjectStatus(item.id, target, reason),
-    });
-  };
+  const { setProjectStatus: intervene, closedProjectStates } = useCmAdminActionBuilders(action.ask);
 
   return (
     <main className="cm-workspace-page">
