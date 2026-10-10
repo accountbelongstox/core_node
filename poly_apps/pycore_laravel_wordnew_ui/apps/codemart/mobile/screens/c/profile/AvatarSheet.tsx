@@ -1,9 +1,7 @@
 import React from 'react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmAvatarUpload } from '../../../../shared/useCmProfile';
-import { MobileButton, MobileSheet } from '../../../ui';
-import { MobileImagePicker } from '../parts/MobileImagePicker';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileSheet, MobileImagePicker, useInlineFeedback } from '../../../ui';
 
 interface AvatarSheetProps {
   open: boolean;

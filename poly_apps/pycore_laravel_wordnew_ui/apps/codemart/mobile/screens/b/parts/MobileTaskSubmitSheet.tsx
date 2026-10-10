@@ -1,8 +1,7 @@
 import React from 'react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmTaskSubmit } from '../../../../shared/useCmTaskDetail';
-import { MobileButton, MobileField, MobileSheet, useMobileFeedback } from '../../../ui';
-import { MobileFilePicker } from './MobileFilePicker';
+import { MobileButton, MobileField, MobileSheet, useMobileFeedback, MobileFilePicker } from '../../../ui';
 
 interface MobileTaskSubmitSheetProps {
   taskId: number;

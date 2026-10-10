@@ -10,9 +10,7 @@ import { useCmPolicy } from '../../../contexts/useCmPolicy';
 import { CM_PROJECT_TITLE_MAX_LENGTH, CM_STACK_FIELDS } from '../../../shared/cmProjectForm';
 import { cmAttachmentIssue, cmAttachmentUploadError } from '../../../shared/useCmProjectAttachments';
 import { useCmProjectCreate, type CmCreateField } from '../../../shared/useCmProjectCreate';
-import { MobileButton, MobileCard, MobileField, MobileNotice, MobileScreen, useMobileFeedback } from '../../ui';
-import { MobileFilePicker } from './parts/MobileFilePicker';
-import { MobileKeyValue } from './parts/MobileKeyValue';
+import { MobileButton, MobileCard, MobileField, MobileNotice, MobileScreen, useMobileFeedback, MobileFilePicker, MobileKeyValues } from '../../ui';
 import './styles/cm-mobile-work.css';
 
 const STEPS = ['brief', 'budget', 'stack'] as const;
@@ -139,7 +137,7 @@ const MobileProjectCreateScreen: React.FC = () => {
 
       {isLast && (
         <MobileCard>
-          <MobileKeyValue
+          <MobileKeyValues
             items={[
               { label: t('projectCreate.projectTitle'), value: form.title.trim() },
               { label: t('projectCreate.budget'), value: form.budget ? format.money(form.budget, currency) : '' },

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
-import { MobileButton } from '../../../ui';
-import { MobileConfirmSheet } from './MobileConfirmSheet';
+import { MobileButton, MobileConfirmSheet } from '../../../ui';
 
 const DESTRUCTIVE_TRANSITIONS = new Set(['cancelled', 'blocked']);
 

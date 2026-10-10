@@ -4,9 +4,7 @@ import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { cmPaymentPartyLabel } from '../../../../components/workspace/CmPaymentDetailPanel';
 import { useCmPaymentActions, useCmPaymentDetail } from '../../../../shared/useCmWalletActions';
-import { MobileButton, MobileErrorState, MobileField, MobileSheet, MobileSkeletonBlock, MobileStatusBadge } from '../../../ui';
-import { MobileKeyValues } from '../parts/MobileKeyValues';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileErrorState, MobileField, MobileSheet, MobileSkeletonBlock, MobileStatusBadge, MobileKeyValues, useInlineFeedback } from '../../../ui';
 
 interface WalletPaymentSheetProps {
   paymentId: number | null;

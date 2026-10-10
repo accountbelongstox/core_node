@@ -3,9 +3,8 @@ import { CalendarDays, Plus } from 'lucide-react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import type { CmMilestone, CmProjectDetail, CmTask } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
-import { MobileEmptyState, MobileSectionHeader, MobileStatusBadge } from '../../../ui';
+import { MobileEmptyState, MobileSectionHeader, MobileStatusBadge, MobileTagList } from '../../../ui';
 import { MobileEntityCard } from '../parts/MobileEntityCard';
-import { MobileTagList } from '../parts/MobileTagList';
 import { MobileTaskFormSheet } from '../parts/MobileTaskFormSheet';
 import { MobileTaskSheet } from '../parts/MobileTaskSheet';
 

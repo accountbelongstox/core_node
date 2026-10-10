@@ -462,6 +462,9 @@ function New-CnCopiedLinks {
         if (-not $cnLinkTarget -or (Test-Path -LiteralPath $cnLink.Destination)) {
             continue
         }
+        if (-not [System.IO.Path]::IsPathRooted($cnLinkTarget)) {
+            $cnLinkTarget = [System.IO.Path]::GetFullPath((Join-Path (Split-Path $cnLink.Destination -Parent) $cnLinkTarget))
+        }
         if ($cnLinkTarget.StartsWith($cnOldPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             $cnLinkTarget = Join-Path $NewRoot $cnLinkTarget.Substring($cnOldPrefix.Length)
         }

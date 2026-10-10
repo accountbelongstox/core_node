@@ -3,8 +3,7 @@ import { Download, Paperclip, Upload } from 'lucide-react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { cmFormatNumber, useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmProjectAttachments } from '../../../../shared/useCmProjectAttachments';
-import { MobileButton, MobileCard, MobileList, MobileListRow, MobileListState, MobilePager, useMobileFeedback } from '../../../ui';
-import { MobileFilePicker } from '../parts/MobileFilePicker';
+import { MobileButton, MobileCard, MobileList, MobileListRow, MobileListState, MobilePager, useMobileFeedback, MobileFilePicker } from '../../../ui';
 
 const BYTES_PER_KB = 1024;
 

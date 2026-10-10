@@ -5,8 +5,7 @@ import type { CmMilestone, CmProjectDetail } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmBootstrap } from '../../../../contexts/CmBootstrapContext';
 import { useCmMilestoneComplete } from '../../../../shared/useCmMilestones';
-import { MobileButton, MobileEmptyState, MobileStatusBadge, useMobileFeedback } from '../../../ui';
-import { MobileConfirmSheet } from '../parts/MobileConfirmSheet';
+import { MobileButton, MobileEmptyState, MobileStatusBadge, useMobileFeedback, MobileConfirmSheet } from '../../../ui';
 import { MobileTaskFormSheet } from '../parts/MobileTaskFormSheet';
 import { MilestoneFormSheet } from './MilestoneFormSheet';
 

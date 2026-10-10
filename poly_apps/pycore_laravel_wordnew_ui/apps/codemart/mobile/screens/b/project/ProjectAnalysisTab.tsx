@@ -9,10 +9,7 @@ import {
   CM_ANALYSIS_REVISION_MIN_LENGTH,
   useCmProjectAnalysis,
 } from '../../../../shared/useCmProjectAnalysis';
-import { MobileButton, MobileCard, MobileErrorState, MobileField, MobileNotice, MobileSectionHeader, MobileSheet, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback } from '../../../ui';
-import { MobileConfirmSheet } from '../parts/MobileConfirmSheet';
-import { MobileKeyValue } from '../parts/MobileKeyValue';
-import { MobileTagList } from '../parts/MobileTagList';
+import { MobileButton, MobileCard, MobileErrorState, MobileField, MobileNotice, MobileSectionHeader, MobileSheet, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback, MobileConfirmSheet, MobileKeyValues, MobileTagList } from '../../../ui';
 
 const LIST_FIELDS = [
   { key: 'keywords', labelKey: 'analysis.keywords' },
@@ -69,7 +66,7 @@ export const ProjectAnalysisTab: React.FC<ProjectAnalysisTabProps> = ({ project,
             {analysis.status === CM_ANALYSIS_FAILED_STATUS && <MobileNotice tone="error">{t('analysis.failedHint')}</MobileNotice>}
             {completed && (
               <>
-                <MobileKeyValue
+                <MobileKeyValues
                   items={[
                     analysis.estimated_cost !== null && { label: t('analysis.costLabel'), value: format.money(analysis.estimated_cost, analysis.currency ?? project.currency) },
                     analysis.estimated_hours !== null && { label: t('analysis.hoursLabel'), value: t('analysis.hoursValue', { hours: cmFormatNumber(analysis.estimated_hours, format.language) }) },

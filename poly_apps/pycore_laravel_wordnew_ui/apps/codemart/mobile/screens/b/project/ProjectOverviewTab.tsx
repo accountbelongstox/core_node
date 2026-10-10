@@ -5,9 +5,7 @@ import type { CmProjectDetail } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { CM_STACK_FIELDS } from '../../../../shared/cmProjectForm';
 import { CM_FUNDING_PENDING_STATUS, type CmProjectDetailModel } from '../../../../shared/useCmProjectDetail';
-import { MobileButton, MobileCard, MobileSectionHeader } from '../../../ui';
-import { MobileKeyValue } from '../parts/MobileKeyValue';
-import { MobileTagList } from '../parts/MobileTagList';
+import { MobileButton, MobileCard, MobileSectionHeader, MobileKeyValues, MobileTagList } from '../../../ui';
 import { MobileTransitionActions } from '../parts/MobileTransitionActions';
 import { FundingCard } from './FundingCard';
 import { ProjectEditSheet } from './ProjectEditSheet';
@@ -28,7 +26,7 @@ export const ProjectOverviewTab: React.FC<{ project: CmProjectDetail; detail: Cm
         <p className="cmm-prose">{project.description}</p>
       </MobileCard>
       <MobileCard>
-        <MobileKeyValue
+        <MobileKeyValues
           items={[
             access && { label: t('projectDetail.yourRole'), value: t(`projectDetail.accessRoles.${access.role}`, { defaultValue: access.role }) },
             { label: t('projectDetail.budgetLabel'), value: `${project.budget ? format.money(project.budget, project.currency) : t('common.unavailable')}${project.budget_type ? ` · ${t(`projectCreate.budgetTypes.${project.budget_type}`, { defaultValue: project.budget_type })}` : ''}` },

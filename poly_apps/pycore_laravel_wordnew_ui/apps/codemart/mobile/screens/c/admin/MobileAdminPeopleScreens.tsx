@@ -8,22 +8,7 @@ import type { CmAdminUserDetail } from '../../../../admin/CmAdminTypes';
 import { useCmAdminList, useCmAdminParam } from '../../../../admin/useCmAdminData';
 import { CM_ADMIN_ROUTE, cmAdminUserPath } from '../../../../components/public-home/cmPublicRoutes';
 import { useCmBootstrap } from '../../../../contexts/CmBootstrapContext';
-import {
-  MobileButton,
-  MobileCard,
-  MobileErrorState,
-  MobileField,
-  MobileList,
-  MobileListRow,
-  MobileListState,
-  MobilePager,
-  MobileScreen,
-  MobileSectionHeader,
-  MobileSheet,
-  MobileSkeletonList,
-  MobileStatusBadge,
-} from '../../../ui';
-import { MobileKeyValues } from '../parts/MobileKeyValues';
+import { MobileButton, MobileCard, MobileErrorState, MobileField, MobileList, MobileListRow, MobileListState, MobilePager, MobileScreen, MobileSectionHeader, MobileSheet, MobileSkeletonList, MobileStatusBadge, MobileKeyValues } from '../../../ui';
 import { AdminRecord, AdminRecordList, AdminSearch, AdminStatusFilter, AdminUserLink, useAdminText, useMobileAdminActions } from './MobileAdminParts';
 
 const SCORE_FRACTION_DIGITS = 1;

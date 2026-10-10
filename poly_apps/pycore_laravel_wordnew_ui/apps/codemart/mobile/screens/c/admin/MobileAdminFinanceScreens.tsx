@@ -3,8 +3,7 @@ import { Banknote, Check, RotateCcw, X } from 'lucide-react';
 import { cmAdminApi } from '../../../../admin/CmAdminApi';
 import { useCmAdminList, useCmAdminParam } from '../../../../admin/useCmAdminData';
 import { useCmBootstrap } from '../../../../contexts/CmBootstrapContext';
-import { MobileButton, MobileScreen, MobileStatusBadge } from '../../../ui';
-import { MobilePills } from '../parts/MobilePills';
+import { MobileButton, MobileScreen, MobileStatusBadge, MobilePills } from '../../../ui';
 import { AdminRecord, AdminRecordList, AdminSearch, AdminStatusFilter, AdminUserLink, useAdminText, useMobileAdminActions } from './MobileAdminParts';
 
 export const MobileAdminDepositsScreen: React.FC = () => {

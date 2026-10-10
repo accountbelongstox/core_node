@@ -7,8 +7,7 @@ import {
   useCmRoleRequest,
   useCmTestimonialForm,
 } from '../../../../shared/useCmVerification';
-import { MobileButton, MobileCard, MobileField, MobileNotice, MobileSheet } from '../../../ui';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileCard, MobileField, MobileNotice, MobileSheet, useInlineFeedback } from '../../../ui';
 
 type CmVerified = (message: string) => Promise<void>;
 

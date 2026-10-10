@@ -6,8 +6,7 @@ import { useCmPolicy } from '../../../contexts/useCmPolicy';
 import { useCmFormat } from '../../../components/workspace/cmWorkspaceFormat';
 import { useCmWallet } from '../../../shared/useCmWallet';
 import { useCmWalletTab } from '../../../shared/useCmWalletTab';
-import { MobileButton, MobileErrorState, MobileScreen, MobileSkeletonBlock } from '../../ui';
-import { MobilePills } from './parts/MobilePills';
+import { MobileButton, MobileErrorState, MobileScreen, MobileSkeletonBlock, MobilePills } from '../../ui';
 import { WalletDepositsPanel } from './wallet/WalletDepositsPanel';
 import {
   WalletInvoicesPanel,

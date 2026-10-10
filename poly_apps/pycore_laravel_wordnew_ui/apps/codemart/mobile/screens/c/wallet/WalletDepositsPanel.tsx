@@ -4,20 +4,7 @@ import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import type { CmDepositRecord } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { CM_BANK_TRANSFER, CM_DEPOSIT_PENDING, useCmDeposits } from '../../../../shared/useCmWalletActions';
-import {
-  MobileButton,
-  MobileErrorState,
-  MobileField,
-  MobileList,
-  MobileListRow,
-  MobileNotice,
-  MobileSectionHeader,
-  MobileSheet,
-  MobileSkeletonList,
-  MobileStatusBadge,
-} from '../../../ui';
-import { MobileKeyValues } from '../parts/MobileKeyValues';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileErrorState, MobileField, MobileList, MobileListRow, MobileNotice, MobileSectionHeader, MobileSheet, MobileSkeletonList, MobileStatusBadge, MobileKeyValues, useInlineFeedback } from '../../../ui';
 import { WalletBankInstructions } from './WalletBankInstructions';
 
 interface WalletDepositsPanelProps {

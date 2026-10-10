@@ -3167,8 +3167,99 @@ const PcTerminalNodeView: React.FC<{
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-white/10 px-3 py-2 text-white md:flex-nowrap md:px-4 md:py-3">
-              {renderNavControls()}
-              <div className="order-first min-w-0 basis-full md:order-none md:basis-auto md:flex-1">
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:contents">
+                <button
+                  type="button"
+                  onClick={closePreview}
+                  title={t('terminal.previewBack')}
+                  aria-label={t('terminal.previewBack')}
+                  className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2 text-xs font-semibold text-slate-100 hover:bg-white/10 sm:px-2.5 md:order-1"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('terminal.previewBack')}</span>
+                </button>
+                {renderNavControls('md:order-2')}
+                <div className="ml-auto flex shrink-0 items-center gap-1 md:order-4 md:gap-1.5">
+                  {previewWindow.online && (
+                    <button
+                      type="button"
+                      onClick={() => pullLatestScreenshot(previewWindow.id)}
+                      disabled={pullingWindowId === previewWindow.id}
+                      title={t('terminal.pullLatestHint')}
+                      aria-label={t('terminal.pullLatestHint')}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-500/15 px-2 text-[10px] font-semibold text-sky-200 hover:bg-sky-500/25 disabled:opacity-70 sm:px-2.5"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${pullingWindowId === previewWindow.id ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">{t('terminal.pullLatest')}</span>
+                    </button>
+                  )}
+                  {previewWindow.online && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDirectClick((current) => !current)}
+                      aria-pressed={previewDirectClick}
+                      title={t('terminal.directClickModeHint')}
+                      aria-label={t('terminal.directClickMode')}
+                      className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-[10px] font-semibold sm:px-2.5 ${
+                        previewDirectClick
+                          ? 'border-indigo-400 bg-indigo-600 text-white'
+                          : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <Crosshair className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">{t('terminal.directClickMode')}</span>
+                    </button>
+                  )}
+                  {previewWindow.online && !previewDirectClick && (
+                    <div
+                      className="flex h-8 items-center rounded-lg border border-white/15 bg-white/5 p-0.5 text-[10px] font-semibold"
+                      role="radiogroup"
+                      title={t('terminal.frameModeHint')}
+                    >
+                      {PREVIEW_VIEW_MODES.map(({ mode, icon: Icon }) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="radio"
+                          aria-checked={previewViewMode === mode}
+                          onClick={() => setPreviewViewMode(mode)}
+                          title={t(`terminal.frameMode.${mode}`)}
+                          aria-label={t(`terminal.frameMode.${mode}`)}
+                          className={`inline-flex h-full items-center gap-1 rounded-md px-1.5 sm:px-2 ${
+                            previewViewMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'
+                          }`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">{t(`terminal.frameMode.${mode}`)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      selectTerminal(previewWindow.terminal_number);
+                      setLogDialogOpen(true);
+                    }}
+                    disabled={!previewWindow.logs.length}
+                    title={t('terminal.logs.open')}
+                    aria-label={t('terminal.logs.open')}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 text-[10px] font-semibold text-slate-300 hover:bg-white/10 disabled:opacity-50 sm:px-2.5"
+                  >
+                    <ScrollText className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{t('terminal.logs.open')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closePreview}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
+                    aria-label={t('common.close')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="order-first min-w-0 basis-full md:order-3 md:basis-auto md:flex-1">
                 <p className="break-words text-sm font-semibold leading-snug">
                   #{previewWindow.terminal_number} · {terminalName(previewWindow, t('terminal.untitled'))}
                 </p>
@@ -3182,108 +3273,19 @@ const PcTerminalNodeView: React.FC<{
                 )}
               </div>
               {previewNextRunAt && (
-                <p className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-amber-300">
+                <p className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-amber-300 md:order-3">
                   <Timer className="h-3.5 w-3.5" />
                   {t('terminal.scheduleCountdown')} {formatScheduleCountdown(previewNextRunAt - nowMs)}
                 </p>
               )}
-              <p className="hidden min-w-0 max-w-[16rem] truncate text-right text-[10px] text-slate-400 xl:block">
+              <p className="hidden min-w-0 max-w-[16rem] truncate text-right text-[10px] text-slate-400 md:order-3 xl:block">
                 {t(previewDirectClick && previewWindow.online
                   ? 'terminal.directClickHint'
                   : 'terminal.previewTapToClose')}
               </p>
-              <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                {previewWindow.online && (
-                  <button
-                    type="button"
-                    onClick={() => pullLatestScreenshot(previewWindow.id)}
-                    disabled={pullingWindowId === previewWindow.id}
-                    title={t('terminal.pullLatestHint')}
-                    aria-label={t('terminal.pullLatestHint')}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-500/15 px-2 text-[10px] font-semibold text-sky-200 hover:bg-sky-500/25 disabled:opacity-70 sm:px-2.5"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${pullingWindowId === previewWindow.id ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">{t('terminal.pullLatest')}</span>
-                  </button>
-                )}
-                {previewWindow.online && (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewDirectClick((current) => !current)}
-                    aria-pressed={previewDirectClick}
-                    title={t('terminal.directClickModeHint')}
-                    aria-label={t('terminal.directClickMode')}
-                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-[10px] font-semibold sm:px-2.5 ${
-                      previewDirectClick
-                        ? 'border-indigo-400 bg-indigo-600 text-white'
-                        : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <Crosshair className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{t('terminal.directClickMode')}</span>
-                  </button>
-                )}
-                {previewWindow.online && !previewDirectClick && (
-                  <div
-                    className="flex h-8 items-center rounded-lg border border-white/15 bg-white/5 p-0.5 text-[10px] font-semibold"
-                    role="radiogroup"
-                    title={t('terminal.frameModeHint')}
-                  >
-                    {PREVIEW_VIEW_MODES.map(({ mode, icon: Icon }) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        role="radio"
-                        aria-checked={previewViewMode === mode}
-                        onClick={() => setPreviewViewMode(mode)}
-                        title={t(`terminal.frameMode.${mode}`)}
-                        aria-label={t(`terminal.frameMode.${mode}`)}
-                        className={`inline-flex h-full items-center gap-1 rounded-md px-1.5 sm:px-2 ${
-                          previewViewMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'
-                        }`}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">{t(`terminal.frameMode.${mode}`)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    selectTerminal(previewWindow.terminal_number);
-                    setLogDialogOpen(true);
-                  }}
-                  disabled={!previewWindow.logs.length}
-                  title={t('terminal.logs.open')}
-                  aria-label={t('terminal.logs.open')}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 text-[10px] font-semibold text-slate-300 hover:bg-white/10 disabled:opacity-50 sm:px-2.5"
-                >
-                  <ScrollText className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t('terminal.logs.open')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={closePreview}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
-                  aria-label={t('common.close')}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
             </div>
             <div className="flex min-h-0 flex-1 flex-col md:flex-row">
               <div className="relative min-h-0 flex-1 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={closePreview}
-                  title={t('terminal.previewBack')}
-                  aria-label={t('terminal.previewBack')}
-                  className="absolute left-2 top-2 z-10 inline-flex h-9 items-center gap-1 rounded-full border border-white/20 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100 shadow-lg backdrop-blur hover:bg-slate-800"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  {t('terminal.previewBack')}
-                </button>
                 {previewScreenshot ? (
                   <PcTerminalFrameView
                     view={previewScreenshot}

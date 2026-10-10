@@ -1,9 +1,5 @@
 /* CodeMart mobile, work package C: wallet, verification, profile and the admin-lite console. Classes are prefixed cmmc-; colours come from the cmm- tokens. */
 
-.cmmc-pills { position: relative; display: flex; gap: 8px; margin: 0 calc(var(--cmm-gutter) * -1); padding: 2px var(--cmm-gutter); overflow-x: auto; scrollbar-width: none; }
-.cmmc-pills::-webkit-scrollbar { display: none; }
-.cmmc-pills button { flex: none; min-height: 34px; padding: 0 14px; border: 1px solid var(--cmm-border); border-radius: 999px; background: var(--cmm-surface); color: var(--cmm-muted); font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.cmmc-pills button.is-active { border-color: transparent; background: var(--cmm-primary); color: var(--cmm-primary-ink); }
 
 .cmmc-panel { display: flex; flex-direction: column; gap: 12px; }
 .cmmc-form { display: flex; flex-direction: column; gap: 12px; }
@@ -15,11 +11,6 @@
 .cmmc-sheet-submit { padding-top: 12px; }
 .cmmc-progress { width: 100%; height: 8px; accent-color: var(--cmm-primary); }
 
-.cmmc-kv { display: flex; flex-direction: column; margin: 0; }
-.cmmc-kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--cmm-border); font-size: 14px; }
-.cmmc-kv > div:last-child { border-bottom: 0; }
-.cmmc-kv dt { flex: none; color: var(--cmm-muted); font-size: 13px; }
-.cmmc-kv dd { min-width: 0; margin: 0; text-align: right; overflow-wrap: anywhere; }
 
 .cmmc-trail { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
 .cmmc-trail strong { font-size: 14.5px; font-variant-numeric: tabular-nums; }
@@ -28,8 +19,6 @@
 .cmmc-amount[data-tone="negative"] { color: var(--cmm-danger); }
 
 .cmmc-link { color: var(--cmm-primary) !important; font-weight: 600; }
-.cmmc-copy { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; max-width: 100%; padding: 0; border: 0; background: none; color: var(--cmm-text); text-align: right; cursor: pointer; overflow-wrap: anywhere; }
-.cmmc-copy svg { width: 14px; height: 14px; flex: none; color: var(--cmm-primary); }
 
 
 /* ---- Wallet ---- */
@@ -66,14 +55,6 @@
 .cmmc-role-option { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--cmm-border); border-radius: 12px; background: var(--cmm-surface-2); }
 .cmmc-role-option p { min-height: 0; }
 
-.cmmc-picker { display: flex; flex-direction: column; gap: 6px; }
-.cmmc-picker[data-invalid] .cmmc-picker__preview { border-color: var(--cmm-danger); }
-.cmmc-picker__body { display: flex; align-items: center; gap: 12px; }
-.cmmc-picker__preview { display: grid; width: 84px; height: 62px; flex: none; place-items: center; overflow: hidden; border: 1px dashed var(--cmm-border); border-radius: 10px; background: var(--cmm-surface-2); color: var(--cmm-muted); }
-.cmmc-picker__preview img { width: 100%; height: 100%; object-fit: cover; }
-.cmmc-picker__preview svg { width: 22px; height: 22px; }
-.cmmc-picker__actions { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 4px; }
-.cmmc-picker__actions small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- Profile ---- */
 .cmmc-identity { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: center; }

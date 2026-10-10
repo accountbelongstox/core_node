@@ -9,8 +9,7 @@ import { useCmPasswordChange } from '../../../shared/useCmPasswordChange';
 import { MobilePreferences } from '../../shell/MobilePreferences';
 import { AvatarSheet } from './profile/AvatarSheet';
 import { EmailChangeSheet } from './profile/EmailChangeSheet';
-import { useInlineFeedback } from './parts/useInlineFeedback';
-import { MobileButton, MobileCard, MobileField, MobileList, MobileListRow, MobilePasswordInput, MobileScreen, MobileSectionHeader, MobileSheet } from '../../ui';
+import { MobileButton, MobileCard, MobileField, MobileList, MobileListRow, MobilePasswordInput, MobileScreen, MobileSectionHeader, MobileSheet, useInlineFeedback } from '../../ui';
 
 const AUTO_THEME = 'auto';
 

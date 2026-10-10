@@ -6,10 +6,9 @@ import { cmProjectPath } from '../../../../components/public-home/cmPublicRoutes
 import { cmUserLabel, useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmPolicy } from '../../../../contexts/useCmPolicy';
 import { CM_TASK_REVIEW_STATUS, useCmTaskDetail } from '../../../../shared/useCmTaskDetail';
-import { MobileButton, MobileErrorState, MobileNotice, MobileSectionHeader, MobileSheet, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback } from '../../../ui';
+import { MobileButton, MobileErrorState, MobileNotice, MobileSectionHeader, MobileSheet, MobileSkeletonBlock, MobileStatusBadge, useMobileFeedback, MobileTagList } from '../../../ui';
 import { MobileReviewHistory } from './MobileReviewHistory';
 import { MobileSubmissionsList } from './MobileSubmissionsList';
-import { MobileTagList } from './MobileTagList';
 import { MobileTaskFormSheet } from './MobileTaskFormSheet';
 import { MobileTaskSubmitSheet } from './MobileTaskSubmitSheet';
 import { MobileTransitionActions } from './MobileTransitionActions';

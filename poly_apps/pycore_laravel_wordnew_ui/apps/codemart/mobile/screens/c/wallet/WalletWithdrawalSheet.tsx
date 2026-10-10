@@ -3,8 +3,7 @@ import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import type { CmWallet } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmWithdrawalForm } from '../../../../shared/useCmWalletActions';
-import { MobileButton, MobileField, MobileSheet } from '../../../ui';
-import { useInlineFeedback } from '../parts/useInlineFeedback';
+import { MobileButton, MobileField, MobileSheet, useInlineFeedback } from '../../../ui';
 
 interface WalletWithdrawalSheetProps {
   open: boolean;

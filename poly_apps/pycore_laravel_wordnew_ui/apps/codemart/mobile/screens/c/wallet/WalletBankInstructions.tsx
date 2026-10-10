@@ -4,8 +4,7 @@ import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import type { CmDepositBankInfo } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { CM_BANK_FIELDS } from '../../../../shared/useCmWalletActions';
-import { MobileNotice } from '../../../ui';
-import { MobileCopyValue } from '../parts/MobileCopyValue';
+import { MobileNotice, MobileCopyValue } from '../../../ui';
 
 const COPYABLE_FIELDS: readonly string[] = ['account_number', 'swift_code'];
 
@@ -20,7 +19,7 @@ export const WalletBankInstructions: React.FC<{ info: CmDepositBankInfo; currenc
       {!untitled && <h3><Landmark aria-hidden="true" /> {t('wallet.bank.title')}</h3>}
       <p className="cmm-muted">{t('wallet.bank.instructions', { amount: format.money(info.amount, currency), reference: info.reference })}</p>
       {configured ? (
-        <dl className="cmmc-kv">
+        <dl className="cmm-kv">
           {CM_BANK_FIELDS.map((field) => (info.bank[field] ? (
             <div key={field}>
               <dt>{t(`wallet.bank.${field}`)}</dt>

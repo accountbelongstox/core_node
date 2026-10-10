@@ -553,6 +553,36 @@ div.cmm-row { cursor: default; }
 .cmm-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; padding: 0; list-style: none; }
 .cmm-tags li { padding: 3px 10px; border-radius: 999px; background: var(--cmm-primary-soft); color: var(--cmm-primary); font-size: 12px; font-weight: 600; }
 
+/* ---- Shared form and detail parts (promoted from the packages) ---- */
+.cmm-kv { display: flex; flex-direction: column; margin: 0; }
+.cmm-kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--cmm-border); font-size: 14px; }
+.cmm-kv > div:last-child { border-bottom: 0; }
+.cmm-kv dt { flex: none; color: var(--cmm-muted); font-size: 13px; }
+.cmm-kv dd { margin: 0; min-width: 0; text-align: right; overflow-wrap: anywhere; font-weight: 580; }
+.cmm-prose { margin: 0; font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmm-textarea { min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.4; }
+.cmm-sheet__body > .cmm-prose + .cmm-field { margin-top: 12px; }
+.cmm-filepick { display: flex; flex-direction: column; gap: 8px; }
+.cmm-filepick input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cmm-filelist { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cmm-filelist li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--cmm-surface-2); font-size: 13.5px; overflow-wrap: anywhere; }
+.cmm-filelist li > span { min-width: 0; flex: 1; }
+.cmm-filelist .cmm-btn { flex: none; }
+.cmm-pills { position: relative; display: flex; gap: 8px; margin: 0 calc(var(--cmm-gutter) * -1); padding: 2px var(--cmm-gutter); overflow-x: auto; scrollbar-width: none; }
+.cmm-pills::-webkit-scrollbar { display: none; }
+.cmm-pills button { flex: none; min-height: 34px; padding: 0 14px; border: 1px solid var(--cmm-border); border-radius: 999px; background: var(--cmm-surface); color: var(--cmm-muted); font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.cmm-pills button.is-active { border-color: transparent; background: var(--cmm-primary); color: var(--cmm-primary-ink); }
+.cmm-copy { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; max-width: 100%; padding: 0; border: 0; background: none; color: var(--cmm-text); text-align: right; cursor: pointer; overflow-wrap: anywhere; }
+.cmm-copy svg { width: 14px; height: 14px; flex: none; color: var(--cmm-primary); }
+.cmm-picker { display: flex; flex-direction: column; gap: 6px; }
+.cmm-picker[data-invalid] .cmm-picker__preview { border-color: var(--cmm-danger); }
+.cmm-picker__body { display: flex; align-items: center; gap: 12px; }
+.cmm-picker__preview { display: grid; width: 84px; height: 62px; flex: none; place-items: center; overflow: hidden; border: 1px dashed var(--cmm-border); border-radius: 10px; background: var(--cmm-surface-2); color: var(--cmm-muted); }
+.cmm-picker__preview img { width: 100%; height: 100%; object-fit: cover; }
+.cmm-picker__preview svg { width: 22px; height: 22px; }
+.cmm-picker__actions { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 4px; }
+.cmm-picker__actions small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Toasts clear the tab bar while the mobile frame is mounted. */
 body:has(.cmm-shell) [data-notify-viewport] { bottom: calc(var(--cmm-tabbar-h) + var(--cmm-safe-bottom) + 12px) !important; right: 12px !important; left: 12px !important; align-items: stretch !important; }
 

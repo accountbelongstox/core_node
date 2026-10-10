@@ -32,6 +32,11 @@ export const cmMobileShell = defineMobileLocale(
       pullToRefresh: 'Pull to refresh',
       releaseToRefresh: 'Release to refresh',
       refreshing: 'Refreshing...',
+      copy: 'Copy',
+      copied: 'Copied',
+      takePhoto: 'Take photo',
+      chooseFile: 'Choose file',
+      removeFile: 'Remove file',
     },
   },
   {
@@ -65,6 +70,11 @@ export const cmMobileShell = defineMobileLocale(
       pullToRefresh: '下拉刷新',
       releaseToRefresh: '松开刷新',
       refreshing: '正在刷新…',
+      copy: '复制',
+      copied: '已复制',
+      takePhoto: '拍照',
+      chooseFile: '从相册选择',
+      removeFile: '移除文件',
     },
   },
 );
