@@ -1,8 +1,8 @@
 import React from 'react';
 import { CmLogo } from './CmLogo';
 
-const LOCKUP_HEIGHT = 42;
-const COMPACT_LOCKUP_HEIGHT = 32;
+const LOCKUP_HEIGHT = 56;
+const COMPACT_LOCKUP_HEIGHT = 40;
 const MARK_HEIGHT = 32;
 
 export interface CmBrandProps {
