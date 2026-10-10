@@ -106,6 +106,7 @@ class TerminalImageStore:
             chunks.append(chunk)
             total += len(chunk)
         if total > TERMINAL_IMAGE_MAX_BYTES:
+            ColorPrint.yellow(f"[TerminalImageStore] upload rejected: over {TERMINAL_IMAGE_MAX_BYTES} bytes")
             return {"success": False, "error_code": ERROR_IMAGE_TOO_LARGE, "max_bytes": TERMINAL_IMAGE_MAX_BYTES}
         if total == 0:
             return {"success": False, "error_code": ERROR_IMAGE_MISSING}
@@ -118,6 +119,7 @@ class TerminalImageStore:
         image = detect_image_type(data)
         detected = image or detect_audio_type(data)
         if detected is None:
+            ColorPrint.yellow(f"[TerminalImageStore] upload rejected: unsupported type bytes={len(data)} head={data[:16].hex()}")
             return {"success": False, "error_code": ERROR_IMAGE_UNSUPPORTED}
         extension, mime = detected
         stamp = datetime.now(timezone.utc).strftime(NAME_TIME_FORMAT)

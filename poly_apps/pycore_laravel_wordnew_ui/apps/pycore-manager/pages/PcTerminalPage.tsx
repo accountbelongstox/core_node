@@ -1792,22 +1792,23 @@ const PcTerminalNodeView: React.FC<{
       target = idleTarget;
     }
     // Attachments belong to the draft message only, never to an explicit text resend.
-    const attachments = textOverride === undefined ? await images.uploadAll() : [];
-    if (attachments === null) {
-      setActionNotice({ kind: 'error', translationKey: 'terminal.images.sendBlocked' });
-      return;
-    }
+    // Failed uploads never block the send: the message goes without them and the agent is told they are missing.
+    const { uploaded: attachments, failedCount } = textOverride === undefined
+      ? await images.uploadAll()
+      : { uploaded: [], failedCount: 0 };
     // Read the draft after the uploads: typing during an upload is part of the message.
     const draftText = stripImagePlaceholders(textOverride === undefined ? (draftsRef.current[key] ?? selectedDraft) : textOverride);
-    // A voice message leads with the instruction to the agent, always in English whatever the UI language.
+    // Notes to the agent are always in English whatever the UI language.
+    const agentT = i18n.getFixedT(AGENT_NOTE_LANGUAGE, 'pc');
     const voiceNote = attachments.some((attachment) => attachment.kind === 'audio')
-      ? i18n.getFixedT(AGENT_NOTE_LANGUAGE, 'pc')('terminal.voice.agentNote')
+      ? agentT('terminal.voice.agentNote')
       : '';
-    const payload = [voiceNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
+    const missingNote = failedCount > 0 ? agentT('terminal.images.agentMissingNote', { count: failedCount }) : '';
+    const payload = [missingNote, voiceNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
       .filter((part) => part !== '')
       .join(' ');
     const recordings = attachments.filter((attachment) => attachment.kind === 'audio').map((attachment) => attachment.displayPath);
-    const dictationText = [draftText, ...attachments.filter((attachment) => attachment.kind !== 'audio').map((attachment) => attachment.displayPath)]
+    const dictationText = [missingNote, draftText, ...attachments.filter((attachment) => attachment.kind !== 'audio').map((attachment) => attachment.displayPath)]
       .filter((part) => part !== '')
       .join(' ');
     const activeTimer = draftTimersRef.current[key];
@@ -1860,6 +1861,9 @@ const PcTerminalNodeView: React.FC<{
       draftsRef.current = { ...draftsRef.current, [key]: '' };
       setDrafts(draftsRef.current);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
+      if (failedCount > 0) {
+        setActionNotice({ kind: 'error', translationKey: 'terminal.images.sentWithMissing', translationValues: { count: failedCount } });
+      }
     }
   }, [dispatchActive, dispatchSetting.agent, images, persistDraft, runAction, selectedDraft, selectedWindow, t]);
 
@@ -1930,13 +1934,12 @@ const PcTerminalNodeView: React.FC<{
     if (!selectedWindow) return;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
-    const attachments = await images.uploadAll();
-    if (attachments === null) {
-      setActionNotice({ kind: 'error', translationKey: 'terminal.images.sendBlocked' });
-      return;
-    }
+    const { uploaded: attachments, failedCount } = await images.uploadAll();
     const draftText = stripImagePlaceholders(draftsRef.current[key] ?? selectedDraft);
-    const text = [draftText, ...attachments.map((attachment) => attachment.displayPath)]
+    const missingNote = failedCount > 0
+      ? i18n.getFixedT(AGENT_NOTE_LANGUAGE, 'pc')('terminal.images.agentMissingNote', { count: failedCount })
+      : '';
+    const text = [missingNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
       .filter((part) => part !== '')
       .join(' ');
     if (!text.trim()) return;
@@ -1957,6 +1960,9 @@ const PcTerminalNodeView: React.FC<{
     draftsRef.current = { ...draftsRef.current, [key]: '' };
     setDrafts(draftsRef.current);
     setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
+    if (failedCount > 0) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.images.sentWithMissing', translationValues: { count: failedCount } });
+    }
   }, [images, runAction, selectedDraft, selectedWindow]);
 
   // A logged message sent again: it becomes the draft and goes through the regular send.

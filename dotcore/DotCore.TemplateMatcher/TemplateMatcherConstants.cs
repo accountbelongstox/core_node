@@ -9,6 +9,9 @@ public static class TemplateMatcherConstants
     /// <summary>Default match threshold for TM_CCOEFF_NORMED (typically 0.8). Used when threshold is not specified.</summary>
     public const double DefaultMatchThreshold = 0.8;
 
+    /// <summary>Multi-scale match: targets of at least this many pixels match their sizes in parallel (small areas stay sequential).</summary>
+    public const long ParallelMinTargetPixels = 256 * 256;
+
     /// <summary>ImageMatcher defaults. 1:1 Python ImageMatcher.__init__.</summary>
     public const double DefaultRatioThresh = 0.75;
     public const int DefaultMinInliers = 8;
