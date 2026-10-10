@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/interface_detection.py
-// PY-REF: pyapps/d3-check/share/scaled_template_matcher_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/interface_detection.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/scaled_template_matcher_base.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;
@@ -12,7 +12,7 @@ public sealed record InterfaceDetectionResult(string? InterfaceType, IReadOnlyDi
 
 /// <summary>
 /// Detect D3 interface type from the full game window: scaled template match + left 30% rule.
-/// 1:1 Python pyapps/d3-check/d3utils/interface_detection.py detect_interface_type_from_full_window.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/interface_detection.py detect_interface_type_from_full_window.
 /// </summary>
 public static class D3InterfaceDetection
 {

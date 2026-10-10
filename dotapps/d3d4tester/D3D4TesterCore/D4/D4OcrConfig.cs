@@ -1,11 +1,11 @@
-// PY-REF: pyapps/d3-check/share/d4_ocr_config.py
-// PY-REF: pyapps/d3-check/d3utils/cnocr_engine_registry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/d4_ocr_config.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/cnocr_engine_registry.py
 using DotCore.Utils.Ocr;
 
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
-/// D4 OCR task -> model key map. 1:1 Python pyapps/d3-check/share/d4_ocr_config.py OCRConfig.TASK_CONFIGS
+/// D4 OCR task -> model key map. 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/d4_ocr_config.py OCRConfig.TASK_CONFIGS
 /// (CnOCR model names map to the shared OcrEngineRegistry model keys).
 /// </summary>
 public static class D4OcrConfig

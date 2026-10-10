@@ -1,11 +1,11 @@
-// PY-REF: pyapps/d3-check/d3utils/state_aware_click_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/state_aware_click_handler.py
 using DotCore.Foundations;
 using DotCore.Utils.Input;
 
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// ClickHandler wrapper that aborts each action when the assistant should stop. 1:1 Python pyapps/d3-check/d3utils/state_aware_click_handler.py.
+/// ClickHandler wrapper that aborts each action when the assistant should stop. 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/state_aware_click_handler.py.
 /// </summary>
 public sealed class StateAwareClickHandler
 {

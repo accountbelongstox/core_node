@@ -1,6 +1,6 @@
 # DOT 辅助宏快捷键流程与代码位置
 
-本文档描述 DOT 端「辅助宏启停热键」的流程与代码位置，对照 Python `pyapps/d3-check/d3utils/d3u_common/hotkey_registry.py`。
+本文档描述 DOT 端「辅助宏启停热键」的流程与代码位置，对照 Python `dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/hotkey_registry.py`。
 
 ---
 
@@ -38,7 +38,7 @@
 
 - **已对齐**：按 F3（或配置的 assistant_hotkey）→ 热键回调执行 → 若未运行且 CanStart 则调用 `RunAssistantAutoUse()`；若已在运行则 `SetShouldStop(true)`。UI 上「辅助宏启停热键」与 `assistant_hotkey` 绑定，修改后重绑。
 - **Step 1 已实现**：查找 D3 窗口（`D3AssistantCapture.FindD3WindowHandle()`，按进程名 "Diablo III"）、截图（`ScreenCaptureService.Gen(hwnd)`）、更新全局 scale（`GameInterfaceData.UpdateGlobalScale`）。1:1 对应 Python collect_ui_info 链，见 DOT_REF §10。
-- **Step 2 已实现**：界面类型检测 `D3InterfaceDetection.DetectInterfaceTypeFromFullWindow`：使用 `GameInterfaceData.GetGlobalScale()` 对模板图缩放，`TemplateMatcherService.Match` 匹配；匹配中心须在画面左 30%（`D3InterfaceConstants.LeftRegionRatio`）；先试 bag_opened_indicator（when wantBlacksmith）再试 kanai_cube_left_panel_indicator；模板目录 `D3TemplatePaths.GetTemplateDir()` 优先 `pyapps/d3-check/images` 否则 `AppBase/Templates`。每次尝试均打日志「Attempting template: {name} path={path} exists={exists}」，便于确认使用的识别图（smith/kanai）。DEBUG 模式下（`log_settings.show_debug_logs`）：① 保存左 30% 区域为 `autouse_debug_left30_*.png`；② 调用 `D3InterfaceDetectionDebugImage.SaveDebugImage` 生成大图+小图+识别结果合成图（与 Python `d3utils.d3u_common.image_annotator_helper` 的 save_match_debug_image / draw_match_result 一致），保存为 `autouse_annotator_*.png` 并打路径。
+- **Step 2 已实现**：界面类型检测 `D3InterfaceDetection.DetectInterfaceTypeFromFullWindow`：使用 `GameInterfaceData.GetGlobalScale()` 对模板图缩放，`TemplateMatcherService.Match` 匹配；匹配中心须在画面左 30%（`D3InterfaceConstants.LeftRegionRatio`）；先试 bag_opened_indicator（when wantBlacksmith）再试 kanai_cube_left_panel_indicator；模板目录 `D3TemplatePaths.GetTemplateDir()` 优先 `dotapps/d3d4tester/Templates` 否则 `AppBase/Templates`。每次尝试均打日志「Attempting template: {name} path={path} exists={exists}」，便于确认使用的识别图（smith/kanai）。DEBUG 模式下（`log_settings.show_debug_logs`）：① 保存左 30% 区域为 `autouse_debug_left30_*.png`；② 调用 `D3InterfaceDetectionDebugImage.SaveDebugImage` 生成大图+小图+识别结果合成图（与 Python `d3utils.d3u_common.image_annotator_helper` 的 save_match_debug_image / draw_match_result 一致），保存为 `autouse_annotator_*.png` 并打路径。
 - **未实现**：Step 3 collect_bag_info_from_current_shared、Step 4 铁匠/卡奈分支。当前为日志 stub。
 
 若要 1:1 实现完整功能，需在 DOT 中引入或实现：

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/controller/d4func/map_switch_detector.py
-// PY-REF: pyapps/d3-check/d4utils/d4_black_screen_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/map_switch_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_black_screen_detector.py
 using DotCore.Foundations;
 using DotCore.Utils.ImageColor;
 
@@ -8,7 +8,7 @@ namespace DotApps.d3d4tester.Core.D4;
 /// <summary>
 /// Edge-triggered map switch state machine on the "Map Name" crop: black appears -> switching; black clears -> post-switch idle,
 /// count++, map OCR at once; any user action -> normal. Black = ≥95 % pixels with all channels ≤25 (DotCore BgrColorMatch.IsMostlyBlack).
-/// 1:1 Python pyapps/d3-check/controller/d4func/map_switch_detector.py (+ d4utils/d4_black_screen_detector.py).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/map_switch_detector.py (+ d4utils/d4_black_screen_detector.py).
 /// </summary>
 public sealed class D4MapSwitchDetector
 {

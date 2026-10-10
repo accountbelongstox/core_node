@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_update_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_update_manager.py
 using System.IO;
 using System.Text.RegularExpressions;
 

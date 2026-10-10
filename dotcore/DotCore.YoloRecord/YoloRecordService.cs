@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/yolo_record.py
-// PY-REF: pyapps/d3-check/d3utils/yolo_train_flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_record.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_train_flow.py
 using System.Drawing;
 using System.Globalization;
 using DotCore.ScreenCapture;
@@ -12,7 +12,7 @@ namespace DotCore.YoloRecord;
 /// <summary>
 /// Native YOLO record session: capture window by hwnd at FrameFPS, resize to FrameWidth x FrameHeight, write to segment/record/{segment timestamp}/
 /// (frame_XXXXXX.jpg or video.avi when OutputAsVideo, data.csv timestamps when LogTimestamp). Frames are written only while a record segment is active.
-/// 1:1 Python pyapps/d3-check/d3utils/yolo_record.py run_gameaisdk_start_record / start_record_segment / end_record_segment / stop_record / is_recording,
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_record.py run_gameaisdk_start_record / start_record_segment / end_record_segment / stop_record / is_recording,
 /// replacing the embedded GameAISDK RecordSession (its Debug action-box overlay window has no native equivalent and is ignored).
 /// </summary>
 public sealed class YoloRecordService

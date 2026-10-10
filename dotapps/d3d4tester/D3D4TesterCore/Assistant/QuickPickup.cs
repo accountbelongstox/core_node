@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/utils/_obsolete_d3keyhelper.ahk (lootHelper)
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_d3keyhelper.ahk (lootHelper)
 using DotCore.Foundations;
 using DotCore.Utils.Input;
 

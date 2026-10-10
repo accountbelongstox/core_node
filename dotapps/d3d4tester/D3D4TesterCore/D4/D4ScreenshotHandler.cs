@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/d4func/screenshot_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/screenshot_handler.py
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.Utils.ImagePreprocess;
@@ -7,7 +7,7 @@ namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// D4 capture: find the D4 window by title, capture it (window-only) and fill the window/screenshot fields.
-/// 1:1 Python pyapps/d3-check/controller/d4func/screenshot_handler.py. The game window image is copied into
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/screenshot_handler.py. The game window image is copied into
 /// <see cref="D4InterfaceData"/> so a later shared-provider capture (D3) cannot dispose it.
 /// </summary>
 public sealed class D4ScreenshotHandler

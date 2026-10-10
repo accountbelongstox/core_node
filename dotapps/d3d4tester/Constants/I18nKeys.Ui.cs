@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/providor/i18n/i18n_main_window_en.json
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/i18n/i18n_main_window_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>Shell title bar keys (app-only, i18n_dot_*).</summary>

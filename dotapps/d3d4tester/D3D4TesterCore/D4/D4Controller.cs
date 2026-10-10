@@ -1,12 +1,12 @@
-// PY-REF: pyapps/d3-check/controller/d4_controller.py
-// PY-REF: pyapps/d3-check/controller/d4func/exp_farming.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4_controller.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/exp_farming.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// D4 main controller: one <see cref="Process"/> call per 3 s tick while EXP farming runs or the debug window is open.
-/// 1:1 Python pyapps/d3-check/controller/d4_controller.py; the farming steps (controller/d4func/exp_farming.py ExpFarmingManager)
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4_controller.py; the farming steps (controller/d4func/exp_farming.py ExpFarmingManager)
 /// are <see cref="D4Pipeline.RunExpFarmingSteps"/>. The debug window refresh (update_debug_window_images_if_open) is <see cref="DebugImagesUpdated"/>.
 /// </summary>
 public sealed class D4Controller

@@ -1,12 +1,12 @@
-// PY-REF: pyapps/d3-check/d3utils/screenshot_provider.py
-// PY-REF: pyapps/d3-check/d3utils/game_window_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/screenshot_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/game_window_detector.py
 using System.Drawing;
 using DotCore.Utils;
 
 namespace DotCore.ScreenCapture;
 
 /// <summary>
-/// Options for <see cref="ScreenCaptureService.Gen(ScreenCaptureOptions)"/>. 1:1 Python pyapps/d3-check/d3utils/screenshot_provider.py
+/// Options for <see cref="ScreenCaptureService.Gen(ScreenCaptureOptions)"/>. 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/screenshot_provider.py
 /// ScreenshotProvider.gen arguments (use_optimized_capture, window_titles, activate_d3_first, use_d3_rect_for_crop,
 /// use_native_region_capture) with app-specific hooks (window lookup, activation, anchor locator) injected instead of D3 globals.
 /// </summary>

@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/d3utils/click_handler_singleton.py
-// PY-REF: pyapps/d3-check/d3utils/state_aware_click_handler.py
-// PY-REF: pyapps/d3-check/utils/_obsolete_click_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/click_handler_singleton.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/state_aware_click_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_click_handler.py
 using System.Runtime.InteropServices;
 using DotCore.Foundations;
 
@@ -24,7 +24,7 @@ public enum MouseCurveType
 /// <summary>
 /// SendInput-based humanized mouse and keyboard (singleton). 1:1 Python pycore/pyctl/desktop/click_handler.py
 /// (generic part: move/click/game-coord click/post-message click), pycore/pyutils/input/mouse_movement.py and
-/// pyapps/d3-check/d3utils/click_handler_singleton.py. pyautogui moveTo tween, PAUSE (0.1 s after each primitive)
+/// dotapps/d3d4tester/reference/py_d3check/d3utils/click_handler_singleton.py. pyautogui moveTo tween, PAUSE (0.1 s after each primitive)
 /// and the top-left fail-safe skip are reproduced. Fixes Python bug: StateAwareClickHandler called double_click/drag
 /// which ClickHandler did not implement; both are implemented here.
 /// </summary>

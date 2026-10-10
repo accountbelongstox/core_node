@@ -114,7 +114,7 @@ This keeps **multi-app shared lib** in dotcore and **sub-app orchestration and U
 - **DOT_PUBLIC_LIBRARY_PROGRESS.md:** Add a row for the new dotcore annotation/VOC/YOLO library (and YoloDataLayout, PatchData if separate); map to pycore `pyutils/voc_annotator` + `yolo_data_layout` + patch/dataset generation; status “Planned” or “In progress” until implemented.
 - **DOT_ARCHITECTURE.md:** If a new DotCore.* project is added, list it under §1 and in the solution; dependency rule: no app refs, no cycles.
 - **DOT_D3CHECK_SUBLIBRARIES.md** (or DOT_D3CHECK_UI_LIBRARY.md): Add a short section for “Annotation / YOLO data / Open label”: **dotcore** = VOC/annotation I/O, YOLO layout, patch data (types and file ops); **d3d4tester** = CalibrationPage, annotator window (WPF), project/segment list, “Open label” and export flows. This removes any implication that annotation is only in d3d4tester without a shared lib.
-- **pyapps/d3-check/docs:** If any doc states that “VOC/annotator is only in Python”, add a note that the dot port provides the same capability via dotcore + dotapps/d3d4tester.
+- **dotapps/d3d4tester/reference/py_d3check/docs:** If any doc states that “VOC/annotator is only in Python”, add a note that the dot port provides the same capability via dotcore + dotapps/d3d4tester.
 - **Code:** Implement dotcore lib(s) and d3d4tester integration as above; ensure no app-to-app references and that d3d4tester references only dotcore.
 
 ---

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/ui/panels/d4_panel.py
-// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/d4_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/diablo3_macro_ui.py
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
@@ -15,7 +15,7 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Pages.D4;
 
 /// <summary>
-/// D4 Functions page (tab[2]). 1:1 Python pyapps/d3-check/ui/panels/d4_panel.py: EXP Farming start/stop, live status grid
+/// D4 Functions page (tab[2]). 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/panels/d4_panel.py: EXP Farming start/stop, live status grid
 /// (bound to <see cref="D4ViewModel"/>), Debug Images window toggle, D4 log fed by ColorPrint while the tab is selected.
 /// </summary>
 public partial class D4Page : UserControl

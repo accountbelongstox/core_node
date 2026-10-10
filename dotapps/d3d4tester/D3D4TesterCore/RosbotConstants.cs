@@ -1,10 +1,10 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_manager.py
-// PY-REF: pyapps/d3-check/providor/constants/d3.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_ui_structure.py
-// PY-REF: pyapps/d3-check/d3utils/key_send.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_ui_automation.py
-// PY-REF: pyapps/d3-check/providor/constants/common.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_operation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d3.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_ui_structure.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/key_send.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_ui_automation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/common.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_operation.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/d3utils/d3_manager.py
-// PY-REF: pyapps/d3-check/d3utils/d3_start_game_and_teleport_waiter.py
-// PY-REF: pyapps/d3-check/d3utils/screenshot_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_start_game_and_teleport_waiter.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/screenshot_provider.py
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.Utils;

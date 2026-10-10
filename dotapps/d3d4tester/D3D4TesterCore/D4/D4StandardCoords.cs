@@ -1,7 +1,7 @@
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
-// PY-REF: pyapps/d3-check/d4utils/d4_window_region_detector.py
-// PY-REF: pyapps/d3-check/controller/d4func/region_detector.py
-// PY-REF: pyapps/d3-check/controller/d4func/image_annotator.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_window_region_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/region_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/image_annotator.py
 using DotCore.Common.Geometry;
 
 namespace DotApps.d3d4tester.Core.D4;
@@ -58,7 +58,7 @@ public static class D4RegionNames
 
 /// <summary>
 /// D4 standard coordinates at 1763x1126 and the scaling to the actual window.
-/// 1:1 Python pyapps/d3-check/share/game_interface_data.py D4StandardCoordinates + the region/point lists of
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py D4StandardCoordinates + the region/point lists of
 /// d4_window_region_detector.py, controller/d4func/region_detector.py and image_annotator.py.
 /// </summary>
 public static class D4StandardCoords

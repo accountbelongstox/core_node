@@ -1,6 +1,6 @@
 # Account save/load, encrypt-decrypt, UI, and region (区服): PY ↔ DOT 1:1
 
-Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/security/password_cipher.py`, `pycore/pyutils/security/machine_id.py`, `d3utils/battlenet_status_provider.py`, `ui/panels/rosbot_extension_panel.py`, `ui/components/bottom_bar.py`. **DOT** `dotapps/d3d4tester/Config/AsiaCredentialsService.cs`, `D3D4TesterCore/Security/PasswordCipher.cs`, `D3D4TesterCore/Security/MachineIdProvider.cs`, `Windows/CredentialsDialog.xaml(.cs)`, `Pages/RosbotPage.xaml(.cs)`, `Constants/ConfigKeys.cs`, `MainWindow.xaml.cs` (bottom bar / region).
+Reference: **PY** `dotapps/d3d4tester/reference/py_d3check/share/asia_credentials.py`, `pycore/pyutils/security/password_cipher.py`, `pycore/pyutils/security/machine_id.py`, `d3utils/battlenet_status_provider.py`, `ui/panels/rosbot_extension_panel.py`, `ui/components/bottom_bar.py`. **DOT** `dotapps/d3d4tester/Config/AsiaCredentialsService.cs`, `D3D4TesterCore/Security/PasswordCipher.cs`, `D3D4TesterCore/Security/MachineIdProvider.cs`, `Windows/CredentialsDialog.xaml(.cs)`, `Pages/RosbotPage.xaml(.cs)`, `Constants/ConfigKeys.cs`, `MainWindow.xaml.cs` (bottom bar / region).
 
 ---
 

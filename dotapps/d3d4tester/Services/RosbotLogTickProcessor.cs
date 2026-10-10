@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_task_processor.py
 using DotApps.d3d4tester.Core;
 using DotCore.Foundations;
 

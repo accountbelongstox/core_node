@@ -97,9 +97,9 @@
 
 | 文档/模块 | 说明 |
 |-----------|------|
-| [ROSBOT_FLOW_MERMAID.md](ROSBOT_FLOW_MERMAID.md)、`pyapps/d3-check/d3utils/rosbot_flow/` | ROSBOT 流程 1:1 与 Python 代码地址；A/B/F/C/D/E 块、Extension 线程、flow-master 单 tick 顺序。 |
+| [ROSBOT_FLOW_MERMAID.md](ROSBOT_FLOW_MERMAID.md)、`dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow/` | ROSBOT 流程 1:1 与 Python 代码地址；A/B/F/C/D/E 块、Extension 线程、flow-master 单 tick 顺序。 |
 | [DOT_FIX_战网账号密码功能无效.md](DOT_FIX_战网账号密码功能无效.md) | 缺凭证时从流程内弹窗并等待的 1:1 修复。 |
-| `pyapps/d3-check/ui/panels/rosbot_extension_panel.py` | Python 启停 toggle、_start_rosbot/_stop_rosbot、_update_control_button、_control_btn_set_busy。 |
+| `dotapps/d3d4tester/reference/py_d3check/ui/panels/rosbot_extension_panel.py` | Python 启停 toggle、_start_rosbot/_stop_rosbot、_update_control_button、_control_btn_set_busy。 |
 | `dotapps/d3d4tester/Pages/Rosbot/RosbotPage.xaml.cs` | DOT 启停按钮、UpdateRosbotControlFromState、DoRunRosbotAfterWakeAsync（修复后不禁用按钮）。 |
 | `dotapps/d3d4tester/Ctl/RosbotFlowController.cs` | RunAsync、StopRosbot、B/D 块；DEBUG 已加。 |
 | `dotapps/d3d4tester/D3D4TesterCore/GameInterfaceData.cs` | SetRosbotFlowMasterEnabled、SetRosbotStatus、NotifyCallbacks；DEBUG 已加。 |

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/threads/d4_extension_thread.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/threads/d4_extension_thread.py
 using System.Threading;
 using DotApps.d3d4tester.Core.D4;
 using DotApps.d3d4tester.Services;
@@ -8,7 +8,7 @@ namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
 /// Background D4 tick: calls <see cref="D4Controller.Process"/> every <see cref="D4Constants.TickIntervalMs"/> while EXP farming
-/// runs or the debug window is open; the thread ends when neither holds. 1:1 Python pyapps/d3-check/threads/d4_extension_thread.py.
+/// runs or the debug window is open; the thread ends when neither holds. 1:1 Python dotapps/d3d4tester/reference/py_d3check/threads/d4_extension_thread.py.
 /// </summary>
 public sealed class D4TickLoop
 {

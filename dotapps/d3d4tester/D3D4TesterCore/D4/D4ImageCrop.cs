@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/d4func/region_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/region_detector.py
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;

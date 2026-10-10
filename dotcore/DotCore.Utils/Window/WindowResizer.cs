@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/window_resizer.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/window_resizer.py
 using System.Runtime.InteropServices;
 using DotCore.Foundations;
 
@@ -6,7 +6,7 @@ namespace DotCore.Utils.Window;
 
 /// <summary>
 /// Resize a window so its client area matches a target size (keeps the frame delta, clamps on the primary screen).
-/// 1:1 Python pyapps/d3-check/d3utils/window_resizer.py. No app titles or sizes; callers pass them.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/window_resizer.py. No app titles or sizes; callers pass them.
 /// </summary>
 public static class WindowResizer
 {

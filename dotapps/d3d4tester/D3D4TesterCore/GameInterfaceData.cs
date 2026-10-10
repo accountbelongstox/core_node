@@ -1,8 +1,8 @@
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_only.py
-// PY-REF: pyapps/d3-check/d3utils/macro_config_ops.py
-// PY-REF: pyapps/d3-check/d3utils/screenshot_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_task_processor.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow/flow_bn_only.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/macro_config_ops.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/screenshot_provider.py
 using System.Drawing;
 using System.IO;
 using DotApps.d3d4tester.Core.Bag;

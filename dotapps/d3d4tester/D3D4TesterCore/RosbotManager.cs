@@ -1,7 +1,7 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_manager.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_operation.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_ui_automation.py
-// PY-REF: pyapps/d3-check/d3utils/key_send.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_operation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_ui_automation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/key_send.py
 using System.IO;
 using DotApps.d3d4tester.Core.Flow;
 using DotCore.Foundations;
@@ -19,7 +19,7 @@ public sealed record RosbotProcess(int Pid, string ExeName, bool IsMainExe);
 /// ros_directory, then the main exe by name) -> windows by PID (content validator selects the main window). Kill by PID of every
 /// ROSBOT process, start, F7 to the system.
 /// Settings are read from ros_settings on every call (Python cached them in the singleton constructor).
-/// 1:1 Python pyapps/d3-check/d3utils/rosbot_manager.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_manager.py.
 /// </summary>
 public sealed class RosbotManager
 {

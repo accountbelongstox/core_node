@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/share/scaled_template_matcher_base.py
-// PY-REF: pyapps/d3-check/d4utils/d4_scaled_template_matcher.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/scaled_template_matcher_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_scaled_template_matcher.py
 using System.Text;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
@@ -45,7 +45,7 @@ public sealed record AfterMatchContext(
 
 /// <summary>
 /// Template matcher that scales templates from a standard resolution to the actual window (cached per scale).
-/// 1:1 Python pyapps/d3-check/share/scaled_template_matcher_base.py (ScaledTemplateMatcherBase + helpers) and the generic
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/scaled_template_matcher_base.py (ScaledTemplateMatcherBase + helpers) and the generic
 /// parts of d4utils/d4_scaled_template_matcher.py (match_template_auto_scale, region match, region debug image).
 /// Game constants (standard size, template table, region lookup) are supplied by the app through the constructor.
 /// Fixes Python bug: region matching re-scaled the crop against the full standard resolution; regions now match without the second auto-scale.

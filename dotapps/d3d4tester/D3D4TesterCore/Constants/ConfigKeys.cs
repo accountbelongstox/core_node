@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/providor/constants/common.py
-// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/common.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/auxiliary_options_block.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>

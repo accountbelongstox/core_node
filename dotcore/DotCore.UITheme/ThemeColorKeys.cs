@@ -1,9 +1,9 @@
-// PY-REF: pyapps/d3-check/ui/theme/theme.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/theme/theme.py
 namespace DotCore.UITheme;
 
 /// <summary>
 /// Semantic color key constants for theme. Used by apps to resolve actual color values (e.g. hex) via <see cref="UITheme"/>.
-/// Aligned with pyapps/d3-check/ui/theme/theme.py and docs/DOT_D3CHECK_UI_LIBRARY.md.
+/// Aligned with dotapps/d3d4tester/reference/py_d3check/ui/theme/theme.py and docs/DOT_D3CHECK_UI_LIBRARY.md.
 /// </summary>
 public static class ThemeColorKeys
 {

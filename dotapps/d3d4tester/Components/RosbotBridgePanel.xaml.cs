@@ -407,8 +407,8 @@ public partial class RosbotBridgePanel : UserControl
         TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
         try
         {
-            bool sent = await RosbotBridgePluginService.EnterTownStandbyAsync();
-            TxtCommandResult.Text = string.Format(p.GetUiText(sent ? I18nKeys.RosbotBridgeStandbySent : I18nKeys.RosbotBridgeStandbyNotSent), BridgeTownPortal.Key);
+            var result = await RosbotBridgePluginService.EnterTownStandbyAsync();
+            TxtCommandResult.Text = string.Format(p.GetUiText(I18nKeys.RosbotBridgeStandbyResultPrefix + result.ToString().ToLowerInvariant()), BridgeTownPortal.Key);
         }
         finally
         {

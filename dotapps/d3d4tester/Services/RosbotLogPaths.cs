@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/providor/constants/common.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/common.py
 using System.IO;
 
 namespace DotApps.d3d4tester.Services;

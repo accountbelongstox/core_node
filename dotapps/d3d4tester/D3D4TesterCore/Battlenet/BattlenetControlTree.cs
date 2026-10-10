@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/battlenet_operation_base.py
 using System.Drawing;
 using System.IO;
 using DotCore.Foundations;

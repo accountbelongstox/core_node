@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/collectors/ui_region_collector_optimized.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/ui_region_collector_optimized.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
@@ -11,7 +11,7 @@ namespace DotApps.d3d4tester.Core;
 
 /// <summary>
 /// Helper for assistant macro: find D3 window and capture game window image. 1:1 with Python
-/// UIRegionCollectorOptimized (pyapps/d3-check/d3utils/collectors/ui_region_collector_optimized.py).
+/// UIRegionCollectorOptimized (dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/ui_region_collector_optimized.py).
 /// Uses D3WindowFinder (config exe first, then title with browser/editor skip). Interface detection and collect_bag are separate.
 /// </summary>
 public static class D3AssistantCapture

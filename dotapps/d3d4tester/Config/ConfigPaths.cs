@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/share/project_path.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/project_path.py
 using System.IO;
 using DotApps.d3d4tester.Constants;
 

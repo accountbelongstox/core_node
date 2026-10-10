@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/d3u_common/image_annotator_helper.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/image_annotator_helper.py
 using DotCore.TemplateMatcher;
 
 namespace DotApps.d3d4tester.Core;

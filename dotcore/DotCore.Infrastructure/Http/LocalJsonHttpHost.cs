@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/http_bridge_controller.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/http_bridge_controller.py
 using System.Collections;
 using System.Net;
 using System.Text;
@@ -14,7 +14,7 @@ namespace DotCore.Infrastructure.Http;
 /// Small local JSON HTTP host (HttpListener): GET/POST route registration, CORS for browser userscripts, start/stop.
 /// GET handlers receive query params as {name: [values]} (Python parse_qs); POST handlers receive the JSON object body.
 /// A handler result that is a JSON object/dictionary is sent as is; anything else is wrapped as {success: true, data}.
-/// 1:1 Python pyapps/d3-check/controller/http_bridge_controller.py (start/stop/is_running, RequestHandler).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/http_bridge_controller.py (start/stop/is_running, RequestHandler).
 /// </summary>
 public sealed class LocalJsonHttpHost : IDisposable
 {

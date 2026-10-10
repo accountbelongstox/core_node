@@ -1,15 +1,15 @@
-// PY-REF: pyapps/d3-check/controller/d4func/events/event_manager.py
-// PY-REF: pyapps/d3-check/controller/d4func/events/exp_farming_events.py
-// PY-REF: pyapps/d3-check/controller/d4func/events/team_health_events.py
-// PY-REF: pyapps/d3-check/controller/d4func/events/screen_events.py
-// PY-REF: pyapps/d3-check/controller/d4func/events/game_state_events.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/events/event_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/events/exp_farming_events.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/events/team_health_events.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/events/screen_events.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/events/game_state_events.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// Diffs the previous vs current D4 state each farming tick and fires <see cref="D4EventKeys"/> events (log handlers + <see cref="EventTriggered"/>).
-/// 1:1 Python pyapps/d3-check/controller/d4func/events/event_manager.py and the log-only handlers in
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/events/event_manager.py and the log-only handlers in
 /// events/exp_farming_events.py, team_health_events.py, screen_events.py, game_state_events.py.
 /// GAME_STATE_CHANGED and EXP_FARMING_TICK_COMPLETED are mapped but never fired by the diff (same as Python).
 /// Fixes Python bug: team health compared the whole dict including scan_timestamp, so "changed" fired every tick; now only counts and member rows are compared.

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/d4func/map_name_recognizer.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/map_name_recognizer.py
 using DotCore.Foundations;
 using DotCore.Utils.Ocr;
 
@@ -6,7 +6,7 @@ namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// OCR of the "Map Name" crop while post-switch idle: non-empty text sets the current map and clears idle; after 3 empty attempts idle is cleared.
-/// 1:1 Python pyapps/d3-check/controller/d4func/map_name_recognizer.py (OCR task map_name; in-memory, no temp file).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/map_name_recognizer.py (OCR task map_name; in-memory, no temp file).
 /// </summary>
 public sealed class D4MapNameRecognizer
 {

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f3_log_timeout.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f3_baseline.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f3_log_timeout.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f3_baseline.py
 using System.Globalization;
 using DotCore.Foundations;
 using DotApps.d3d4tester.Constants;

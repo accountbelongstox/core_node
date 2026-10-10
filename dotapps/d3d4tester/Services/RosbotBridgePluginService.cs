@@ -15,6 +15,9 @@ namespace DotApps.d3d4tester.Services;
 
 public enum RosbotBridgeInstallResult { Installed, UpToDate, NoRosbot, NoBundle, Locked, Failed }
 
+/// <summary>Pause + stay in town: already in town, dead (the plugin revives in town), town portal key sent / not sent.</summary>
+public enum TownStandbyResult { InTown, Reviving, PortalSent, PortalNotSent }
+
 /// <summary>Installed vs bundled plugin for the current ROSBOT.</summary>
 public sealed record RosbotBridgePluginInfo(string? RosDirectory, string? InstalledPath, string? InstalledVersion, string? BundledVersion, bool UpToDate);
 
@@ -103,18 +106,25 @@ public static class RosbotBridgePluginService
     }
 
     /// <summary>
-    /// One-click return to town: take control (TakeControlAsync: no more tasks, the game is kept), then press the town portal key in D3
-    /// at once, wherever the hero is. With the plugin live it also switches to town standby (dead: revive in town; follow mode ends; the
-    /// hero stays idle for the panel's commands). Resume monitoring hands control back. Returns true when the town portal key was sent.
+    /// Pause + stay in town (clickable anywhere, also in town): take control (TakeControlAsync: ROSBOT paused, no more tasks, the game is
+    /// kept), then make sure the hero is in town: already in town (plugin state) -> no key; dead -> the plugin revives in town; else the
+    /// town portal key at once. With the plugin live it switches to town standby, which keeps it so until Resume monitoring: outside town
+    /// the portal key is pressed again (BridgeTownPortal) until the hero arrives, follow mode ends, the hero stays idle in town.
     /// </summary>
-    public static async Task<bool> EnterTownStandbyAsync()
+    public static async Task<TownStandbyResult> EnterTownStandbyAsync()
     {
-        ColorPrinter.Blue($"{LogTag} return to town: take control (ROSBOT paused, game kept) -> town portal key");
+        ColorPrinter.Blue($"{LogTag} pause + stay in town: take control (ROSBOT paused, game kept)");
         await TakeControlAsync().ConfigureAwait(false);
-        bool sent = BridgeTownPortal.Press(LeaseReturnToTown, TownPortalLeaseWaitMs);
-        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        var bridge = snapshot.RosbotBridgeFresh ? snapshot.RosbotBridge : null;
+        var result = bridge is { InGame: true, InTown: true } ? TownStandbyResult.InTown
+            : bridge is { InGame: true, Dead: true } ? TownStandbyResult.Reviving
+            : BridgeTownPortal.Press(LeaseReturnToTown, TownPortalLeaseWaitMs) ? TownStandbyResult.PortalSent
+            : TownStandbyResult.PortalNotSent;
+        ColorPrinter.Blue($"{LogTag} pause + stay in town: {result}");
+        if (bridge != null)
             await SendWhenFreeAsync(RosbotPluginConstants.BridgeActionStandby, RosbotPluginConstants.BridgeStandbyOn, rememberFollow: false).ConfigureAwait(false);
-        return sent;
+        return result;
     }
 
     /// <summary>Send once command.txt is free (an earlier command is waited out up to CommandFreeWaitSec); null when it never frees.</summary>

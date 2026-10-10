@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/d3u_common/game_window_region.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/game_window_region.py
 using System.Drawing;
 using System.Runtime.Versioning;
 using OpenCvSharp;
@@ -8,7 +8,7 @@ namespace DotCore.Utils.Ocr;
 /// <summary>
 /// Crop an image by fractions of its size (e.g. middle 30% width / upper half = 0.35, 0, 0.65, 0.5) for OCR or detection.
 /// Pixel bounds are truncated like Python int(). Returns null for null/empty input or an empty region.
-/// 1:1 Python pyapps/d3-check/d3utils/d3u_common/game_window_region.py (crop_game_window_middle30_upper_half), generalized.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/game_window_region.py (crop_game_window_middle30_upper_half), generalized.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public static class ImageFractionCrop

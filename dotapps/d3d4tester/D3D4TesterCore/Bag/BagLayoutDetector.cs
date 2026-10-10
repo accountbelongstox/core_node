@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/collectors/collect_tools/bag_layout_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/collect_tools/bag_layout_detector.py
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;
@@ -13,7 +13,7 @@ public sealed record BagLayoutResult(
 
 /// <summary>
 /// Bag slot usage from one bag image (BGR): separator lines (1- vs 2-slot items), empty slots, color percentages and quality.
-/// 1:1 Python pyapps/d3-check/d3utils/collectors/collect_tools/bag_layout_detector.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/collect_tools/bag_layout_detector.py.
 /// </summary>
 public sealed class BagLayoutDetector
 {

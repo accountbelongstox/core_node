@@ -86,4 +86,4 @@ Not in dotcore: Windows native OCR (Windows.Media.Ocr) — WinRT winmd cannot be
 |----------|---------|
 | [.NET documentation](https://learn.microsoft.com/en-us/dotnet/) | SDK, C#, BCL, project format |
 | [pycore/](../pycore/) | Python public class libraries mirrored here |
-| [pyapps/d3-check/](../pyapps/d3-check/) | Python source of the d3d4tester port |
+| [dotapps/d3d4tester/reference/py_d3check/](../dotapps/d3d4tester/reference/py_d3check/) | Python source of the d3d4tester port |

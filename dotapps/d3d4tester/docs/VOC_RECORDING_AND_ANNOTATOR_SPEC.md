@@ -3,7 +3,7 @@
 ## 1. Overview and Goals
 
 - **Goal**: Enable the d3d4tester client (DOT WPF app) to (1) **record** game/client content as frames (or optionally video), (2) **generate data** in the layout expected by **VocAnnotator** and by the Python YOLO workflow, (3) **create** and **switch** VocAnnotator projects, and (4) open the label tool (in-process AnnotatorWindow or standalone VocAnnotator) on the correct project/segment.
-- **Reference**: Python `pyapps/d3-check/main.py` (TK + HTTP bridge; no recording/VOC UI there — incomplete). Python `pycore/pyutils/voc_annotator` defines project/segment layout and `run_voc_annotator(project_path=..., images_dir=...)`. This spec aligns DOT with that layout and workflow.
+- **Reference**: Python `dotapps/d3d4tester/reference/py_d3check/main.py` (TK + HTTP bridge; no recording/VOC UI there — incomplete). Python `pycore/pyutils/voc_annotator` defines project/segment layout and `run_voc_annotator(project_path=..., images_dir=...)`. This spec aligns DOT with that layout and workflow.
 - **Workflow (CalibrationPage)**: **Step 1 Record** → **Step 2 Export** → **Step 3 Label**.
 
 All logic and data format requirements below are binding for implementation.
@@ -23,7 +23,7 @@ All logic and data format requirements below are binding for implementation.
 | **Config** | `ConfigKeys.CoordCalibrationClientType`, `CoordCalibrationYoloCurrentProject`, `CoordCalibrationYoloProjectList`. Central project model: `Models/YoloProjectData.cs`. |
 | **Screen capture** | `DotCore.ScreenCapture.ScreenCaptureService`: Gen (full + optional game window), SaveCurrentScreenshot, CaptureRegion, CaptureWindow, BitBlt/PrintWindow. No continuous “recording” loop yet. |
 
-### 2.2 Python (pyapps/d3-check, pycore)
+### 2.2 Python (dotapps/d3d4tester/reference/py_d3check, pycore)
 
 | Component | State |
 |-----------|--------|

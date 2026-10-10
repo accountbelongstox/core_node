@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/d4func/region_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/region_detector.py
 using DotCore.Foundations;
 using OpenCvSharp;
 
@@ -6,7 +6,7 @@ namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// Step 2 orchestration: team health, small map, window regions, then crops of all 20 regions + the Min Tier Click 10x10 point.
-/// 1:1 Python pyapps/d3-check/controller/d4func/region_detector.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/region_detector.py.
 /// Fixes Python bug: crops only ran while detected_regions was None (never after the first tick); they now run every tick unless the debug window is paused.
 /// </summary>
 public sealed class D4RegionDetector

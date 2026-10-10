@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/collectors/bag_info_collector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/bag_info_collector.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;
@@ -16,7 +16,7 @@ public sealed record BagOffsetSettings(bool UseInCalculation, int Top, int Left,
 
 /// <summary>
 /// Collect bag coordinates (scaled standard region + optional offset), layout and interface buttons from the shared game window image,
-/// and write them to <see cref="GameInterfaceData"/>. 1:1 Python pyapps/d3-check/d3utils/collectors/bag_info_collector.py.
+/// and write them to <see cref="GameInterfaceData"/>. 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/bag_info_collector.py.
 /// Fixes Python bug: offsets were scaled with the border formula ((v-border)*s+border), so a zero offset shifted the bag when scale != 1; offsets now scale as v*s.
 /// </summary>
 public sealed class BagInfoCollector
