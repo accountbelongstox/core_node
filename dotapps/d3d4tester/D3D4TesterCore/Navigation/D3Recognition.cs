@@ -48,6 +48,7 @@ public sealed record D3Recognition(
     [property: JsonPropertyName("party")] IReadOnlyList<D3PartyMember> Party,
     [property: JsonPropertyName("banners")] int Banners,
     [property: JsonPropertyName("enchant_lines")] IReadOnlyList<D3RecognizedText> EnchantLines,
+    [property: JsonPropertyName("enchant_option_lines")] IReadOnlyList<D3RecognizedText> EnchantOptionLines,
     [property: JsonPropertyName("capture_ms")] double CaptureMs,
     [property: JsonPropertyName("detect_ms")] double DetectMs)
 {
@@ -72,8 +73,9 @@ public sealed record D3Recognition(
         var party = objects.Where(o => o.ClassName == D3TownActors.PartyPortrait).OrderByDescending(o => o.Confidence).Take(D3TownActors.MaxPartySlots)
             .OrderBy(o => o.Box.Y).Select((o, i) => new D3PartyMember(i + 1, o.Confidence, o.Box, o.Screen)).ToList();
         int banners = Math.Min(D3TownActors.MaxPartySlots, objects.Count(o => o.ClassName == D3TownActors.Banner));
-        var lines = reading.EnchantLines.Select(l => new D3RecognizedText(l.Text, new D3Point(l.Center.X, l.Center.Y), Screen(l.Center.X, l.Center.Y))).ToList();
-        return new D3Recognition(DateTime.Now, model, new D3Box(offset.X, offset.Y, width, height), reading.Panel, objects, player, party, banners, lines,
-            Math.Round(captureMs, 1), Math.Round(detectMs, 1));
+        List<D3RecognizedText> Texts(IReadOnlyList<D3TextLine> source) =>
+            source.Select(l => new D3RecognizedText(l.Text, new D3Point(l.Center.X, l.Center.Y), Screen(l.Center.X, l.Center.Y))).ToList();
+        return new D3Recognition(DateTime.Now, model, new D3Box(offset.X, offset.Y, width, height), reading.Panel, objects, player, party, banners,
+            Texts(reading.EnchantLines), Texts(reading.EnchantOptionLines), Math.Round(captureMs, 1), Math.Round(detectMs, 1));
     }
 }

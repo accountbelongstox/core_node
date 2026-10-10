@@ -55,17 +55,32 @@ public static class D3TownUi
     public const string MysticTabTransmog = "mystic_tab_transmog";
     public const string MysticTabDye = "mystic_tab_dye";
     public const string MysticTabTrain = "mystic_tab_train";
-    public static readonly string[] Panels = { BlacksmithRepair, BlacksmithSalvage, MysticEnchant };
+    public const string EnchantOptions = "enchant_options";
+    public const string KanaiPanel = "kanai_panel";
+    public const string KanaiTransmute = "kanai_transmute";
+    public const string KanaiRecipeButton = "kanai_recipe_button";
+    public const string KanaiRecipe = "kanai_recipe";
+    public const string KanaiFill = "kanai_fill";
+    public const string KadalaPanel = "kadala_panel";
+    public const string KadalaTabWeapon = "kadala_tab_weapon";
+    public const string KadalaTabArmor = "kadala_tab_armor";
+    public const string KadalaTabJewelry = "kadala_tab_jewelry";
+    public static readonly string[] Panels = { BlacksmithRepair, BlacksmithSalvage, MysticEnchant, KanaiPanel, KadalaPanel };
     public static readonly string[] All =
     {
         BlacksmithRepair, BlacksmithSalvage, BlacksmithTabRepair, BlacksmithTabSalvage, BlacksmithRepairAll, BlacksmithSalvageItem, BlacksmithSalvageAll,
         MysticEnchant, MysticTabEnchant, MysticEnchantButton, EnchantText,
         BlacksmithTabWeapon, BlacksmithTabArmor, BlacksmithTabTrain, MysticTabTransmog, MysticTabDye, MysticTabTrain,
+        EnchantOptions, KanaiPanel, KanaiTransmute, KanaiRecipeButton, KanaiRecipe, KanaiFill, KadalaPanel, KadalaTabWeapon, KadalaTabArmor, KadalaTabJewelry,
     };
 }
 
-/// <summary>One frame read: the open NPC panel (null = none), every detection, and the OCR lines of the enchant affix area.</summary>
-public sealed record D3PanelReading(string? Panel, IReadOnlyList<YoloDetection> Detections, IReadOnlyList<D3TextLine> EnchantLines);
+/// <summary>
+/// One frame read: the open NPC panel (null = none), every detection, the OCR lines of the enchant affix area and of the enchant
+/// "possible properties" panel.
+/// </summary>
+public sealed record D3PanelReading(string? Panel, IReadOnlyList<YoloDetection> Detections, IReadOnlyList<D3TextLine> EnchantLines,
+    IReadOnlyList<D3TextLine> EnchantOptionLines);
 
 /// <summary>Navigation settings: model path (empty = the registry's current "navigation" model), confidence, steps.</summary>
 public sealed record D3NavigationOptions(string? ModelPath, float Confidence, int MaxSteps, bool SaveDebugImages);
@@ -133,9 +148,9 @@ public sealed class D3TownNavigator
     public static D3PanelReading Read(Mat frame, IReadOnlyList<YoloDetection> detections)
     {
         var panel = detections.Where(d => D3TownUi.Panels.Contains(d.ClassName)).OrderByDescending(d => d.Confidence).FirstOrDefault()?.ClassName;
-        var text = detections.Where(d => d.ClassName == D3TownUi.EnchantText).OrderByDescending(d => d.Confidence).FirstOrDefault();
-        var lines = text == null ? Array.Empty<D3TextLine>() : D3EnchantTextReader.Read(frame, text.Box);
-        return new D3PanelReading(panel, detections, lines);
+        IReadOnlyList<D3TextLine> Ocr(string className) =>
+            detections.Where(d => d.ClassName == className).MaxBy(d => d.Confidence) is { } box ? D3EnchantTextReader.Read(frame, box.Box) : Array.Empty<D3TextLine>();
+        return new D3PanelReading(panel, detections, Ocr(D3TownUi.EnchantText), Ocr(D3TownUi.EnchantOptions));
     }
 
     private static void LogPanel(D3PanelReading reading)
@@ -145,6 +160,8 @@ public sealed class D3TownNavigator
             ColorPrinter.Blue($"{LogTag}   {d.ClassName} at ({d.Center.X},{d.Center.Y}) conf {d.Confidence:0.00}");
         foreach (var line in reading.EnchantLines)
             ColorPrinter.Green($"{LogTag}   enchant: {line.Text} @({line.Center.X},{line.Center.Y})");
+        foreach (var line in reading.EnchantOptionLines)
+            ColorPrinter.Green($"{LogTag}   enchant option: {line.Text} @({line.Center.X},{line.Center.Y})");
     }
 
     /// <summary>Walk to the target; shouldStop is polled every step.</summary>
