@@ -827,7 +827,16 @@ function Move-CnLegacyProgramDir {
         $cnNeeded = Get-CnPendingCopyBytes -Entries $cnToCopy -TargetPath $TargetPath
         $cnFree = [System.IO.DriveInfo]::new($TargetPath).AvailableFreeSpace
         if ($cnNeeded -gt $cnFree) {
-            Write-Warning ('[PROGRAM-DRIVE] {0} needs {1:N1} GB but {2} has {3:N1} GB free; {0} stays live, nothing copied' -f $LegacyPath, ($cnNeeded / 1GB), [System.IO.Path]::GetPathRoot($TargetPath), ($cnFree / 1GB))
+            Write-Warning ('[PROGRAM-DRIVE] {0} needs {1:N1} GB but {2} has {3:N1} GB free; {0} stays live, partial copies removed' -f $LegacyPath, ($cnNeeded / 1GB), [System.IO.Path]::GetPathRoot($TargetPath), ($cnFree / 1GB))
+            foreach ($cnEntry in $cnToCopy) {
+                $cnPartial = Join-Path $TargetPath $cnEntry.Name
+                if (Test-Path -LiteralPath $cnPartial -PathType Container) {
+                    & $env:ComSpec /c rd /s /q $cnPartial
+                }
+                elseif (Test-Path -LiteralPath $cnPartial -PathType Leaf) {
+                    Remove-Item -LiteralPath $cnPartial -Force -ErrorAction SilentlyContinue
+                }
+            }
             return
         }
 
