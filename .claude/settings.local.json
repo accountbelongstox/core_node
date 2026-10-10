@@ -404,7 +404,10 @@
       "Bash(rm -rf *.png steps debug drive_*.log)",
       "Bash(dotnet run *)",
       "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' run4.log)",
-      "Bash(git -c core.ignorecase=true check-ignore -v PlannerData/build_urls.json PlannerData/profiles/136415127.json)"
+      "Bash(git -c core.ignorecase=true check-ignore -v PlannerData/build_urls.json PlannerData/profiles/136415127.json)",
+      "PowerShell(python -m pycore.pyfoundations.console_log_reader --minutes 3 --level error --limit 15; python -m pycore.pyfoundations.console_log_reader --minutes 3 --grep \"RPC Server started|laravel\\\\] GET /api/health\" --limit 5)",
+      "PowerShell(Get-Content D:\\\\www\\\\core_node\\\\logs\\\\pycore_console.jsonl -Tail 20000 | Select-String -Pattern 'mesh' | Select-String -NotMatch 'consecutive server errors' | Select-Object -Last 10 | ForEach-Object { $o = $_.Line | ConvertFrom-Json; \\([DateTimeOffset]::FromUnixTimeMilliseconds\\($o.ts\\).LocalDateTime.ToString\\('HH:mm:ss'\\)\\) + ' ' + $o.message.Substring\\(0,[Math]::Min\\(400,$o.message.Length\\)\\) })",
+      "PowerShell(Get-Content D:\\\\www\\\\core_node\\\\logs\\\\pycore_console.jsonl -Tail 30000 | Select-String -Pattern '-> \\(5\\\\d\\\\d|ERR\\)' | Select-Object -Last 12 | ForEach-Object { $o = $_.Line | ConvertFrom-Json; \\([DateTimeOffset]::FromUnixTimeMilliseconds\\($o.ts\\).LocalDateTime.ToString\\('HH:mm:ss'\\)\\) + ' ' + $o.message.Substring\\(0,[Math]::Min\\(300,$o.message.Length\\)\\) })"
     ],
     "deny": [],
     "ask": []
