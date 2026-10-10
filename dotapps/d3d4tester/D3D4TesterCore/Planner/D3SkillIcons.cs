@@ -31,6 +31,13 @@ public static class D3SkillIcons
     /// <summary>Sheets change only with new game content; the cached copy travels with the code.</summary>
     private static readonly TimeSpan SheetMaxAge = TimeSpan.FromDays(365);
 
+    /// <summary>Suffix of an icon learned from the game screen (some game art differs from maxroll's sheet): key.game.png next to key.png.</summary>
+    public const string GameVariantSuffix = ".game";
+
+    /// <summary>Learned game-art variant of an icon file (key.png -> key.game.png).</summary>
+    public static string GameVariantPath(string iconPath) =>
+        Path.Combine(Path.GetDirectoryName(iconPath) ?? "", Path.GetFileNameWithoutExtension(iconPath) + GameVariantSuffix + IconExtension);
+
     public static string SkillIconPath(string cacheDir, string cls, string key) =>
         Path.Combine(cacheDir, IconsDirName, SkillsDirName, cls, key + IconExtension);
 

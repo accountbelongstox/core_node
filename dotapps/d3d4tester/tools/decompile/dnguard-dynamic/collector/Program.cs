@@ -19,6 +19,10 @@ internal static class Program
         string tokenText = string.Empty;
         int? methodToken = null;
         bool prepareMethod = false;
+        TimeSpan compilationDelay = TimeSpan.Zero;
+        IReadOnlyCollection<int>? selectedTokens = null;
+        bool delayedInvocation;
+        int tokenOffset;
         DynamicMethodAcquisitionReport report;
         DynamicMethodAcquisitionOptions options;
         NativeHvmAnalysisReport hvmReport;
@@ -38,12 +42,36 @@ internal static class Program
         JavaScriptSerializer serializer;
         try
         {
-            if (args.Length >= 4 && args[0] == "--invoke-static-many")
+            if (args.Length == 3 && args[0] == "--catalog")
+            {
+                serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                outputPath = Path.GetFullPath(args[2]);
+                Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+                File.WriteAllText(outputPath, serializer.Serialize(ManagedMethodCatalog.Inspect(args[1])),
+                    new UTF8Encoding(false));
+                return 0;
+            }
+            if (args.Length >= 4 && (args[0] == "--invoke-static-many"
+                || args[0] == "--invoke-static-many-delayed"))
             {
                 targetPath = Path.GetFullPath(args[1]);
-                methodTokens = args.Skip(2).Select(value => int.Parse(value.Replace("0x", string.Empty),
+                delayedInvocation = args[0] == "--invoke-static-many-delayed";
+                tokenOffset = delayedInvocation ? 3 : 2;
+                if (delayedInvocation)
+                {
+                    compilationDelay = TimeSpan.FromSeconds(double.Parse(args[2], CultureInfo.InvariantCulture));
+                    if (compilationDelay < TimeSpan.Zero || compilationDelay > TimeSpan.FromMinutes(1))
+                        throw new ArgumentOutOfRangeException(nameof(compilationDelay));
+                }
+                methodTokens = args.Skip(tokenOffset).Select(value => int.Parse(value.Replace("0x", string.Empty),
                     NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToArray();
-                invocationReports = new DynamicMethodInvoker().InvokeStatics(targetPath, methodTokens);
+                invocationReports = new DynamicMethodInvoker().InvokeStatics(targetPath, methodTokens,
+                    initialized: () =>
+                    {
+                        Console.WriteLine($"Invocation ready: process={System.Diagnostics.Process.GetCurrentProcess().Id}, selected={methodTokens.Count}.");
+                        if (compilationDelay > TimeSpan.Zero)
+                            System.Threading.Thread.Sleep(compilationDelay);
+                    });
                 foreach (DynamicMethodInvocationReport item in invocationReports)
                 {
                     Console.WriteLine($"HVM INVOKED token=0x{item.MethodToken:X8} completed={item.InvocationCompleted} timedOut={item.TimedOut} method={item.MethodName}");
@@ -166,6 +194,18 @@ internal static class Program
                     methodToken = int.Parse(tokenText, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                     continue;
                 }
+                if (args[index] == "--tokens" && index + 1 < args.Length)
+                {
+                    selectedTokens = args[++index].Split(',').Select(value => int.Parse(
+                        value.Replace("0x", string.Empty), NumberStyles.HexNumber,
+                        CultureInfo.InvariantCulture)).ToArray();
+                    continue;
+                }
+                if (args[index] == "--delay" && index + 1 < args.Length)
+                {
+                    compilationDelay = TimeSpan.FromSeconds(double.Parse(args[++index], CultureInfo.InvariantCulture));
+                    continue;
+                }
                 Console.Error.WriteLine("Unknown or incomplete argument: " + args[index]);
                 return 2;
             }
@@ -174,6 +214,8 @@ internal static class Program
             {
                 CompilationMode = prepareMethod ? DynamicCompilationMode.PrepareMethod : DynamicCompilationMode.ForceJit,
                 MethodToken = methodToken,
+                MethodTokens = selectedTokens,
+                CompilationDelay = compilationDelay,
                 OutputPath = outputPath
             };
             report = new DynamicMethodAcquirer().Acquire(targetPath, options, Console.WriteLine);

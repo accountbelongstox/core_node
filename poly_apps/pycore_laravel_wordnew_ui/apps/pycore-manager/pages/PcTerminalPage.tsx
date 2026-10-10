@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  BookmarkPlus,
   ChevronsDown,
   ChevronsUp,
   Clock3,
@@ -1888,6 +1889,40 @@ const PcTerminalNodeView: React.FC<{
     void sendInput(undefined, options.clear, options.force);
   }, [sendInput, takeSendOnce]);
 
+  // The draft (with its uploaded attachments) becomes an unsent history entry; nothing is typed into the terminal.
+  const saveDraftToHistory = useCallback(async () => {
+    if (!selectedWindow) return;
+    const terminalNumber = selectedWindow.terminal_number;
+    const key = terminalDraftKey(terminalNumber);
+    const attachments = await images.uploadAll();
+    if (attachments === null) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.images.sendBlocked' });
+      return;
+    }
+    const draftText = stripImagePlaceholders(draftsRef.current[key] ?? selectedDraft);
+    const text = [draftText, ...attachments.map((attachment) => attachment.displayPath)]
+      .filter((part) => part !== '')
+      .join(' ');
+    if (!text.trim()) return;
+    const activeTimer = draftTimersRef.current[key];
+    if (activeTimer) {
+      window.clearTimeout(activeTimer);
+      delete draftTimersRef.current[key];
+    }
+    const result = await runAction(
+      selectedWindow.id,
+      () => terminalApi.saveTerminalDraftToHistory(terminalNumber, text),
+      'terminal.draftToHistorySaved',
+    );
+    if (!result?.success) return;
+    images.clear();
+    dirtyDraftsRef.current.delete(terminalNumber);
+    writeCachedDraft(terminalNumber, null);
+    draftsRef.current = { ...draftsRef.current, [key]: '' };
+    setDrafts(draftsRef.current);
+    setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
+  }, [images, runAction, selectedDraft, selectedWindow]);
+
   // A logged message sent again: it becomes the draft and goes through the regular send.
   const resendLogContent = useCallback((text: string) => {
     updateSelectedDraft(text);
@@ -2123,6 +2158,16 @@ const PcTerminalNodeView: React.FC<{
         leading={isMobile ? undefined : <PcTerminalDispatchToggle setting={dispatchSetting} disabled={!selectedWindow} />}
         actions={(
           <>
+            <button
+              type="button"
+              onClick={() => void saveDraftToHistory()}
+              disabled={!selectedWindow || Boolean(actionWindowId) || (!selectedDraft.trim() && !images.items.length)}
+              title={t('terminal.draftToHistory')}
+              aria-label={t('terminal.draftToHistory')}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-500/20 text-sky-600 hover:bg-sky-500/10 disabled:opacity-50 dark:text-sky-400"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+            </button>
             {([
               { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
               { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
@@ -2484,7 +2529,7 @@ const PcTerminalNodeView: React.FC<{
               onClick={() => jumpToTerminal(windowInfo.terminal_number)}
               title={terminalName(windowInfo, t('terminal.untitled'))}
               aria-label={t('terminal.selectWindow', { number: windowInfo.terminal_number })}
-              className={`relative inline-flex h-9 min-w-0 items-center justify-center rounded-lg ${compact || level.chars === 0 ? 'px-0.5' : 'px-2'} font-mono text-xs font-bold transition-colors ${
+              className={`relative inline-flex h-7 min-w-0 items-center justify-center rounded-md ${compact || level.chars === 0 ? 'px-0.5' : 'px-1.5'} font-mono text-[11px] font-bold transition-colors ${
                 selected
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
                   : windowInfo.online
@@ -2493,19 +2538,19 @@ const PcTerminalNodeView: React.FC<{
               }`}
             >
               {level.chars === 0
-                ? <Terminal className="h-3.5 w-3.5 shrink-0" />
+                ? <Terminal className="h-3 w-3 shrink-0" />
                 : <span className="min-w-0 truncate whitespace-nowrap">{shortTitle}</span>}
               {windowInfo.online && (
-                <span className={`absolute inline-flex items-center gap-px ${compact || level.chars === 0 ? 'right-0.5 top-0.5' : 'right-1 top-1'}`}>
-                  <PcTerminalStatusMarks windowInfo={windowInfo} size="tile" inlineCountdown={false} hasDraft={hasLocalDraft(windowInfo.terminal_number)} />
-                  <span className={`h-1.5 w-1.5 rounded-full ${
+                <span className="absolute right-0.5 top-0.5 inline-flex items-center gap-px">
+                  <PcTerminalStatusMarks windowInfo={windowInfo} size="tile" inlineCountdown={false} showKind={false} hasDraft={hasLocalDraft(windowInfo.terminal_number)} />
+                  <span className={`h-1 w-1 rounded-full ${
                     windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
                   }`} />
                 </span>
               )}
               <PcTerminalTileCountdown
                 windowInfo={windowInfo}
-                className={`absolute ${compact || level.chars === 0 ? 'bottom-0 right-0.5' : 'bottom-0.5 right-1'}`}
+                className="absolute bottom-0 right-0.5"
               />
             </button>
           );
@@ -2653,13 +2698,13 @@ const PcTerminalNodeView: React.FC<{
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
           <div className="px-3 py-1.5 border-b border-slate-500/10 sm:px-4">
-            <div className="flex items-center gap-1.5">
-              <div className="min-w-0 shrink">
-                <h2 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              <div className="min-w-0 max-w-full">
+                <h2 className="break-all text-xs font-bold leading-tight text-slate-800 dark:text-slate-100">
                   {nodeIdentity.hostname || t('terminal.windowsTitle')}
                 </h2>
                 {nodeIdentity.lanIps && (
-                  <p className="truncate font-mono text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                  <p className="break-all font-mono text-[9px] leading-tight text-slate-500 dark:text-slate-400">
                     {nodeIdentity.lanIps}
                   </p>
                 )}
@@ -2677,11 +2722,11 @@ const PcTerminalNodeView: React.FC<{
                       aria-label={label}
                       title={label}
                       onClick={() => setCommonView(view)}
-                      className={`rounded-md p-1 ${
+                      className={`rounded-md p-0.5 ${
                         commonView === view ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-500/10'
                       }`}
                     >
-                      <ViewIcon className="h-3.5 w-3.5" />
+                      <ViewIcon className="h-3 w-3" />
                     </button>
                   );
                 })}

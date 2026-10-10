@@ -43,14 +43,14 @@ export const PcTerminalAgentCreate: React.FC<PcTerminalAgentCreateProps> = ({ ki
 
   return (
     <div className="flex min-w-0 items-center gap-1" aria-label={t('terminal.agents.title')}>
-      <Bot className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+      <Bot className="h-3 w-3 shrink-0 text-slate-500" aria-hidden />
       <select
         value={selected?.kind ?? ''}
         onChange={(event) => setKind(event.target.value as TerminalAgentKind)}
         disabled={busy}
         title={t('terminal.agents.hint')}
         aria-label={t('terminal.agents.kind')}
-        className="w-0 min-w-[5rem] max-w-[9rem] flex-1 truncate rounded-lg border border-slate-500/20 bg-transparent px-1 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+        className="w-0 min-w-[4.5rem] max-w-[8rem] flex-1 truncate rounded-md border border-slate-500/20 bg-transparent px-0.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300"
       >
         {kinds.map((info) => (
           <option key={info.kind} value={info.kind}>
@@ -64,9 +64,9 @@ export const PcTerminalAgentCreate: React.FC<PcTerminalAgentCreateProps> = ({ ki
         disabled={busy || !selected?.available}
         title={`${t('terminal.agents.create')} · ${t('terminal.agents.hint')}`}
         aria-label={t('terminal.agents.create')}
-        className="inline-flex shrink-0 items-center rounded-lg bg-emerald-500/10 p-1.5 text-emerald-600 hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-400"
+        className="inline-flex shrink-0 items-center rounded-md bg-emerald-500/10 p-1 text-emerald-600 hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-400"
       >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
       </button>
     </div>
   );

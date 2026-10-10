@@ -1110,6 +1110,10 @@
       "path": "ui/terminal/draft",
       "method": "POST"
     },
+    "terminalDraftHistory": {
+      "path": "ui/terminal/draft/history",
+      "method": "POST"
+    },
     "terminalEnter": {
       "path": "ui/terminal/enter",
       "method": "POST"
