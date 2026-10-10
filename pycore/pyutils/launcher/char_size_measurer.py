@@ -41,6 +41,7 @@ from pycore.pyutils.launcher.explorer_executor import APP_TERMINAL_TITLE_PREFIX
 
 # Win32 API constants
 _WM_CLOSE = 0x0010
+_GA_ROOTOWNER = 3
 _WINDOW_TITLE_CHARS = 512
 # Two calibration sizes; far enough apart that the per-cell delta dominates any
 # 1px rounding error. Both must be valid Windows Terminal --size values.
@@ -83,13 +84,34 @@ def _user32():
 def count_wt_windows():
     """Return the number of open Windows Terminal top-level windows.
 
-    Launcher app terminals (APP_TERMINAL_TITLE_PREFIX titles, e.g. codex) are
-    not grid cells and are left out.
+    Launcher app terminals (APP_TERMINAL_TITLE_PREFIX titles, e.g. codex) and
+    the window hosting this launcher are not grid cells and are left out, so
+    a 5x3 grid launched from a WT menu window still opens all 15 cells.
     """
     if not IS_WINDOWS:
         return 0
+    own_hwnd = _own_wt_hwnd()
     return sum(1 for hwnd in _enum_wt_hwnds()
-               if not _window_title(hwnd).startswith(APP_TERMINAL_TITLE_PREFIX))
+               if hwnd != own_hwnd
+               and not _window_title(hwnd).startswith(APP_TERMINAL_TITLE_PREFIX))
+
+
+def _own_wt_hwnd():
+    """Return the WT window hosting this process's console (its ConPTY window's root owner), or None."""
+    user32 = _user32()
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetConsoleWindow.restype = ctypes.c_void_p
+    user32.GetAncestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    user32.GetAncestor.restype = ctypes.c_void_p
+    user32.GetClassNameW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+    console_hwnd = kernel32.GetConsoleWindow()
+    if not console_hwnd:
+        return None
+    for hwnd in (console_hwnd, user32.GetAncestor(console_hwnd, _GA_ROOTOWNER)):
+        buf = ctypes.create_unicode_buffer(256)
+        if hwnd and user32.GetClassNameW(hwnd, buf, 256) > 0 and buf.value == WINDOWS_TERMINAL_HOST_CLASS:
+            return hwnd
+    return None
 
 
 def _enum_wt_hwnds():
