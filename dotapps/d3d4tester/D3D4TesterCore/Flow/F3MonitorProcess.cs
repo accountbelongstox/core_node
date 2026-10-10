@@ -25,9 +25,10 @@ public sealed record F3Outcome(F3Exit Exit, string ReasonId = "", string Detail 
 
 /// <summary>
 /// [F3] D3 and ROSBOT run: one loop until something needs the flow again. Each poll: queued restart request, ROSBOT-only restart
-/// request, log disconnect, D3 gone, ROSBOT log timeout (F3LogTimeout), ROSBOT offline grace. ROSBOT's "WARN - Disconnected" is
-/// ROSBOT losing its own server (api.bad-ros.com), not D3: while D3 runs and does not show its disconnected screen only ROSBOT is
-/// restarted (D3 kept); a full D3 + ROSBOT restart needs D3 itself disconnected. D3 + ROSBOT refresh silently every
+/// request, log session timeout, D3 gone, ROSBOT log timeout (F3LogTimeout), ROSBOT offline grace. ROSBOT's "WARN - Disconnected" is
+/// an exception in its own server check that ROSBOT handles while it keeps botting: the log analyzer only prints it (restarting ROSBOT
+/// mid-run made it leave the game). A session timeout with D3 fine restarts ROSBOT only (D3 kept); a full D3 + ROSBOT restart needs D3
+/// itself disconnected. D3 + ROSBOT refresh silently every
 /// <see cref="FlowTimings.MonitorRefreshSec"/>; the status line is gray-refreshed in place.
 /// </summary>
 public static class F3MonitorProcess
@@ -71,7 +72,7 @@ public static class F3MonitorProcess
             {
                 if (!D3ShowsFine())
                     return new F3Outcome(F3Exit.Restart, RosbotRestartRequest.ReasonLogDisconnect, CountRestart: true);
-                ColorPrinter.Yellow($"{LogTag} ROSBOT logged a disconnect but D3 is fine -> restart ROSBOT only");
+                ColorPrinter.Yellow($"{LogTag} ROSBOT logged a session timeout but D3 is fine -> restart ROSBOT only");
                 return new F3Outcome(F3Exit.RosbotRestart, RosbotRestartRequest.ReasonLogDisconnect);
             }
             var s = game.GetStateSnapshot();

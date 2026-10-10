@@ -181,6 +181,8 @@ public partial class MonitorPage : UserControl
         LblRosbotKeyNew.Text = T(I18nKeys.MonitorRosbotKeyNewKey);
         BtnRosbotKeyAdd.Content = T(I18nKeys.MonitorRosbotKeyAdd);
         BtnRosbotKeyApply.Content = T(I18nKeys.MonitorRosbotKeyApplyNow);
+        BtnRosbotKeyOpenIni.Content = T(I18nKeys.MonitorRosbotKeyOpenIni);
+        BtnRosbotKeyOpenDir.Content = T(I18nKeys.MonitorRosbotKeyOpenDir);
         TxtRosbotKeyHint.Text = T(I18nKeys.MonitorRosbotKeyHint);
         ReloadRosbotKeys();
         TabTriggers.Header = T(I18nKeys.MonitorTriggersTitle);
@@ -532,9 +534,9 @@ public partial class MonitorPage : UserControl
             ? string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyActiveItem), RosbotKeyService.Mask(k))
             : RosbotKeyService.Mask(k)).ToList();
         LstRosbotKeys.SelectedIndex = selected >= 0 && selected < keys.Count ? selected : active;
-        TxtRosbotKeyIni.Text = RosbotKeyService.IniPath is { } ini
-            ? string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyIniPath), ini)
-            : T(I18nKeys.MonitorRosbotKeyNoRosDir);
+        TxtRosbotKeyCurrent.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyCurrent),
+            RosbotKeyService.CurrentKey is { } current ? RosbotKeyService.Mask(current) : T(I18nKeys.MonitorRosbotKeyCurrentNone));
+        TxtRosbotKeyIni.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyIniPath), RosbotKeyService.IniPath);
         TxtRosbotKeyIni.ToolTip = TxtRosbotKeyIni.Text;
         TxtRosbotKeyStatus.Text = RosbotKeyService.LastApply is { } last
             ? string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyLastApply),
@@ -584,6 +586,13 @@ public partial class MonitorPage : UserControl
             MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (answer == MessageBoxResult.Yes) RosbotKeyService.RestartRosbotWithActiveKey();
     }
+
+    private void BtnRosbotKeyOpenIni_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ShellOpen.OpenFile(RosbotKeyService.IniPath)) ShellOpen.OpenDir(RosbotKeyService.IniDirectory);
+    }
+
+    private void BtnRosbotKeyOpenDir_Click(object sender, RoutedEventArgs e) => ShellOpen.OpenDir(RosbotKeyService.IniDirectory);
 
     private void LstRosbotKeys_MouseDoubleClick(object sender, MouseButtonEventArgs e) => BtnRosbotKeyActive_Click(sender, e);
 

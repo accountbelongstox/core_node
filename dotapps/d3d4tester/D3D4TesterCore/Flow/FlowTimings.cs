@@ -10,6 +10,12 @@ public static class FlowTimings
     /// <summary>[D] launch failed: next attempt after this (Battle.net is never restarted for it).</summary>
     public const double D3LaunchRetrySec = 20.0;
 
+    /// <summary>[F1] D3 process running without a visible window yet: wait this long for its window before treating D3 as missing.</summary>
+    public const double D3WindowWaitSec = 60.0;
+
+    /// <summary>[F1] status refresh interval while waiting for the D3 window.</summary>
+    public const double D3WindowPollSec = 2.0;
+
     /// <summary>[E] ROSBOT start failed: next attempt after this.</summary>
     public const double RosbotStartRetrySec = 20.0;
 

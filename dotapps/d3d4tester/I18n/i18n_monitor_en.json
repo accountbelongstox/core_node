@@ -279,7 +279,7 @@
       },
       "rosbot_key": {
         "tab": "ROSBOT Key",
-        "write_before_start": "Give ROSBOT the active key (RoS-BoT.ini before start, the KEY dialog when ROSBOT asks)",
+        "write_before_start": "Give ROSBOT the active key (Documents\\RoS-BoT\\RosBotGlobalSettings.ini before start, the KEY dialog when ROSBOT asks)",
         "keys": "Keys",
         "new_key": "New key",
         "add": "Add",
@@ -288,16 +288,19 @@
         "apply_now": "Write to ini now",
         "active_item": "{0}  (active)",
         "ini_path": "ini: {0}",
-        "no_ros_dir": "ROSBOT folder not set",
+        "current": "In use (Documents): {0}",
+        "current_none": "none",
+        "open_ini": "Open config file",
+        "open_dir": "Open config folder",
         "add_failed": "The key is empty or already in the list.",
         "restart_ask": "ROSBOT is running with another key. Close ROSBOT and start it again with the active key now? (D3 keeps running)",
-        "hint": "Keys are stored encrypted. When ROSBOT asks for a key (\"Please, enter a key\") the active key is filled in and OK is pressed, without the keyboard; ROSBOT then saves it in RoS-BoT.ini. Before every start an existing RoS-BoT.ini gets the active key as Key=.",
+        "hint": "Keys are stored encrypted. When ROSBOT asks for a key (\"Please, enter a key\") the active key is filled in and OK is pressed, without the keyboard; ROSBOT then saves it in Documents\\RoS-BoT\\RosBotGlobalSettings.ini. Before every start that file gets the active key as Key=.",
         "last_apply": "Last write {0}: {1}",
         "result_unchanged": "already up to date",
         "result_replaced": "key updated",
         "result_inserted": "key added",
-        "result_file_missing": "RoS-BoT.ini not created yet (ROSBOT saves it once the key is accepted)",
-        "result_no_anchor": "no ROSBOT settings section found in RoS-BoT.ini",
+        "result_file_missing": "RosBotGlobalSettings.ini not created yet (ROSBOT saves it once the key is accepted)",
+        "result_no_anchor": "no ROSBOT settings section found in RosBotGlobalSettings.ini",
         "result_not_written": "not written (see the monitor log)"
       }
     }
