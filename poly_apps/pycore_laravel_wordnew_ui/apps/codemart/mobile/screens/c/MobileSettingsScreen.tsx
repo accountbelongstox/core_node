@@ -78,16 +78,18 @@ const MobileSettingsScreen: React.FC = () => {
         title={t('settings.password.title')}
         footer={<MobileButton variant="primary" block loading={password.busy} disabled={password.invalid} onClick={() => void savePassword()}>{password.busy ? t('common.saving') : t('settings.password.submit')}</MobileButton>}
       >
-        <MobileField label={t('settings.password.current')}>
-          <MobilePasswordInput value={password.current} onChange={(event) => password.setCurrent(event.target.value)} autoComplete="current-password" />
-        </MobileField>
-        <MobileField label={t('settings.password.next')} error={password.tooShort && t('publicAuth.errors.passwordLength', { min: password.passwordMin })}>
-          <MobilePasswordInput value={password.next} onChange={(event) => password.setNext(event.target.value)} autoComplete="new-password" aria-invalid={password.tooShort} />
-        </MobileField>
-        <MobileField label={t('settings.password.confirm')} error={password.mismatch && t('publicAuth.errors.passwordMismatch')}>
-          <MobilePasswordInput value={password.confirm} onChange={(event) => password.setConfirm(event.target.value)} autoComplete="new-password" aria-invalid={password.mismatch} />
-        </MobileField>
-        {notice}
+        <div className="cmmc-form">
+          <MobileField label={t('settings.password.current')}>
+            <MobilePasswordInput value={password.current} onChange={(event) => password.setCurrent(event.target.value)} autoComplete="current-password" />
+          </MobileField>
+          <MobileField label={t('settings.password.next')} error={password.tooShort && t('publicAuth.errors.passwordLength', { min: password.passwordMin })}>
+            <MobilePasswordInput value={password.next} onChange={(event) => password.setNext(event.target.value)} autoComplete="new-password" aria-invalid={password.tooShort} />
+          </MobileField>
+          <MobileField label={t('settings.password.confirm')} error={password.mismatch && t('publicAuth.errors.passwordMismatch')}>
+            <MobilePasswordInput value={password.confirm} onChange={(event) => password.setConfirm(event.target.value)} autoComplete="new-password" aria-invalid={password.mismatch} />
+          </MobileField>
+          {notice}
+        </div>
       </MobileSheet>
       <AvatarSheet open={avatarOpen} onClose={() => setAvatarOpen(false)} />
       <EmailChangeSheet open={emailOpen} onClose={() => setEmailOpen(false)} />
