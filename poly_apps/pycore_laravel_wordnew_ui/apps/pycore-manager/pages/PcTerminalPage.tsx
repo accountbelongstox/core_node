@@ -3280,6 +3280,7 @@ const PcTerminalNodeView: React.FC<{
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {quickRun.dialog}
