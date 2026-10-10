@@ -997,6 +997,8 @@
       "build_loading": "Loading the build...",
       "build_load_failed": "Build not loaded: {0}",
       "build_loaded": "{0} ({1}), {2} items",
+      "build_duplicate": "Not added: all {0} gear set(s) are already listed (same skills, runes, passives, gear, Kanai's Cube and follower)",
+      "build_duplicates_skipped": "{0} duplicate gear set(s) left out",
       "build_none": "Paste a maxroll d3planner link",
       "build_profile": "Gear set",
       "build_notify": "Drop / pickup alert",

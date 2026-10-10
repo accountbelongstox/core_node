@@ -415,6 +415,10 @@ terminal: {
         permission: 'Clipboard access was denied by the browser.',
         unsupported: 'This browser cannot read the clipboard.',
       },
+      liveScreenshot: {
+        action: 'Pull a live screenshot of this terminal window into the message',
+        failed: 'The live terminal screenshot could not be captured.',
+      },
       errors: {
         missing: 'No image was received.',
         tooLarge: 'The image is larger than {{max}} MiB.',

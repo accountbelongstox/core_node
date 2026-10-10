@@ -135,6 +135,8 @@ import type {
 
 const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
+const LIVE_SCREENSHOT_TIMEOUT_MS = 15_000;
+const HTTP_STATUS_OK = 200;
 /** How long a restored terminal selection keeps waiting for its window to show up in a snapshot. */
 const SESSION_RESTORE_GRACE_MS = 15_000;
 const INPUT_SLOT_PANEL = 'panel';
@@ -145,6 +147,11 @@ const TILE_ASPECT_RATIO = 4 / 3;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
 const MOBILE_JUMP_GAP_PX = 8;
+/** CSS variables carrying the pinned node-tabs bar and node-title bar heights, so the bars below stack under them. */
+const STICKY_TABS_HEIGHT_VAR = '--pc-terminal-tabs-h';
+const STICKY_HEAD_HEIGHT_VAR = '--pc-terminal-head-h';
+const STICKY_HEAD_TOP = `var(${STICKY_TABS_HEIGHT_VAR}, 0px)`;
+const STICKY_JUMP_BAR_TOP = `calc(var(${STICKY_TABS_HEIGHT_VAR}, 0px) + var(${STICKY_HEAD_HEIGHT_VAR}, 0px))`;
 /** Jump-bar label: titles longer than head + tail characters show head…tail. */
 const SHORT_TITLE_HEAD_CHARS = 5;
 const SHORT_TITLE_TAIL_CHARS = 5;
@@ -330,6 +337,22 @@ function jumpBarLevelFor(count: number, widthPx: number): (typeof JUMP_BAR_LEVEL
     const columns = Math.max(1, Math.floor((widthPx + JUMP_BAR_GAP_PX) / (level.minWidthPx + JUMP_BAR_GAP_PX)));
     return Math.ceil(count / columns) <= JUMP_BAR_MAX_ROWS;
   }) ?? JUMP_BAR_LEVELS[JUMP_BAR_LEVELS.length - 1];
+}
+
+/** Live offsetHeight of the element given to the returned callback ref, for stacking sticky bars. */
+function useMeasuredHeight(): [(node: HTMLElement | null) => void, number] {
+  const [height, setHeight] = useState(0);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((node: HTMLElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!node) return;
+    const observer = new ResizeObserver(() => setHeight(node.offsetHeight));
+    observer.observe(node);
+    observerRef.current = observer;
+    setHeight(node.offsetHeight);
+  }, []);
+  return [ref, height];
 }
 
 function terminalDraftKey(terminalNumber: number): string {
@@ -659,6 +682,7 @@ const PcTerminalNodeView: React.FC<{
   const [removingTerminals, setRemovingTerminals] = useState(false);
   const mobileListRef = useRef<HTMLDivElement | null>(null);
   const mobileJumpBarRef = useRef<HTMLDivElement | null>(null);
+  const [headBarRef, headBarHeight] = useMeasuredHeight();
   const jumpGridObserverRef = useRef<ResizeObserver | null>(null);
   const [jumpGridWidth, setJumpGridWidth] = useState(0);
   const jumpGridRef = useCallback((node: HTMLDivElement | null) => {
@@ -1889,6 +1913,18 @@ const PcTerminalNodeView: React.FC<{
     void sendInput(undefined, options.clear, options.force);
   }, [sendInput, takeSendOnce]);
 
+  const pullLiveScreenshot = useCallback(async (): Promise<File | null> => {
+    if (!selectedWindow) return null;
+    const result = await terminalApi.getTerminalLiveScreenshot(selectedWindow.id, LIVE_SCREENSHOT_TIMEOUT_MS);
+    if (result.status !== HTTP_STATUS_OK || !result.bytes?.length) return null;
+    const bytes = result.bytes;
+    const webp = String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP';
+    const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    return new File([bytes], `terminal-${selectedWindow.terminal_number}-${stamp}.${webp ? 'webp' : 'jpg'}`, {
+      type: webp ? 'image/webp' : 'image/jpeg',
+    });
+  }, [selectedWindow, terminalApi]);
+
   // The draft (with its uploaded attachments) becomes an unsent history entry; nothing is typed into the terminal.
   const saveDraftToHistory = useCallback(async () => {
     if (!selectedWindow) return;
@@ -2207,6 +2243,7 @@ const PcTerminalNodeView: React.FC<{
           onRestored: handleInputRestored,
           onSnapshot: handleInputSnapshot,
         }}
+        pullScreenshot={selectedWindow && !selectedWindow.virtual && selectedWindow.online ? pullLiveScreenshot : undefined}
       />
       {/* One compact panel: keys, commands and choice answers; send lives in the composer toolbar. */}
       <div className="space-y-1.5 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
@@ -2487,8 +2524,9 @@ const PcTerminalNodeView: React.FC<{
     setJumpTitleVisible(true);
     const card = mobileListRef.current?.querySelector<HTMLElement>(`[data-terminal-number="${terminalNumber}"]`);
     if (!card) return;
-    const barHeight = mobileJumpBarRef.current?.offsetHeight ?? 0;
-    card.style.scrollMarginTop = `${barHeight + MOBILE_JUMP_GAP_PX}px`;
+    const bar = mobileJumpBarRef.current;
+    const pinnedHeight = bar ? (Number.parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight : 0;
+    card.style.scrollMarginTop = `${pinnedHeight + MOBILE_JUMP_GAP_PX}px`;
     card.scrollIntoView({ block: 'start' });
   };
 
@@ -2499,7 +2537,8 @@ const PcTerminalNodeView: React.FC<{
     return (
     <div
       ref={mobileJumpBarRef}
-      className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
+      style={{ top: STICKY_JUMP_BAR_TOP }}
+      className="sticky z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
     >
       {jumpTitleVisible && selectedWindow && (
         <p className="mb-1.5 flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -2696,8 +2735,15 @@ const PcTerminalNodeView: React.FC<{
     <PcTerminalNavActionsProvider value={navActions}>
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
-        <section className="pc-glass overflow-clip">
-          <div className="px-3 py-1.5 border-b border-slate-500/10 sm:px-4">
+        <section
+          className="pc-glass overflow-clip"
+          style={{ [STICKY_HEAD_HEIGHT_VAR]: `${headBarHeight}px` } as React.CSSProperties}
+        >
+          <div
+            ref={headBarRef}
+            style={{ top: STICKY_HEAD_TOP }}
+            className="sticky z-30 px-3 py-1.5 border-b border-slate-500/10 bg-white/95 sm:px-4 dark:bg-slate-950/95"
+          >
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               <div className="min-w-0 max-w-full">
                 <h2 className="break-all text-xs font-bold leading-tight text-slate-800 dark:text-slate-100">
@@ -3218,10 +3264,14 @@ const PcTerminalPage: React.FC = () => {
     if (!hit.offline) selectNode(hit.node.url);
   }, [selectNode]);
   const clearSentPick = useCallback(() => setSentPick(null), []);
+  const [tabsBarRef, tabsBarHeight] = useMeasuredHeight();
 
   return (
-    <>
-      <div className="flex items-center gap-2 px-3 pt-2 sm:px-6 md:px-8">
+    <div style={{ [STICKY_TABS_HEIGHT_VAR]: `${tabsBarHeight}px` } as React.CSSProperties}>
+      <div
+        ref={tabsBarRef}
+        className="sticky top-0 z-40 flex items-center gap-2 bg-white/95 px-3 py-2 sm:px-6 md:px-8 dark:bg-slate-950/95"
+      >
         <div className="min-w-0 max-w-[50%] shrink-0">
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
@@ -3240,7 +3290,7 @@ const PcTerminalPage: React.FC = () => {
           <PcTerminalNodeView nodeUrl={nodeUrl} sentPick={sentPick} onSentPickApplied={clearSentPick} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
-    </>
+    </div>
   );
 };
 

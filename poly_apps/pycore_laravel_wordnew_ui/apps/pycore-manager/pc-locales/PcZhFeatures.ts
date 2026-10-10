@@ -415,6 +415,10 @@ terminal: {
         permission: '浏览器拒绝了剪贴板访问。',
         unsupported: '此浏览器无法读取剪贴板。',
       },
+      liveScreenshot: {
+        action: '一键拉取此终端窗口的实时截图到消息中',
+        failed: '无法获取终端实时截图。',
+      },
       errors: {
         missing: '没有收到图片。',
         tooLarge: '图片超过 {{max}} MiB。',
