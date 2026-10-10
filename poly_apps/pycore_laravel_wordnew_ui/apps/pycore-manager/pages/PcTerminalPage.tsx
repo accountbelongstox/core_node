@@ -71,6 +71,8 @@ import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminal
 import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdown } from '@/apps/pycore-manager/components/terminal/PcTerminalStatusMarks';
 import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
+import { agentDoneOpenRequest, ingestAgentDone, terminalName } from '@/apps/pycore-manager/components/terminal/terminalAgentDoneNotices';
+import { listTerminalTabNodes } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import PcPycoreRestartButton from '@/apps/pycore-manager/components/PcPycoreRestartButton';
 import { getPycoreProbe, getPycoreTarget, pycoreNodeClient, subscribePycoreProbes } from '@/apps/pycore-manager/api';
 import { usePcTerminalFrames } from '@/apps/pycore-manager/components/terminal/usePcTerminalFrames';
@@ -309,10 +311,6 @@ interface NormalizedImagePoint {
 }
 
 const PREVIEW_HISTORY_KEY = 'pcTerminalPreview';
-
-function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string {
-  return windowInfo.custom_title || windowInfo.short_title || windowInfo.title || windowInfo.app || fallback;
-}
 
 function terminalShortTitle(windowInfo: TerminalWindowInfo): string {
   const characters = Array.from((windowInfo.custom_title || windowInfo.short_title || windowInfo.title || windowInfo.app || '').trim());
@@ -1643,10 +1641,6 @@ const PcTerminalNodeView: React.FC<{
   }, [closePreview, previewOpen, previewWindow, snapshot]);
 
   const hasLocalDraft = (terminalNumber: number) => Boolean(drafts[terminalDraftKey(terminalNumber)]?.trim());
-  const agentToastName = useCallback(
-    (windowInfo: TerminalWindowInfo) => terminalName(windowInfo, t('terminal.untitled')),
-    [t],
-  );
   const { acknowledge } = terminalWatch;
   const selectedFinishedAt = selectedWindow?.agent_activity?.finished_at ?? null;
   useEffect(() => {
@@ -1678,6 +1672,29 @@ const PcTerminalNodeView: React.FC<{
     (terminalNumber: number) => Boolean(snapshotRef.current?.windows.some((windowInfo) => windowInfo.terminal_number === terminalNumber)),
     [],
   );
+
+  // The shown node feeds the merged agent-done notices of every node tab.
+  useEffect(() => {
+    if (!snapshot?.success) return;
+    const thisMachine = t('terminal.nodes.thisMachine');
+    const tabNode = listTerminalTabNodes(nodeUrl, thisMachine).find((node) => node.url === nodeUrl);
+    ingestAgentDone({
+      nodeUrl,
+      nodeLabel: tabNode?.label || nodeUrl || thisMachine,
+      os: tabNode?.os ?? 'unknown',
+      untitled: t('terminal.untitled'),
+      localDate: terminalWatch.localDate,
+    }, snapshot.windows);
+  }, [nodeUrl, snapshot, t, terminalWatch.localDate]);
+
+  // A clicked notice of this node opens its terminal once the snapshot lists it.
+  const openRequest = agentDoneOpenRequest.use();
+  useEffect(() => {
+    if (!openRequest || openRequest.nodeUrl !== nodeUrl || !snapshot) return;
+    if (!snapshot.windows.some((windowInfo) => windowInfo.terminal_number === openRequest.terminalNumber)) return;
+    agentDoneOpenRequest.set(null);
+    openTerminal(openRequest.terminalNumber);
+  }, [nodeUrl, openRequest, openTerminal, snapshot]);
   const navigateBack = useCallback(() => {
     const target = navHistory.back(terminalExists);
     if (target !== null) openTerminal(target);
@@ -3100,7 +3117,6 @@ const PcTerminalNodeView: React.FC<{
 
 
       <PcTerminalSpecialStates terminalNames={terminalNames} />
-      <PcTerminalAgentDoneToasts windows={snapshot?.windows ?? []} nameFor={agentToastName} onOpen={openTerminal} />
 
       <PcMachineSendDock
         tabs={[{
@@ -3349,6 +3365,7 @@ const PcTerminalPage: React.FC = () => {
           <PcTerminalNodeView nodeUrl={nodeUrl} sentPick={sentPick} onSentPickApplied={clearSentPick} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
+      <PcTerminalAgentDoneToasts activeUrl={nodeUrl} onSelectNode={selectNode} />
     </div>
   );
 };
