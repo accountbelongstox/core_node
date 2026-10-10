@@ -120,6 +120,7 @@ public sealed class DynamicMethodAcquirer
     private void CaptureMethod(ModuleHandle moduleHandle, MethodDefinition method, DynamicCompilationMode mode)
     {
         CilMethodBody originalBody = method.CilMethodBody!;
+        Exception? captureException = null;
         _currentMethod = method;
         _bestCandidateBody = null;
         _bestCandidateScore = long.MinValue;
@@ -137,16 +138,17 @@ public sealed class DynamicMethodAcquirer
             {
                 NativeJitHook.CompileMethod(moduleHandle.ResolveUnboxedMethod(method));
             }
-
-            foreach (CapturedMethodData candidate in _capturedCandidates)
-                ProcessCandidate(candidate);
-            if (_captureSucceeded && _bestCandidateBody != null)
-                method.CilMethodBody = _bestCandidateBody;
         }
         catch (Exception exception)
         {
-            RecordFailure(method.MetadataToken.ToString(), exception.Message);
+            captureException = exception;
         }
+        foreach (CapturedMethodData candidate in _capturedCandidates)
+            ProcessCandidate(candidate);
+        if (_captureSucceeded && _bestCandidateBody != null)
+            method.CilMethodBody = _bestCandidateBody;
+        else if (captureException != null)
+            RecordFailure(method.MetadataToken.ToString(), captureException.Message);
     }
 
     private static void CompilationCallback(ref JitCaptureInfo captureInfo)

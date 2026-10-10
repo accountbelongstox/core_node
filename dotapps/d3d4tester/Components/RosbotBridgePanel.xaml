@@ -104,6 +104,7 @@
           <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
             <CheckBox x:Name="ChkFollowPickup" VerticalAlignment="Center" Margin="0,0,8,4"/>
             <CheckBox x:Name="ChkFollowRevive" IsChecked="True" VerticalAlignment="Center" Margin="0,0,8,4"/>
+            <CheckBox x:Name="ChkFollowAssist" VerticalAlignment="Center" Margin="0,0,8,4"/>
           </WrapPanel>
           <TextBlock x:Name="TxtFollowState" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,4"/>
           <ListBox x:Name="LstPlayers" MinHeight="60"/>

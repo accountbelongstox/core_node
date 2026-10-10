@@ -1228,7 +1228,8 @@
         "banner": "点战旗中",
         "off": "未跟随",
         "dead": "已死亡",
-        "town_tasks": "城里换装中"
+        "town_tasks": "城里换装中",
+        "fighting": "战斗中"
       },
       "item_name": {
         "healthpotion_bottomless": "治疗药水",
@@ -1243,6 +1244,8 @@
       "follow_target_slot": "队伍第 {0} 人",
       "follow_revive": "自动复活",
       "follow_revive_tip": "跟随中死亡：先等 8 秒让队友复活（队友复活无需点击），之后依次点在尸体处复活、检查点复活、城里复活。",
+      "follow_assist": "只跟随并战斗",
+      "follow_assist_tip": "只跟随所选队员并辅助战斗：插件扣住 ROSBOT（不回城、不自己跑图、不和跟随抢移动），由插件走位；所选队员周围 40 码内有怪时贴近最优目标（精英/首领优先，离队员不超过 35 码），并自动开关战斗宏放技能（需先配置战斗宏）。",
       "take_control": "操作游戏时自动暂停监控和 ROSBOT（跟随、NPC、分解等）",
       "plugin_not_running": "未发送：插件未运行（请启动 ROSBOT 并启用 CoreNode Bridge）"
     },

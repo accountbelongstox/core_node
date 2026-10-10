@@ -33,11 +33,11 @@ internal sealed class CommandResult
 /// go_npc (target = exact actor name: walk the path ROSBOT computes for it, waypoint by waypoint, stop when stuck, then interact at
 /// the NPC's position and report whether a vendor window opened),
 /// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
-/// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1" with mode nearest / selected /
-/// leader / slot, or "off"; FollowMode), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
+/// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1,assist 0/1" with mode nearest /
+/// selected / leader / slot, or "off"; FollowMode; assist = follow only and fight, ROSBOT kept held), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
 /// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts), standby (value = on / off: TownStandby, ends
 /// follow mode; follow on ends standby), hold (value = on / off: PulseHold keeps ROSBOT's bot thread so ROSBOT runs no task while the
-/// API stays live; off also ends town standby), skills_check (value = maxroll skill set: SkillCheck). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
+/// API stays live; off also ends town standby and assist follow), skills_check (value = maxroll skill set: SkillCheck). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -308,7 +308,7 @@ internal sealed class BridgeCommands
                         _standby.Stop();
                         _follow.Start(Part(0), uint.TryParse(target, out uint selected) ? selected : 0u,
                             int.TryParse(Part(1), out int slot) ? slot : 0, int.TryParse(Part(2), out int banner) ? banner : 0, Part(3) == FollowPickupOn,
-                            Part(4) == FollowPickupOn);
+                            Part(4) == FollowPickupOn, Part(5) == FollowPickupOn);
                     }
                     result.Ok = true;
                     result.Message = "follow " + (_follow.Enabled ? "on" : "off");
@@ -319,6 +319,7 @@ internal sealed class BridgeCommands
                     bool on = !(cmd.TryGetValue("value", out var hold) && hold == HoldOff);
                     _hold.Set(on);
                     if (!on) _standby.Stop();
+                    if (!on && _follow.Assist) _follow.Stop();
                     result.Ok = !on || _hold.Requested;
                     result.Message = "hold " + _hold.State;
                     return result;

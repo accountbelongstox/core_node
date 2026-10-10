@@ -392,6 +392,14 @@ public static class RosbotBridgePluginService
         return value.Length > 0 && value != RosbotPluginConstants.BridgeFollowOff;
     }
 
+    /// <summary>True when a follow value asks for follow only and fight (assist flag set).</summary>
+    public static bool FollowAssist(string value)
+    {
+        var parts = value.Split(RosbotPluginConstants.BridgeFollowValueSeparator);
+        return parts.Length > RosbotPluginConstants.BridgeFollowAssistIndex
+               && parts[RosbotPluginConstants.BridgeFollowAssistIndex].Trim() == RosbotPluginConstants.BridgeFollowFlagOn;
+    }
+
     /// <summary>Write the pickup filter for the plugin (pickup_filter.txt: auto line + one name fragment per line).</summary>
     public static bool SavePickupFilter(bool autoAtRiftEnd, IEnumerable<string> patterns)
     {
