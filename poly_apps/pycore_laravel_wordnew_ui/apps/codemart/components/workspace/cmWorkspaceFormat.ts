@@ -159,3 +159,15 @@ export function useCmFormat(): CmFormatters {
     dateTime: (value) => cmFormatDateTime(value, language),
   }), [language]);
 }
+
+/** Whether a file name carries an extension on the server allow list; an empty list (policy not loaded) allows everything. */
+export function cmFileTypeAllowed(fileName: string, allowedTypes: string[]): boolean {
+  if (allowedTypes.length === 0) return true;
+  const dot = fileName.lastIndexOf('.');
+  return dot >= 0 && allowedTypes.includes(fileName.slice(dot + 1).toLowerCase());
+}
+
+/** `accept` attribute value for a file input from the server allow list (undefined = no restriction). */
+export function cmFileAccept(allowedTypes: string[]): string | undefined {
+  return allowedTypes.length > 0 ? allowedTypes.map((type) => `.${type}`).join(',') : undefined;
+}

@@ -121,6 +121,7 @@ export type CmBootstrapPolicy = {
   wallet_top_up_max_amount?: number;
   max_attachment_size_kb?: number;
   max_kyc_image_size_kb?: number;
+  allowed_document_types?: string[];
   app_default_min_os?: Record<string, string>;
   [key: string]: unknown;
 } & Partial<Record<CmPolicyListKey, string[]>>;
