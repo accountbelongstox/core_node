@@ -20,6 +20,8 @@ import { useCmIdempotencyKey } from '../api/useCmIdempotencyKey';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPaymentCreateCard } from '../components/workspace/CmPaymentCreateCard';
+import { CmPaymentDetailPanel } from '../components/workspace/CmPaymentDetailPanel';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
@@ -282,6 +284,22 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
     apply();
   };
 
+  const checkDepositStatus = async (depositId: number): Promise<void> => {
+    notice.clear();
+    const response = await cmApi.getDepositStatus(depositId);
+    if (!response.success || !response.data) {
+      notice.error(cmErrorMessage(t, response, 'wallet.depositStatus.failed'));
+      return;
+    }
+    const fresh = response.data;
+    setHistory((current) => current.map((item) => (item.id === depositId
+      ? { ...item, status: fresh.status, admin_notes: fresh.admin_notes, paid_at: fresh.paid_at, payment_url: fresh.payment_url }
+      : item)));
+    const statusLabel = t(`states.deposit.${fresh.status}`, { defaultValue: t(`admin.states.deposit.${fresh.status}`, { defaultValue: fresh.status }) });
+    notice.info(t('wallet.depositStatus.result', { id: depositId, status: statusLabel }));
+    if (fresh.status !== PENDING_STATUS) await onChanged();
+  };
+
   if (loading) return <CmLoadingState compact />;
   if (loadError || !info) return <CmErrorState compact message={loadError ?? t('wallet.depositLoadFailed')} onRetry={() => { setLoading(true); void load(); }} />;
 
@@ -401,6 +419,11 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
                         {t('wallet.bank.show')}
                       </button>
                     )}
+                    {deposit.status === PENDING_STATUS && (
+                      <button type="button" className="cm-workspace-button is-small" onClick={() => void checkDepositStatus(deposit.id)}>
+                        {t('wallet.depositStatus.check')}
+                      </button>
+                    )}
                     {deposit.status === PENDING_STATUS && deposit.payment_method !== BANK_TRANSFER && depositMethods.includes(deposit.payment_method) && deposit.payment_url && (
                       <a className="cm-workspace-button is-small is-primary" href={deposit.payment_url} target="_blank" rel="noreferrer">{t('wallet.payNow')}</a>
                     )}
@@ -415,7 +438,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
   );
 };
 
-const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
+const CmPaymentsTab: React.FC<{ userId: number | null; onChanged: () => Promise<void> }> = ({ userId, onChanged }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const idempotency = useCmIdempotencyKey();
@@ -426,6 +449,12 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
   const [refundPaymentId, setRefundPaymentId] = useState<number | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
+
+  const paymentCreated = async (): Promise<void> => {
+    await list.reload();
+    await onChanged();
+  };
 
   const openRefund = (paymentId: number | null): void => {
     idempotency.reset();
@@ -463,6 +492,7 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
   return (
     <>
       <p className="cm-section-card__lead">{t('wallet.paymentsLead')}</p>
+      <CmPaymentCreateCard onCreated={paymentCreated} />
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
       <CmListBody list={list} emptyKey="wallet.noPayments">
         <table className="cm-table">
@@ -489,6 +519,9 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
                   <td>{format.date(payment.created_at) || t('common.unavailable')}</td>
                   <td>
                     <div className="cm-table-actions">
+                      <button type="button" className="cm-workspace-button is-small" aria-pressed={detailId === payment.id} onClick={() => setDetailId(detailId === payment.id ? null : payment.id)}>
+                        {t('wallet.paymentDetail.open')}
+                      </button>
                       {isPayee && (
                         <button type="button" className="cm-workspace-button is-small" disabled={busy} onClick={() => void createInvoice(payment.id)}>
                           {t('wallet.createInvoice')}
@@ -513,6 +546,7 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
           </tbody>
         </table>
       </CmListBody>
+      {detailId !== null && <CmPaymentDetailPanel paymentId={detailId} onClose={() => setDetailId(null)} />}
     </>
   );
 };
@@ -856,7 +890,7 @@ export const CmWalletPage: React.FC = () => {
       <section className="cm-section-card cm-wallet-panel" role="tabpanel">
         {activeTab === 'transactions' && <CmTransactionsTab currency={wallet?.currency ?? bootstrap?.vocabulary.policy.currency ?? null} />}
         {activeTab === 'deposits' && <CmDepositsTab onChanged={onChanged} />}
-        {activeTab === 'payments' && <CmPaymentsTab userId={bootstrap?.user.id ?? null} />}
+        {activeTab === 'payments' && <CmPaymentsTab userId={bootstrap?.user.id ?? null} onChanged={onChanged} />}
         {activeTab === 'invoices' && <CmInvoicesTab />}
         {activeTab === 'refunds' && <CmRefundsTab />}
         {activeTab === 'withdrawals' && canWithdraw && <CmWithdrawalsTab wallet={wallet} onChanged={onChanged} />}

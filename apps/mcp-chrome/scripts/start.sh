@@ -26,6 +26,8 @@ MCP_SERVICE_USER=""
 MCP_SERVICE_EXEC=""
 MCP_SERVICE_SESSION_ENV=""
 MCP_SERVICE_MANAGER=""
+MCP_ENSURE=0
+MCP_SOURCES_CURRENT=0
 MCP_ARG=""
 MCP_DEV_PID=""
 MCP_SUPERVISOR_PID=""
@@ -77,6 +79,7 @@ for MCP_ARG in "$@"; do
         --service) MCP_SERVICE_CHOICE="yes" ;;
         --no-service) MCP_SERVICE_CHOICE="no" ;;
         --uninstall-service) MCP_SERVICE_ACTION="uninstall" ;;
+        --ensure) MCP_ENSURE=1; MCP_SERVICE_CHOICE="yes" ;;
     esac
 done
 
@@ -174,6 +177,34 @@ if [ "$MCP_SERVICE_ACTION" = "uninstall" ]; then
     exit 0
 fi
 
+# Build steps run only when the inputs changed since the last successful build.
+mcp_build_step() {
+    if [ "$MCP_SOURCES_CURRENT" -eq 1 ]; then
+        return 0
+    fi
+    "$@"
+}
+
+# --ensure (AI launchers, unattended): an installed unit owns the build and hot reload,
+# so it is only started when inactive; without one this run installs it like --service
+# and compiles only when the sources changed since the last build.
+if [ "$MCP_ENSURE" -eq 1 ]; then
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] && mcp_service_installed; then
+        if systemctl is-active --quiet "$MCP_SERVICE_NAME"; then
+            echo -e "${GREEN}  Background service $MCP_SERVICE_NAME is running with hot reload; nothing to build.${NC}"
+        else
+            mcp_service_run_as_root 'systemctl start "$1"' "$MCP_SERVICE_NAME"
+            echo -e "${GREEN}  Background service $MCP_SERVICE_NAME was stopped; started it (hot reload rebuilds changed sources).${NC}"
+        fi
+        exit 0
+    fi
+    export DD_AUTO_CONTINUE="${DD_AUTO_CONTINUE:-true}"
+fi
+
+if [ "$("$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/build_orchestrator.py" --source-stamp status 2>/dev/null)" = "current" ]; then
+    MCP_SOURCES_CURRENT=1
+fi
+
 echo -e "\n${CYAN}========================================${NC}"
 echo -e "${CYAN}  Chrome MCP Server - Linux/macOS${NC}"
 echo -e "${CYAN}========================================\n${NC}"
@@ -214,7 +245,7 @@ fi
 
 # The service's watcher writes the same build folder: pause it for this build;
 # convergence starts it again afterwards.
-if [ "$MCP_SERVICE_MODE" = "converge" ] && systemctl is-active --quiet "$MCP_SERVICE_NAME"; then
+if [ "$MCP_SERVICE_MODE" = "converge" ] && [ "$MCP_SOURCES_CURRENT" -eq 0 ] && systemctl is-active --quiet "$MCP_SERVICE_NAME"; then
     echo -e "${CYAN}  Pausing $MCP_SERVICE_NAME during the build...${NC}"
     mcp_service_run_as_root 'systemctl stop "$1"' "$MCP_SERVICE_NAME"
 fi
@@ -476,8 +507,10 @@ if [ -z "$mcp_step2" ]; then
 fi
 echo -e "${YELLOW}[2/6] $mcp_step2${NC}"
 
-echo -e "${CYAN}  Installing dependencies...${NC}"
-bun install
+if [ "$MCP_SOURCES_CURRENT" -eq 1 ]; then
+    echo -e "${GREEN}  Sources unchanged since the last build; dependency install and compile skipped.${NC}"
+fi
+mcp_build_step bun install
 echo -e "${GREEN}  [OK] Dependency state aligned${NC}"
 
 # Step 3: Build Shared package
@@ -489,7 +522,7 @@ fi
 echo -e "${YELLOW}[3/6] $mcp_step3${NC}"
 
 echo -e "${CYAN}  Building chrome-mcp-shared...${NC}"
-bun run build:shared
+mcp_build_step bun run build:shared
 
 mcp_shared_path=$(mcp_get_var "$VAR_KEY_SHARED_PATH")
 if [ -d "$mcp_shared_path" ]; then
@@ -505,7 +538,7 @@ fi
 echo -e "${YELLOW}[4/6] $mcp_step4${NC}"
 
 echo -e "${CYAN}  Building mcp-chrome-bridge...${NC}"
-bun run build:native
+mcp_build_step bun run build:native
 
 mcp_native_path=$(mcp_get_var "$VAR_KEY_NATIVE_PATH")
 mcp_run_host_sh="$mcp_native_path/run_host.sh"
@@ -551,7 +584,7 @@ MCP_BUILD_OUTPUT_DIR=$(mcp_get_var "$VAR_KEY_BUILD_OUTPUT_DIR")
 # Create build directory with proper permissions before building
 mcp_create_build_dir_with_permissions "$MCP_BUILD_OUTPUT_DIR"
 
-bun run build:extension
+mcp_build_step bun run build:extension
 
 mcp_extension_path=$(mcp_get_var "$VAR_KEY_EXTENSION_PATH")
 if [ -z "$mcp_extension_path" ]; then
@@ -562,6 +595,9 @@ fi
 mcp_manifest_json="$mcp_extension_path/manifest.json"
 if [ -f "$mcp_manifest_json" ]; then
     echo -e "${GREEN}  [OK] Chrome Extension built successfully${NC}"
+    if [ "$MCP_SOURCES_CURRENT" -eq 0 ]; then
+        "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/build_orchestrator.py" --source-stamp write >/dev/null
+    fi
     # Fix permissions after successful build
     mcp_fix_build_permissions "$MCP_BUILD_OUTPUT_DIR"
 else

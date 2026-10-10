@@ -6,7 +6,7 @@
 #   -> pnpm upgrade prompt [y/N] -> model selection [1-4] (default 1, 5s timeout)
 #   -> kimi provider catalog add kimi-for-coding (non-interactive provider setup)
 #   -> config.toml default_permission_mode = "auto" (no approve prompts)
-#   -> Chrome MCP install prompt [Y/n] (skipped when already installed)
+#   -> Chrome MCP service ensure (idempotent) + MCP config registration
 #   -> launch kimi --auto.
 # Secrets: KIMI_API_KEY_2 (required),
 #   KIMI_BASE_URL_2 (optional --base-url override).
@@ -37,41 +37,19 @@ $permissionFound = $false
 $configLines = @()
 $configLineIndex = 0
 $utf8Encoding = $null
-$mcpChromePath = $null
-$mcpChromeNodeModulesPath = $null
-$mcpChromeSharedArtifactPath = $null
-$mcpChromeNativeArtifactPath = $null
-$mcpChromeExtensionManifestPath = $null
-$mcpChromeRegisterScriptPath = $null
-$mcpChromeEnsureWinBinScriptPath = $null
-$mcpChromeSupervisorScriptPath = $null
-$mcpChromeNeedsDependencies = $false
-$mcpChromeNeedsBuild = $false
-$mcpChromeInstalled = $false
-$mcpChromeSetup = $false
-$mcpChromeJustInstalled = $false
 $mcpChromeHost = $null
 $mcpChromeUrl = $null
 $mcpChromePort = 0
-$mcpChromePortReady = $false
-$mcpChromePortWaitCount = 0
-$mcpChromePython = $null
-$mcpChromeSupervisorArgs = @()
-$existingMcpJsonText = ""
 $mcpConfig = $null
 $mcpServersProperty = $null
 $mcpServers = $null
 $chromeMcpConfig = $null
 $chromeMcpProperty = $null
 $mcpJson = $null
-$previousLocation = $null
 $modelPick = $null
 $modelDeadline = $null
 $modelKey = $null
-$mcpInstallChoice = $null
-$pnpmCommand = $null
 $aiCliProvisionCommonScript = $null
-$nodeCommand = $null
 $kimiCommand = $null
 $kimiModel = "k3-256k"
 $kimiModelLabel = "kimi k3 256K"
@@ -95,28 +73,9 @@ $serviceContractScript = Join-Path $winCommonDirPath "ServiceContract.ps1"
 . $serviceContractScript
 Set-CoreNodePaths
 
-$mcpChromePath = Join-Path $coreNodePath "apps"
-$mcpChromePath = Join-Path $mcpChromePath "mcp-chrome"
-$mcpChromeNodeModulesPath = Join-Path $mcpChromePath "node_modules"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromePath "packages"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "shared"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "dist"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "index.js"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromePath "app"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "native-server"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "dist"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "index.js"
-$mcpChromeExtensionManifestPath = Join-Path $mcpChromePath ".output"
-$mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "build_extension"
-$mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "manifest.json"
-$mcpChromeRegisterScriptPath = Join-Path $mcpChromePath "scripts"
-$mcpChromeEnsureWinBinScriptPath = Join-Path $mcpChromeRegisterScriptPath "ensure_win_bin.ps1"
-$mcpChromeSupervisorScriptPath = Join-Path $mcpChromeRegisterScriptPath "service_supervisor.py"
-$mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 $mcpChromeHost = Get-ServiceContractHost -Name "loopback"
 $mcpChromePort = Get-ServiceContractPort -Name "mcp_chrome"
 $mcpChromeUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpChromeHost -Port $mcpChromePort -Path "mcp"
-$mcpChromePython = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
 
 # Isolated per-slot user profile: D:\.tmp\Users\Kimi2
 $kimiUserDirPath = Join-Path $kimiUserBaseDirPath "Kimi2"
@@ -186,8 +145,6 @@ $kimiCommand = Get-Command kimi -ErrorAction SilentlyContinue
 if ($null -eq $kimiCommand) {
     throw "kimi is not available on PATH."
 }
-$pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 
 # Shared launcher helpers (scripts/shells/win/win_common/AiCliProvisionCommon.ps1):
 # masked secret display, and the version check + optional upgrade, which prompts
@@ -277,120 +234,40 @@ if (Test-Path -LiteralPath $kimiConfigTomlPath) {
 }
 Write-Host "[INFO] Permission mode: auto (Never Ask; approve prompts disabled) in $kimiConfigTomlPath" -ForegroundColor Green
 
-# Chrome MCP (apps/mcp-chrome): skip silently when already installed,
-# otherwise offer install [Y/n] (default Y); first install builds artifacts.
-$mcpChromeNeedsDependencies = -not (Test-Path -LiteralPath $mcpChromeNodeModulesPath)
-$mcpChromeNeedsBuild = (-not (Test-Path -LiteralPath $mcpChromeSharedArtifactPath)) -or
-    (-not (Test-Path -LiteralPath $mcpChromeNativeArtifactPath)) -or
-    (-not (Test-Path -LiteralPath $mcpChromeExtensionManifestPath))
-$mcpChromeInstalled = $false
-if ((Test-Path -LiteralPath $kimiMcpConfigPath) -and (-not $mcpChromeNeedsBuild)) {
-    $existingMcpJsonText = [System.IO.File]::ReadAllText($kimiMcpConfigPath)
-    if ($existingMcpJsonText -match '"chrome"') {
-        $mcpChromeInstalled = $true
-    }
-}
-if ($mcpChromeInstalled) {
-    Write-Host "[INFO] Chrome MCP already installed; skipping install prompt." -ForegroundColor Green
-    $mcpChromeSetup = $true
+# Chrome MCP (apps/mcp-chrome): idempotent background service, then slot MCP registration.
+Invoke-AiCliChromeServiceEnsure
+
+if (Test-Path -LiteralPath $kimiMcpConfigPath) {
+    $mcpConfig = Get-Content -Raw -LiteralPath $kimiMcpConfigPath | ConvertFrom-Json
 } else {
-    Write-Host "Install Chrome MCP (apps/mcp-chrome)? [Y/n]: " -ForegroundColor Yellow -NoNewline
-    $mcpInstallChoice = Read-Host
-    if ([string]::IsNullOrWhiteSpace($mcpInstallChoice) -or ($mcpInstallChoice -eq "y") -or ($mcpInstallChoice -eq "Y")) {
-        if ($null -eq $nodeCommand) {
-            throw "node is required to install Chrome MCP."
-        }
-        if (($mcpChromeNeedsDependencies -or $mcpChromeNeedsBuild) -and ($null -eq $pnpmCommand)) {
-            throw "pnpm is required to install Chrome MCP."
-        }
-        Write-Host "[INFO] Ensuring Chrome MCP is installed..." -ForegroundColor Cyan
-        $previousLocation = Get-Location
-        try {
-            Set-Location -LiteralPath $mcpChromePath
-            if ($mcpChromeNeedsDependencies) {
-                Write-Host "[INFO] Installing Chrome MCP dependencies..." -ForegroundColor Cyan
-                & $pnpmCommand.Source install
-            }
-            if ($mcpChromeNeedsBuild) {
-                & $mcpChromeEnsureWinBinScriptPath -WorkspaceRoot $mcpChromePath
-                Write-Host "[INFO] Building missing Chrome MCP artifacts..." -ForegroundColor Cyan
-                & $pnpmCommand.Source run build:all
-            }
-            & $nodeCommand.Source $mcpChromeRegisterScriptPath
-        } finally {
-            Set-Location -LiteralPath $previousLocation
-        }
-        $mcpChromeSetup = $true
-        $mcpChromeJustInstalled = $true
-    } else {
-        Write-Host "[INFO] Chrome MCP install skipped." -ForegroundColor DarkGray
-    }
+    $mcpConfig = [PSCustomObject]@{}
 }
-
-if ($mcpChromeSetup) {
-    if (Test-Path -LiteralPath $kimiMcpConfigPath) {
-        $mcpConfig = Get-Content -Raw -LiteralPath $kimiMcpConfigPath | ConvertFrom-Json
-    } else {
-        $mcpConfig = [PSCustomObject]@{}
-    }
-    if ($null -eq $mcpConfig) {
-        $mcpConfig = [PSCustomObject]@{}
-    }
-    $mcpServersProperty = $mcpConfig.PSObject.Properties["mcpServers"]
-    if ($null -eq $mcpServersProperty) {
-        $mcpServers = [PSCustomObject]@{}
-        $mcpConfig | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value $mcpServers
-    } elseif ($null -eq $mcpServersProperty.Value) {
-        $mcpServers = [PSCustomObject]@{}
-        $mcpServersProperty.Value = $mcpServers
-    } else {
-        $mcpServers = $mcpServersProperty.Value
-    }
-    $chromeMcpConfig = [PSCustomObject]@{
-        url = $mcpChromeUrl
-    }
-    $chromeMcpProperty = $mcpServers.PSObject.Properties["chrome"]
-    if ($null -eq $chromeMcpProperty) {
-        $mcpServers | Add-Member -MemberType NoteProperty -Name "chrome" -Value $chromeMcpConfig
-    } else {
-        $chromeMcpProperty.Value = $chromeMcpConfig
-    }
-    $mcpJson = $mcpConfig | ConvertTo-Json -Depth 20
-    [System.IO.File]::WriteAllText($kimiMcpConfigPath, $mcpJson, $utf8Encoding)
-    Write-Host "[INFO] Chrome MCP registered in Kimi Code: $kimiMcpConfigPath" -ForegroundColor Green
-
-    if ($mcpChromeJustInstalled) {
-        $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
-        if ($mcpChromeNeedsBuild -or -not $mcpChromePortReady) {
-            $mcpChromeSupervisorArgs = @(
-                $mcpChromeSupervisorScriptPath,
-                "--project-root", $mcpChromePath,
-                "--watch-mode", "dev",
-                "--recover-on-start"
-            )
-        } else {
-            $mcpChromeSupervisorArgs = @(
-                $mcpChromeSupervisorScriptPath,
-                "--project-root", $mcpChromePath,
-                "--watch-mode", "dev"
-            )
-        }
-        Write-Host "[INFO] Starting Chrome MCP development service..." -ForegroundColor Cyan
-        Start-Process -FilePath $mcpChromePython -ArgumentList $mcpChromeSupervisorArgs -WindowStyle Hidden
-        while (-not $mcpChromePortReady -and $mcpChromePortWaitCount -lt 60) {
-            Start-Sleep -Milliseconds 500
-            $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
-            $mcpChromePortWaitCount = $mcpChromePortWaitCount + 1
-        }
-        if ($mcpChromePortReady) {
-            Write-Host ("[INFO] Chrome MCP is listening on {0}:{1}." -f $mcpChromeHost, $mcpChromePort) -ForegroundColor Green
-        } else {
-            Write-Host "[WARN] Chrome MCP did not become ready; reload the unpacked extension once." -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "[INFO] Chrome MCP already installed; skipping supervisor start." -ForegroundColor DarkGray
-    }
+if ($null -eq $mcpConfig) {
+    $mcpConfig = [PSCustomObject]@{}
 }
+$mcpServersProperty = $mcpConfig.PSObject.Properties["mcpServers"]
+if ($null -eq $mcpServersProperty) {
+    $mcpServers = [PSCustomObject]@{}
+    $mcpConfig | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value $mcpServers
+} elseif ($null -eq $mcpServersProperty.Value) {
+    $mcpServers = [PSCustomObject]@{}
+    $mcpServersProperty.Value = $mcpServers
+} else {
+    $mcpServers = $mcpServersProperty.Value
+}
+$chromeMcpConfig = [PSCustomObject]@{
+    url = $mcpChromeUrl
+}
+$chromeMcpProperty = $mcpServers.PSObject.Properties["chrome"]
+if ($null -eq $chromeMcpProperty) {
+    $mcpServers | Add-Member -MemberType NoteProperty -Name "chrome" -Value $chromeMcpConfig
+} else {
+    $chromeMcpProperty.Value = $chromeMcpConfig
+}
+$mcpJson = $mcpConfig | ConvertTo-Json -Depth 20
+[System.IO.File]::WriteAllText($kimiMcpConfigPath, $mcpJson, $utf8Encoding)
+Write-Host "[INFO] Chrome MCP registered in Kimi Code: $kimiMcpConfigPath" -ForegroundColor Green
+
 
 $displayArgs = if ($args.Count -gt 0) {
     [string]::Format("; extra args: {0}", ($args -join " "))

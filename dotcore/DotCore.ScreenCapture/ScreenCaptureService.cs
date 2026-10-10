@@ -192,6 +192,31 @@ public sealed class ScreenCaptureService
     }
 
     private const int ActivationSettleMs = 500;
+    private const int ForegroundRetries = 3;
+    private const int ForegroundRetryMs = 150;
+
+    /// <summary>
+    /// Idempotent: make hwnd the foreground window only when it is not already (no-op, no settle wait otherwise). Windows refuses
+    /// SetForegroundWindow from a process that did not get the last input; a synthetic Alt tap counts as input and lifts that lock,
+    /// so each retry taps Alt, raises and foregrounds the window. True when it is the foreground window afterwards.
+    /// </summary>
+    public static bool EnsureForeground(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd)) return false;
+        if (NativeMethods.GetForegroundWindow() == hwnd) return true;
+        if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+        for (int i = 0; i < ForegroundRetries; i++)
+        {
+            NativeMethods.keybd_event(NativeMethods.VK_MENU, 0, 0, UIntPtr.Zero);
+            NativeMethods.keybd_event(NativeMethods.VK_MENU, 0, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            NativeMethods.BringWindowToTop(hwnd);
+            NativeMethods.SetForegroundWindow(hwnd);
+            Thread.Sleep(ForegroundRetryMs);
+            if (NativeMethods.GetForegroundWindow() == hwnd) return true;
+        }
+        ColorPrinter.Yellow($"[WARN] Window not foreground after {ForegroundRetries} attempts (handle: {hwnd})");
+        return false;
+    }
 
     private ScreenshotData? CaptureNativeRegion(IReadOnlyList<string>? titles, ScreenCaptureOptions options)
     {
