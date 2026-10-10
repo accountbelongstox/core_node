@@ -171,13 +171,9 @@ public sealed class DynamicMethodAssemblyMerger
         if (operand is ITypeDefOrRef type)
             return ImportType(type, targetModule, importer);
         if (operand is IMethodDescriptor method)
-            return method is MethodDefinition methodDefinition
-                ? targetModule.LookupMember(methodDefinition.MetadataToken)
-                : importer.ImportMethod(method);
+            return ImportMethod(method, targetModule, importer);
         if (operand is IFieldDescriptor field)
-            return field is FieldDefinition fieldDefinition
-                ? targetModule.LookupMember(fieldDefinition.MetadataToken)
-                : importer.ImportField(field);
+            return ImportField(field, targetModule, importer);
         if (operand is IMetadataMember metadataMember)
             return targetModule.LookupMember(metadataMember.MetadataToken);
         return operand;
@@ -186,9 +182,46 @@ public sealed class DynamicMethodAssemblyMerger
     private static ITypeDefOrRef ImportType(ITypeDefOrRef type, ModuleDefinition targetModule,
         ReferenceImporter importer)
     {
-        return type is TypeDefinition definition
-            ? (ITypeDefOrRef)targetModule.LookupMember(definition.MetadataToken)
-            : importer.ImportType(type);
+        if (type is TypeDefinition definition)
+            return (ITypeDefOrRef)targetModule.LookupMember(definition.MetadataToken);
+        try
+        {
+            return importer.ImportType(type);
+        }
+        catch when (type is IMetadataMember metadataMember)
+        {
+            return (ITypeDefOrRef)targetModule.LookupMember(metadataMember.MetadataToken);
+        }
+    }
+
+    private static IMethodDescriptor ImportMethod(IMethodDescriptor method, ModuleDefinition targetModule,
+        ReferenceImporter importer)
+    {
+        if (method is MethodDefinition definition)
+            return (IMethodDescriptor)targetModule.LookupMember(definition.MetadataToken);
+        try
+        {
+            return importer.ImportMethod(method);
+        }
+        catch when (method is IMetadataMember metadataMember)
+        {
+            return (IMethodDescriptor)targetModule.LookupMember(metadataMember.MetadataToken);
+        }
+    }
+
+    private static IFieldDescriptor ImportField(IFieldDescriptor field, ModuleDefinition targetModule,
+        ReferenceImporter importer)
+    {
+        if (field is FieldDefinition definition)
+            return (IFieldDescriptor)targetModule.LookupMember(definition.MetadataToken);
+        try
+        {
+            return importer.ImportField(field);
+        }
+        catch when (field is IMetadataMember metadataMember)
+        {
+            return (IFieldDescriptor)targetModule.LookupMember(metadataMember.MetadataToken);
+        }
     }
 
     private static ICilLabel? CloneLabel(ICilLabel? label,
