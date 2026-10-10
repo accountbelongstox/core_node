@@ -1,0 +1,68 @@
+import { defineMobileLocale } from './defineMobileLocale';
+
+export const cmMobileShell = defineMobileLocale(
+  {
+    tabs: {
+      home: 'Home',
+      projects: 'Projects',
+      marketplace: 'Market',
+      tasks: 'Tasks',
+      reviews: 'Reviews',
+      wallet: 'Wallet',
+      notifications: 'Alerts',
+      me: 'Me',
+      welcome: 'Welcome',
+      showcase: 'Showcase',
+    },
+    shell: {
+      menu: 'Menu',
+      openMenu: 'Open menu',
+      closeMenu: 'Close menu',
+      back: 'Back',
+      tabs: 'Main navigation',
+      rolesTitle: 'Your roles',
+      preferences: 'Settings',
+      useWebVersion: 'Use the web version',
+      version: 'Version {{version}}',
+    },
+    ui: {
+      close: 'Close',
+      pager: 'Pages',
+      pullToRefresh: 'Pull to refresh',
+      releaseToRefresh: 'Release to refresh',
+      refreshing: 'Refreshing...',
+    },
+  },
+  {
+    tabs: {
+      home: '首页',
+      projects: '项目',
+      marketplace: '任务市场',
+      tasks: '任务',
+      reviews: '评审',
+      wallet: '钱包',
+      notifications: '消息',
+      me: '我的',
+      welcome: '欢迎',
+      showcase: '案例',
+    },
+    shell: {
+      menu: '菜单',
+      openMenu: '打开菜单',
+      closeMenu: '关闭菜单',
+      back: '返回',
+      tabs: '主导航',
+      rolesTitle: '你的角色',
+      preferences: '设置',
+      useWebVersion: '使用网页版界面',
+      version: '版本 {{version}}',
+    },
+    ui: {
+      close: '关闭',
+      pager: '分页',
+      pullToRefresh: '下拉刷新',
+      releaseToRefresh: '松开刷新',
+      refreshing: '正在刷新…',
+    },
+  },
+);
