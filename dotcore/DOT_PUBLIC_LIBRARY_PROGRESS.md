@@ -60,6 +60,7 @@ Sub-app library of d3d4tester: `dotapps/d3d4tester/D3D4TesterCore/` (namespace `
 | image_tools/image_annotator | `Utils.ImagePreprocess/ImageAnnotate` |
 | BGR color tables / InRange | `Utils.ImageColor/BgrColorMatch`, `ImageColorService` |
 | d4_black_screen_detector brightness stats | `Utils.ImageColor/BgrColorMatch` |
+| scripts/analysis/d4_minimap_path (minimap route dots → waypoints, heading) | `MinimapPath/MinimapRouteRecognizer`, `MinimapRoiFinder`, `RouteDotExtractor`, `RoutePathTracer`, `MinimapRouteAnnotator`, `MinimapRouteOptions`, `MinimapRouteResult` |
 | d3utils/screenshot_provider | `ScreenCapture/ScreenCaptureService`, `ScreenCaptureOptions`, `ScreenshotData` |
 | image_tools/image_matcher, image_matcher_registry | `TemplateMatcher/ImageMatcher`, `ImageMatcherRegistry`, `FeatureMatcherService`, `TemplateMatchMethod` |
 | share/scaled_template_matcher_base | `TemplateMatcher/ScaledTemplateMatcher` |

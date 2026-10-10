@@ -373,6 +373,7 @@ systemBars: {
     title: '主机占用',
     loading: '正在读取占用…',
     unavailable: '无法获取占用',
+    retry: '重试',
     threads: '{{count}} 线程',
     battery: '电量',
     charging: '充电中',

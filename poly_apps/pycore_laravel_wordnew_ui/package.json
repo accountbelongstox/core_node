@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test:codemart:flows": "node apps/codemart/tests/flows.mjs",
-    "test:codemart:crawl": "bun apps/codemart/tests/crawl.mjs"
+    "test:codemart:crawl": "bun apps/codemart/tests/crawl.mjs",
+    "test:codemart:crawl:mobile": "bun apps/codemart/tests/crawl.mjs --mobile"
   },
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.1",

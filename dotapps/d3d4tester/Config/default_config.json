@@ -267,6 +267,29 @@
     "confidence": 0.35,
     "max_steps": 8
   },
+  "d4_agent": {
+    "source": "video",
+    "video_path": "",
+    "video_frame_step": 1,
+    "mode": "observe",
+    "model_path": "",
+    "confidence": 0.4,
+    "target_fps": 8,
+    "low_health_percent": 35,
+    "skill_keys": "1,2,3,4",
+    "skill_min_interval_ms": 400,
+    "potion_key": "q",
+    "potion_cooldown_sec": 10,
+    "menu_close_key": "esc",
+    "pickup_loot": true,
+    "explore": true,
+    "minimap_rotation_deg": 0,
+    "walkable_value_min": 60,
+    "walkable_value_max": 210,
+    "walkable_saturation_max": 45,
+    "debug_frame_every": 0,
+    "max_minutes": 0
+  },
   "ui_analysis": {
     "bag_offset": {
       "left": 0,

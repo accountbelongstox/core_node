@@ -63,9 +63,9 @@ const MobileWalletScreen: React.FC = () => {
             <span><small>{t('wallet.balance')}</small>{format.money(balanceOf('balance'), wallet?.currency ?? currency)}</span>
           </div>
           <div className="cmmc-balance__actions">
-            <MobileButton variant="primary" small icon={<ArrowDownToLine aria-hidden="true" />} onClick={() => setTopUpOpen(true)}>{t('wallet.topUp.title')}</MobileButton>
-            {canWithdraw && <MobileButton small icon={<ArrowUpFromLine aria-hidden="true" />} onClick={openWithdraw}>{t('wallet.requestWithdrawal')}</MobileButton>}
-            {canPay && <MobileButton small icon={<Send aria-hidden="true" />} onClick={() => setPaymentOpen(true)}>{t('wallet.paymentCreate.toggle')}</MobileButton>}
+            <MobileButton variant="primary" small icon={<ArrowDownToLine aria-hidden="true" />} onClick={() => setTopUpOpen(true)}>{t('mobile.c.topUp')}</MobileButton>
+            {canWithdraw && <MobileButton small icon={<ArrowUpFromLine aria-hidden="true" />} onClick={openWithdraw}>{t('mobile.c.withdraw')}</MobileButton>}
+            {canPay && <MobileButton small icon={<Send aria-hidden="true" />} onClick={() => setPaymentOpen(true)}>{t('mobile.c.pay')}</MobileButton>}
           </div>
         </section>
       )}
@@ -75,10 +75,10 @@ const MobileWalletScreen: React.FC = () => {
       <div className="cmmc-panel" role="tabpanel">
         {tab === 'transactions' && <WalletTransactionsPanel currency={currency} refreshToken={refreshToken} />}
         {tab === 'deposits' && <WalletDepositsPanel onChanged={reload} refreshToken={refreshToken} />}
-        {tab === 'payments' && <WalletPaymentsPanel userId={userId} canCreate={canPay} onCreate={() => setPaymentOpen(true)} onOpen={setPaymentId} refreshToken={refreshToken} />}
+        {tab === 'payments' && <WalletPaymentsPanel userId={userId} onOpen={setPaymentId} refreshToken={refreshToken} />}
         {tab === 'invoices' && <WalletInvoicesPanel refreshToken={refreshToken} />}
         {tab === 'refunds' && <WalletRefundsPanel refreshToken={refreshToken} />}
-        {tab === 'withdrawals' && canWithdraw && <WalletWithdrawalsPanel onRequest={() => setWithdrawOpen(true)} refreshToken={refreshToken} />}
+        {tab === 'withdrawals' && canWithdraw && <WalletWithdrawalsPanel refreshToken={refreshToken} />}
       </div>
 
       <WalletTopUpSheet open={topUpOpen} currency={wallet?.currency ?? currency ?? ''} onClose={() => setTopUpOpen(false)} onCreated={changed} />

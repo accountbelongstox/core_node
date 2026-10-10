@@ -89,7 +89,7 @@ export const MobileTaskSheet: React.FC<MobileTaskSheetProps> = ({ taskId, onClos
 
             <section className="cmm-stack-tight">
               <MobileSectionHeader title={t('submissions.title')} />
-              <MobileSubmissionsList taskId={task.id} taskStatus={task.status} canReview={detail.canDecide} onChanged={detail.reload} />
+              <MobileSubmissionsList key={`${task.status}-${(task.submissions ?? []).length}`} taskId={task.id} taskStatus={task.status} canReview={detail.canDecide} onChanged={detail.reload} />
             </section>
 
             <section className="cmm-stack-tight">

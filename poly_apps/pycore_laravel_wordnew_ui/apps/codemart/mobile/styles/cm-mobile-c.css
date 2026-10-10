@@ -1,6 +1,6 @@
 /* CodeMart mobile, work package C: wallet, verification, profile and the admin-lite console. Classes are prefixed cmmc-; colours come from the cmm- tokens. */
 
-.cmmc-pills { display: flex; gap: 8px; margin: 0 calc(var(--cmm-gutter) * -1); padding: 2px var(--cmm-gutter); overflow-x: auto; scrollbar-width: none; }
+.cmmc-pills { position: relative; display: flex; gap: 8px; margin: 0 calc(var(--cmm-gutter) * -1); padding: 2px var(--cmm-gutter); overflow-x: auto; scrollbar-width: none; }
 .cmmc-pills::-webkit-scrollbar { display: none; }
 .cmmc-pills button { flex: none; min-height: 34px; padding: 0 14px; border: 1px solid var(--cmm-border); border-radius: 999px; background: var(--cmm-surface); color: var(--cmm-muted); font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .cmmc-pills button.is-active { border-color: transparent; background: var(--cmm-primary); color: var(--cmm-primary-ink); }
@@ -52,7 +52,7 @@
 
 /* ---- Cards ---- */
 .cmmc-card { display: flex; flex-direction: column; gap: 10px; }
-.cmmc-card__title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+.cmmc-card__title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 650; }
 .cmmc-card__title svg { width: 18px; height: 18px; flex: none; color: var(--cmm-primary); }
 .cmmc-card p { margin: 0; font-size: 13.5px; }
 
@@ -89,6 +89,7 @@
 .cmmc-identity__text small { color: var(--cmm-muted); }
 .cmmc-identity__email { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 0; border: 0; background: none; color: var(--cmm-primary); font-size: 13px; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmmc-identity__email svg { width: 14px; height: 14px; flex: none; }
+.cmmc-identity__email span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cmmc-identity__roles { display: flex; flex-wrap: wrap; grid-column: 1 / -1; gap: 6px; }
 .cmmc-stats { display: flex; gap: 10px; margin: 8px 0; padding: 0; list-style: none; }
 .cmmc-stats li { display: flex; flex: 1; flex-direction: column; padding: 10px 12px; border-radius: 12px; background: var(--cmm-surface-2); }
@@ -102,7 +103,7 @@
 .cmmc-records { display: flex; flex-direction: column; gap: 10px; }
 .cmmc-record { display: flex; flex-direction: column; gap: 8px; }
 .cmmc-record__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.cmmc-record__head h3 { min-width: 0; margin: 0; font-size: 15.5px; overflow-wrap: anywhere; }
+.cmmc-record__head h3 { min-width: 0; margin: 0; font-size: 15.5px; font-weight: 650; overflow-wrap: anywhere; }
 .cmmc-record__note { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--cmm-surface-2); color: var(--cmm-muted); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cmmc-documents { display: flex; flex-direction: column; gap: 8px; }
 .cmmc-document { margin: 0; }

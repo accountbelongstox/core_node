@@ -53,7 +53,7 @@ const MobileProfileScreen: React.FC = () => {
             <strong>{account.displayName || account.username}</strong>
             <small>@{account.username}</small>
             <button type="button" className="cmmc-identity__email" onClick={() => setEmailOpen(true)}>
-              <Mail aria-hidden="true" /> {account.email ?? t('common.unavailable')}
+              <Mail aria-hidden="true" /><span>{account.email ?? t('common.unavailable')}</span>
             </button>
           </div>
           <div className="cmmc-identity__roles" aria-label={t('profile.rolesTitle')}>

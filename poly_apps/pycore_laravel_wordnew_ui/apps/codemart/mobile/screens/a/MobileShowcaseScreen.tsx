@@ -112,7 +112,7 @@ const MobileShowcaseScreen: React.FC = () => {
         lead={t('showcase.lead')}
         icon={<Trophy aria-hidden="true" />}
       />
-      <MobileSegmented
+      <MobileSegmented<CmShowcaseKind>
         ariaLabel={t('showcase.title')}
         value={kind}
         onChange={setKind}

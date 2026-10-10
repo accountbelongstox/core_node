@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DOT-REF: dotcore/DotCore.MinimapPath/MinimapRouteRecognizer.cs
 """Diablo 4 minimap route-path recognition prototype.
 
 Pipeline:
