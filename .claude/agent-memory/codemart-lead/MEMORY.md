@@ -6,3 +6,4 @@
 - [No unrequested checks](feedback-no-unrequested-checks.md) — tsc/route:list/API probes only inside a dispatched task or on user request; on resume report ready and hold
 - [tsc blind to semantic errors](tsc-blind-to-semantic-errors.md) — UI shell tsc needs temp config excluding node_modules.pre_program_drive*
 - [UI tsc skips type errors](ui-tsc-skips-semantic-errors.md) — plain tsc on the UI project only shows .d.cts syntax errors; use a scoped tsconfig (6 s)
+- [UI verification tooling](ui-verification-tooling.md) — tsc is blind here, puppeteer broken (use raw CDP), demo accounts, PG ownership incident
