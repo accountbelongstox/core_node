@@ -829,6 +829,7 @@ terminal: {
       limitUntil: '用量限制：{{time}} 到期后恢复，并询问之前的任务是否完成',
       doneToastTitle: 'AI Agent 已完成',
       doneToastBody: '#{{number}} {{name}}',
+      doneToastClearAll: '清除全部通知',
       plain: '普通终端（已扫描，非 AI Agent）',
       notScanned: '尚未扫描',
       yesPending: '有待点击 Yes 的确认提示',
