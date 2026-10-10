@@ -51,6 +51,7 @@ namespace CoreNode
         const uint OpenExisting = 3;
         const uint BackupSemantics = 0x02000000;
         const uint OpenReparsePoint = 0x00200000;
+        const uint ReadAttributes = 0x00000080;
         const uint ReadControl = 0x00020000;
         const uint WriteDac = 0x00040000;
         const uint WriteOwner = 0x00080000;
@@ -58,12 +59,13 @@ namespace CoreNode
         const uint FullSecurityInfo = 0xF;
         const uint BaseSecurityInfo = 0x7;
         const uint FsctlGetNtfsVolumeData = 0x00090064;
-        const uint FsctlGetNtfsFileRecord = 0x00090068;
+        const uint FsctlGetRetrievalPointers = 0x00090073;
+        const int ErrorMoreData = 234;
+        const int ReadChunk = 4 * 1024 * 1024;
         const uint AttributeSecurityDescriptor = 0x50;
         const uint AttributeEnd = 0xFFFFFFFF;
         const ushort RecordInUse = 0x0001;
         const int SectorSize = 512;
-        const long RecordNumberMask = 0x0000FFFFFFFFFFFF;
 
         [StructLayout(LayoutKind.Sequential)]
         struct FileIdDescriptor { public int Size; public int Type; public long FileId; public long Padding; }
@@ -82,6 +84,12 @@ namespace CoreNode
 
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern bool DeviceIoControl(SafeFileHandle device, uint code, byte[] input, int inputSize, byte[] output, int outputSize, out int returned, IntPtr overlapped);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool SetFilePointerEx(SafeFileHandle file, long distance, out long newPosition, uint method);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool ReadFile(SafeFileHandle file, byte[] buffer, int size, out int read, IntPtr overlapped);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         static extern bool GetKernelObjectSecurity(SafeFileHandle handle, uint info, byte[] descriptor, int length, out int needed);
@@ -154,6 +162,49 @@ namespace CoreNode
             return false;
         }
 
+        static void CheckRecord(byte[] buffer, int offset, int recordSize, long number, HashSet<long> found)
+        {
+            if (buffer[offset] != (byte)'F' || buffer[offset + 1] != (byte)'I' || buffer[offset + 2] != (byte)'L' || buffer[offset + 3] != (byte)'E') return;
+            if ((BitConverter.ToUInt16(buffer, offset + 0x16) & RecordInUse) == 0) return;
+            ApplyFixups(buffer, offset, recordSize);
+            if (!HasNonResidentSecurity(buffer, offset, recordSize)) return;
+            long baseReference = BitConverter.ToInt64(buffer, offset + 0x20);
+            long sequence = BitConverter.ToUInt16(buffer, offset + 0x10);
+            found.Add(baseReference != 0 ? baseReference : ((sequence << 48) | number));
+        }
+
+        static List<long[]> GetMftExtents(SafeFileHandle volume, string drive, long clusterSize)
+        {
+            List<long[]> extents = new List<long[]>();
+            using (SafeFileHandle mft = CreateFile(drive + @"\$MFT", ReadAttributes, ShareAll, IntPtr.Zero, OpenExisting, BackupSemantics, IntPtr.Zero))
+            {
+                if (mft.IsInvalid) throw new Win32Exception();
+                byte[] input = new byte[8];
+                byte[] output = new byte[64 * 1024];
+                long vcn = 0;
+                while (true)
+                {
+                    BitConverter.GetBytes(vcn).CopyTo(input, 0);
+                    int returned;
+                    bool ok = DeviceIoControl(mft, FsctlGetRetrievalPointers, input, 8, output, output.Length, out returned, IntPtr.Zero);
+                    int error = Marshal.GetLastWin32Error();
+                    if (!ok && error != ErrorMoreData) throw new Win32Exception(error);
+                    int count = BitConverter.ToInt32(output, 0);
+                    long previousVcn = BitConverter.ToInt64(output, 8);
+                    for (int index = 0; index < count; index++)
+                    {
+                        long nextVcn = BitConverter.ToInt64(output, 16 + index * 16);
+                        long lcn = BitConverter.ToInt64(output, 24 + index * 16);
+                        extents.Add(new long[] { previousVcn * clusterSize, lcn * clusterSize, (nextVcn - previousVcn) * clusterSize });
+                        previousVcn = nextVcn;
+                    }
+                    if (ok) break;
+                    vcn = previousVcn;
+                }
+            }
+            return extents;
+        }
+
         public static long[] FindNonResidentSecurity(string drive)
         {
             HashSet<long> found = new HashSet<long>();
@@ -162,23 +213,25 @@ namespace CoreNode
                 byte[] volumeData = new byte[128];
                 int returned;
                 if (!DeviceIoControl(volume, FsctlGetNtfsVolumeData, null, 0, volumeData, volumeData.Length, out returned, IntPtr.Zero)) throw new Win32Exception();
+                long clusterSize = BitConverter.ToInt32(volumeData, 44);
                 int recordSize = BitConverter.ToInt32(volumeData, 48);
-                long recordCount = BitConverter.ToInt64(volumeData, 56) / recordSize;
-                byte[] input = new byte[8];
-                byte[] output = new byte[12 + recordSize];
-                for (long number = 0; number < recordCount; number++)
+                long mftLength = BitConverter.ToInt64(volumeData, 56);
+                byte[] buffer = new byte[ReadChunk];
+                foreach (long[] extent in GetMftExtents(volume, drive, clusterSize))
                 {
-                    BitConverter.GetBytes(number).CopyTo(input, 0);
-                    if (!DeviceIoControl(volume, FsctlGetNtfsFileRecord, input, 8, output, output.Length, out returned, IntPtr.Zero)) continue;
-                    if ((BitConverter.ToInt64(output, 0) & RecordNumberMask) != number) continue;
-                    int length = BitConverter.ToInt32(output, 8);
-                    if (length < 0x30 || output[12] != (byte)'F' || output[13] != (byte)'I') continue;
-                    if ((BitConverter.ToUInt16(output, 12 + 0x16) & RecordInUse) == 0) continue;
-                    ApplyFixups(output, 12, length);
-                    if (!HasNonResidentSecurity(output, 12, length)) continue;
-                    long baseReference = BitConverter.ToInt64(output, 12 + 0x20);
-                    long sequence = BitConverter.ToUInt16(output, 12 + 0x10);
-                    found.Add(baseReference != 0 ? baseReference : ((sequence << 48) | number));
+                    if (extent[0] >= mftLength) break;
+                    long length = Math.Min(extent[2], mftLength - extent[0]);
+                    for (long done = 0; done < length; done += ReadChunk)
+                    {
+                        int size = (int)Math.Min(ReadChunk, length - done);
+                        long ignored;
+                        if (!SetFilePointerEx(volume, extent[1] + done, out ignored, 0)) throw new Win32Exception();
+                        if (!ReadFile(volume, buffer, size, out returned, IntPtr.Zero)) throw new Win32Exception();
+                        for (int offset = 0; offset + recordSize <= returned; offset += recordSize)
+                        {
+                            CheckRecord(buffer, offset, recordSize, (extent[0] + done + offset) / recordSize, found);
+                        }
+                    }
                 }
             }
             long[] result = new long[found.Count];
