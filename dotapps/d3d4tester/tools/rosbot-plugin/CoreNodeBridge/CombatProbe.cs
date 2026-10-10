@@ -17,6 +17,8 @@ internal sealed class SkillInfo
 {
     public int Power;
     public string Name = "";
+    /// <summary>ROSBOT's hotbar slot (SkillPosition name: Left, Right, Pos1-Pos4, Potion), "" when unknown.</summary>
+    public string Slot = "";
     public bool Ready;
     public bool OnCooldown;
     public int CooldownMs;
@@ -31,7 +33,8 @@ internal sealed class SkillInfo
 /// readiness from ROSBOT's reads (PowerCooldown / PowerCooldownLeft / HasEnoughResource / HasEnoughCharges / ChargeCount /
 /// IsCastChannel): Ready = off cooldown, enough resource and charges.
 /// attack_test (value "mode,click", default true,true): Interact with the nearest hostile monster within AttackTestRange and report its
-/// hit points before / after AttackTestWaitMs and whether the hero cast, i.e. whether ROSBOT's Interact attacks a monster.
+/// hit points before / after AttackTestWaitMs and whether the hero cast, i.e. whether ROSBOT's Interact attacks a monster; value "cast":
+/// the same with one rotation step of ROSBOT's own cast entry (RosCaster) instead.
 /// power_api: every ROSBOT method taking a power (a parameter of an enum with a value named PowerProbeValue, e.g. PowerId /
 /// SNOPowerId) with its token, declaring type, static flag and signature into power_api.txt (read only, nothing is invoked).
 /// </summary>
@@ -46,10 +49,11 @@ internal sealed class CombatProbe
     private const string PassiveWord = "passive";
     private const string PowerProbeValue = "Walk";
     private const char ValueSeparator = ',';
+    private const string CastTestValue = "cast";
     private const BindingFlags AllMembers = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
     private readonly Stopwatch _sinceList = new();
-    private List<(string Name, int Id)> _active = new();
+    private List<(string Name, int Id, string Slot)> _active = new();
 
     /// <summary>Readiness of the active skills at the last tick.</summary>
     public List<SkillInfo> Skills { get; private set; } = new();
@@ -68,13 +72,14 @@ internal sealed class CombatProbe
             _active = SkillCheck.Powers()
                 .Where(p => p.Name.IndexOf(PassiveWord, StringComparison.OrdinalIgnoreCase) < 0)
                 .Where(p => WorldScanner.Safe(() => LocalPlayer.IsActiveSkill(p.Id), false))
+                .Select(p => (p.Name, p.Id, RosCaster.Slot(p.Id)))
                 .ToList();
         }
         Skills = _active.Select(p =>
         {
             var s = new SkillInfo
             {
-                Power = p.Id, Name = p.Name,
+                Power = p.Id, Name = p.Name, Slot = p.Slot,
                 OnCooldown = WorldScanner.Safe(() => LocalPlayer.PowerCooldown(p.Id), false),
                 CooldownMs = WorldScanner.Safe(() => LocalPlayer.PowerCooldownLeft(p.Id), 0),
                 ResourceOk = WorldScanner.Safe(() => LocalPlayer.HasEnoughResource(p.Id), true),
@@ -86,8 +91,9 @@ internal sealed class CombatProbe
         }).ToList();
     }
 
-    public static CommandResult AttackTest(CommandResult result, string value)
+    public CommandResult AttackTest(CommandResult result, string value)
     {
+        bool cast = string.Equals(value, CastTestValue, StringComparison.OrdinalIgnoreCase);
         var parts = (value ?? "").Split(ValueSeparator);
         bool mode = !(parts.Length > 0 && bool.TryParse(parts[0], out bool m)) || m;
         bool click = !(parts.Length > 1 && bool.TryParse(parts[1], out bool c)) || c;
@@ -102,7 +108,13 @@ internal sealed class CombatProbe
         }
         double before = Hp(monster);
         bool castBefore = WorldScanner.Safe(() => LocalPlayer.IsCasting, false);
-        LocalPlayer.Interact(monster, mode, click, WorldScanner.Safe(() => monster.Position, LocalPlayer.Position));
+        string how = $"mode={mode} click={click}";
+        if (cast)
+        {
+            bool issued = RosCaster.Step(monster, Skills);
+            how = $"cast {(RosCaster.Available ? RosCaster.LastCast : "unavailable (ROSBOT context not found)")} issued={issued}";
+        }
+        else LocalPlayer.Interact(monster, mode, click, WorldScanner.Safe(() => monster.Position, LocalPlayer.Position));
         bool castSeen = false;
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < AttackTestWaitMs)
@@ -112,7 +124,7 @@ internal sealed class CombatProbe
         }
         double after = Hp(monster);
         result.Ok = true;
-        result.Message = $"{WorldScanner.Safe(() => monster.Name, "")} ({WorldScanner.Safe(() => monster.Distance, -1f):0.0}) mode={mode} click={click}: "
+        result.Message = $"{WorldScanner.Safe(() => monster.Name, "")} ({WorldScanner.Safe(() => monster.Distance, -1f):0.0}) {how}: "
                          + $"hp {Pct(before)} -> {Pct(after)}, casting {castBefore} -> {castSeen}, dead {WorldScanner.Safe(() => monster.IsDead, false)}";
         return result;
     }

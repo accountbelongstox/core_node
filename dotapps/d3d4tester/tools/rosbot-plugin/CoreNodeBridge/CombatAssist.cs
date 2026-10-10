@@ -11,7 +11,8 @@ namespace CoreNodeBridge;
 
 /// <summary>
 /// Combat assist, one setting shared by every mode the app controls (the "assist" line every app command carries, or command "assist"):
-/// the plugin cannot cast, so it only finds the fight and positions the hero; the app's combat macro casts while Combat is set.
+/// the plugin finds the fight and positions the hero; it casts with ROSBOT's own cast entry (RosCaster, PluginCast) when found, else
+/// the app's combat macro casts while Combat is set.
 /// Scan: hostile monsters within AssistRange of the followed player (else within ROSBOT's ScanRange, SelfDefenseRange when unknown, of
 /// the hero) set Combat (kept CombatLingerMs after the last one). The target follows ROSBOT's own strategy: the first of ROSBOT's attack
 /// targets (Context.AttackActors, its target selection) inside that area; else the best by ROSBOT's target weights (RosSettings:
@@ -22,6 +23,8 @@ namespace CoreNodeBridge;
 internal sealed class CombatAssist
 {
     public const float LeashDistance = 35f;
+    /// <summary>The plugin casts (RosCaster) only at targets this close.</summary>
+    public const float CastRange = 45f;
     private const float AssistRange = 40f;
     private const float SelfDefenseRange = 20f;
     private const float AttackReach = 12f;
@@ -43,6 +46,15 @@ internal sealed class CombatAssist
     public CombatAssist(Action<string> log) => _log = log;
 
     public bool Enabled { get; private set; }
+
+    /// <summary>Cast with ROSBOT's own cast entry (RosCaster) instead of the app's combat macro; the "cast" line of every command.</summary>
+    public bool PluginCast { get; set; } = true;
+
+    /// <summary>The plugin casts now: setting on and ROSBOT's cast entry found.</summary>
+    public bool CastByPlugin => Enabled && PluginCast && RosCaster.Available;
+
+    /// <summary>Monster fought at the last scan, null when none.</summary>
+    public IActor Current { get; private set; }
 
     /// <summary>Monsters to fight now (kept CombatLingerMs after the last one); the app casts while set.</summary>
     public bool Combat => Enabled && _sinceCombat.IsRunning && _sinceCombat.ElapsedMilliseconds < CombatLingerMs;
@@ -73,6 +85,19 @@ internal sealed class CombatAssist
         _sinceCombat.Reset();
         Target = "";
         Source = "";
+        Current = null;
+        RosCaster.Stop();
+    }
+
+    /// <summary>One cast step at the fought monster (tick thread) while CastByPlugin; releases a channel when the fight is over.</summary>
+    public void Cast(IReadOnlyList<SkillInfo> skills)
+    {
+        if (!Combat || !CastByPlugin || Current is not { } target || !WorldScanner.Safe(() => target.IsValid && !target.IsDead, false))
+        {
+            RosCaster.Stop();
+            return;
+        }
+        if (WorldScanner.Safe(() => target.Distance, float.MaxValue) <= CastRange) RosCaster.Step(target, skills);
     }
 
     /// <summary>Read ROSBOT's attack targets (tick thread only: the state writer never calls ROSBOT's targeting).</summary>
@@ -105,8 +130,10 @@ internal sealed class CombatAssist
         {
             Target = "";
             Source = "";
+            Current = null;
             return null;
         }
+        Current = best;
         _sinceCombat.Restart();
         Target = WorldScanner.Safe(() => best.Name, "") ?? "";
         return best;

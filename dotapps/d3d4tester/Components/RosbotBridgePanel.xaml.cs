@@ -80,6 +80,7 @@ public partial class RosbotBridgePanel : UserControl
                 ConfigBinding.BindCheckBox(ChkAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
                 ConfigBinding.BindCheckBox(ChkTakeControl, ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault);
                 ConfigBinding.BindCheckBox(ChkAssist, ConfigKeys.BridgeAssist, ConfigKeys.BridgeAssistDefault);
+                ConfigBinding.BindCheckBox(ChkPluginCast, ConfigKeys.BridgePluginCast, ConfigKeys.BridgePluginCastDefault);
                 ConfigBinding.BindCheckBox(ChkDebugFull, ConfigKeys.RosbotDebugLevelFull, ConfigKeys.RosbotDebugLevelFullDefault);
                 ConfigBinding.BindTextBox(TxtTownPortalKey, ConfigKeys.BridgeFollowTownPortalKey, ConfigKeys.BridgeFollowTownPortalKeyDefault);
                 var (auto, patterns) = RosbotBridgePluginService.LoadPickupFilter();
@@ -130,6 +131,8 @@ public partial class RosbotBridgePanel : UserControl
         BtnPowerApi.ToolTip = p.GetUiText(I18nKeys.RosbotBridgePowerApiTip);
         BtnAttackTest.Content = p.GetUiText(I18nKeys.RosbotBridgeAttackTest);
         BtnAttackTest.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeAttackTestTip);
+        BtnCastTest.Content = p.GetUiText(I18nKeys.RosbotBridgeCastTest);
+        BtnCastTest.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeCastTestTip);
         ChkDebugFull.Content = p.GetUiText(I18nKeys.RosbotBridgeDebugFull);
         ChkDebugFull.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeDebugFullTip);
         TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);
@@ -165,6 +168,8 @@ public partial class RosbotBridgePanel : UserControl
         ChkTakeControl.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeHoldTip);
         ChkAssist.Content = p.GetUiText(I18nKeys.RosbotBridgeAssist);
         ChkAssist.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeAssistTip);
+        ChkPluginCast.Content = p.GetUiText(I18nKeys.RosbotBridgePluginCast);
+        ChkPluginCast.ToolTip = p.GetUiText(I18nKeys.RosbotBridgePluginCastTip);
         BtnSalvageNormal.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageNormal);
         BtnSalvageMagic.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageMagic);
         BtnSalvageRare.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRare);
@@ -307,7 +312,7 @@ public partial class RosbotBridgePanel : UserControl
 
     /// <summary>Active skills with ROSBOT's readiness: ready, cooldown left, or not enough resource.</summary>
     private static string SkillsText(RosbotBridgeState? s, II18nProvider p) => s == null || s.Skills.Count == 0 ? ""
-        : string.Format(p.GetUiText(I18nKeys.RosbotBridgeSkillsLine), Join(s.Skills.Select(k => $"{k.Name} "
+        : string.Format(p.GetUiText(I18nKeys.RosbotBridgeSkillsLine), Join(s.Skills.Select(k => $"{k.Name}{(k.Slot.Length > 0 ? $" [{k.Slot}]" : "")} "
             + (k.Ready ? p.GetUiText(I18nKeys.RosbotBridgeSkillReady)
                 : k.OnCooldown ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeSkillCooldown), k.CooldownMs / 1000.0)
                 : p.GetUiText(I18nKeys.RosbotBridgeSkillNoResource))
@@ -453,7 +458,10 @@ public partial class RosbotBridgePanel : UserControl
                 s.StandbySinceUtc == default ? "" : string.Format(p.GetUiText(I18nKeys.RosbotBridgeStandbySince), s.StandbySinceUtc.ToLocalTime().ToString(TimeFormat))),
             FollowText(s, p),
             s?.RunningCommand?.Action ?? "",
-            s is { Combat: true } ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeCombatTarget), s.CombatTarget) : "");
+            s is { Combat: true } ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeCombatTarget), s.CombatTarget) : "",
+            s is not { AssistEnabled: true, PluginCast: true } ? ""
+                : !s.RosCastAvailable ? p.GetUiText(I18nKeys.RosbotBridgeCastUnavailable)
+                : s.LastCast.Length > 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeCastState), s.LastCast) : "");
     }
 
     private async void BtnStandby_Click(object sender, RoutedEventArgs e)
@@ -572,6 +580,13 @@ public partial class RosbotBridgePanel : UserControl
     private void BtnPowerApi_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionPowerApi);
 
     private void BtnAttackTest_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionAttackTest);
+
+    private void BtnCastTest_Click(object sender, RoutedEventArgs e) =>
+        Send(RosbotPluginConstants.BridgeActionAttackTest, value: RosbotPluginConstants.BridgeAttackTestCast);
+
+    /// <summary>"Plugin casts" switched: tell the plugin at once (every command carries the setting; the assist command is the cheapest carrier).</summary>
+    private void ChkPluginCast_Click(object sender, RoutedEventArgs e) =>
+        Send(RosbotPluginConstants.BridgeActionAssist, value: RosbotBridgePluginService.AssistEnabled ? RosbotPluginConstants.BridgeAssistOn : RosbotPluginConstants.BridgeAssistOff);
 
     /// <summary>Why there is (no) live data: not installed, ROSBOT not running, running without the plugin loaded, stale, live.</summary>
     private static string FormatDuration(TimeSpan t) =>

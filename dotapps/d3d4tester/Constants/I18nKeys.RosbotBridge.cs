@@ -103,6 +103,12 @@ public static partial class I18nKeys
     public const string RosbotBridgeTabMonsters = "ui.rosbot_bridge.tab_monsters";
     public const string RosbotBridgeScriptScope = "ui.rosbot_bridge.script_scope";
     public const string RosbotBridgeAttackTest = "ui.rosbot_bridge.attack_test";
+    public const string RosbotBridgeCastTest = "ui.rosbot_bridge.cast_test";
+    public const string RosbotBridgeCastTestTip = "ui.rosbot_bridge.cast_test_tip";
+    public const string RosbotBridgePluginCast = "ui.rosbot_bridge.plugin_cast";
+    public const string RosbotBridgePluginCastTip = "ui.rosbot_bridge.plugin_cast_tip";
+    public const string RosbotBridgeCastState = "ui.rosbot_bridge.cast_state";
+    public const string RosbotBridgeCastUnavailable = "ui.rosbot_bridge.cast_unavailable";
     public const string RosbotBridgeAttackTestTip = "ui.rosbot_bridge.attack_test_tip";
     public const string RosbotBridgePowerApi = "ui.rosbot_bridge.power_api";
     public const string RosbotBridgePowerApiTip = "ui.rosbot_bridge.power_api_tip";

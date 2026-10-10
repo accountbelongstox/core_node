@@ -21,11 +21,12 @@ internal static class RosCaster
 {
     private const BindingFlags StaticFields = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
     private const int IntervalMs = 250;
+    private const int SearchRetryMs = 10000;
     private static readonly string[] SlotOrder = { "Pos1", "Pos2", "Pos3", "Pos4", "Right", "Left" };
     private static readonly object Lock = new();
     private static readonly Stopwatch SinceCast = new();
+    private static readonly Stopwatch SinceSearch = new();
     private static IContext _context;
-    private static bool _searched;
     private static bool _channelling;
 
     /// <summary>ROSBOT's hero object, null when the context was not found.</summary>
@@ -35,9 +36,9 @@ internal static class RosCaster
         {
             lock (Lock)
             {
-                if (!_searched)
+                if (_context == null && (!SinceSearch.IsRunning || SinceSearch.ElapsedMilliseconds > SearchRetryMs))
                 {
-                    _searched = true;
+                    SinceSearch.Restart();
                     _context = FindContext();
                 }
             }
