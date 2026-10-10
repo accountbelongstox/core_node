@@ -16,6 +16,28 @@ export interface ClipSpeechHandle {
 }
 
 /**
+ * Play a clip once, device store first (WfNewAudioCache.awaitPlayableClip: the device store, the schedule's
+ * transfers, then the payload file); `fallback` runs when nothing has the clip or it does not play.
+ */
+export function playClipOr(clip: WordNewClipRef, url: string | null | undefined, fallback: () => void): void {
+  let fellBack = false;
+  const fall = (): void => {
+    if (fellBack) return;
+    fellBack = true;
+    fallback();
+  };
+  void awaitPlayableClip(clip, url, CLIP_RESOLVE_WAIT_MS)
+    .then((src) => {
+      if (!src) {
+        fall();
+        return;
+      }
+      void new Audio(src).play().catch(fall);
+    })
+    .catch(fall);
+}
+
+/**
  * One utterance, clip-first: the clip by identity (WfNewAudioCache.awaitPlayableClip), then browser speech of the
  * same text as the last tier. Rate, start / end / error callbacks behave the same on both tiers.
  */

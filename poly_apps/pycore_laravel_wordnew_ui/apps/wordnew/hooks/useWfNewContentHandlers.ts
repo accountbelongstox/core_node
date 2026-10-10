@@ -18,8 +18,8 @@ import { wordNewLearningStatsCenter } from '../services/WordNewLearningStatsCent
 import { wordNewWordGroups } from '../services/WordNewWordGroupCenter';
 import { wordNewCustomWords } from '../services/WordNewCustomWords';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
-import { awaitPlayableClip, wordClip } from '../runtime-store/WfNewAudioCache';
-import { CLIP_RESOLVE_WAIT_MS } from '../constants/uiTiming';
+import { wordClip } from '../runtime-store/WfNewAudioCache';
+import { playClipOr } from '../utils/WordNewClipSpeech';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
 import { wordNewPageHeader, type WordNewTab } from '../routing/WordNewHashRoutes';
@@ -488,15 +488,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   // orchestration clip; speech only plays when nothing has it.
   const playPhoneticSpeech = (word: Word) => {
     const named = word.audioUrl && /^https?:\/\//i.test(word.audioUrl) ? word.audioUrl : null;
-    void awaitPlayableClip(wordClip(word.text, 'en'), named, CLIP_RESOLVE_WAIT_MS)
-      .then((src) => {
-        if (!src) {
-          speakPhoneticFallback(word);
-          return;
-        }
-        void new Audio(src).play().catch(() => speakPhoneticFallback(word));
-      })
-      .catch(() => speakPhoneticFallback(word));
+    playClipOr(wordClip(word.text, 'en'), named, () => speakPhoneticFallback(word));
   };
 
   const selectBookCourse = async (group: WordGroup) => {
