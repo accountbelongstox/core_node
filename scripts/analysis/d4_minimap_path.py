@@ -31,15 +31,27 @@ PARCHMENT_HSV_HI = (40, 200, 255)
 
 # Connected-component area filter (px^2), scaled to minimap size at runtime
 DOT_AREA_MIN_RATIO = 1e-5
-DOT_AREA_MAX_RATIO = 5e-4
+DOT_AREA_MAX_RATIO = 8e-4
 
 # Route dots are white cores ringed by a dark outline; parchment highlights
 # sit on a bright background. Minimum centerV - ringV contrast:
 DOT_OUTLINE_CONTRAST = 60
 DOT_RING_KERNEL = 7
 
-# Bottom strip of the detected ROI holds the compass/UI, not the map
+# Bottom strip of the detected ROI holds the compass/UI, top strip the
+# zone label bar — neither is map
 COMPASS_STRIP_RATIO = 0.15
+LABEL_STRIP_RATIO = 0.08
+
+# Route dots march at near-uniform spacing along the line. Icon glyph
+# fragments cluster tighter than NN_MIN_RATIO*w; unrelated marks sit farther
+# than NN_MAX_RATIO*w from any other dot.
+NN_MIN_RATIO = 0.025
+NN_MAX_RATIO = 0.10
+# Graph link distance for grouping dots into chains (fraction of map width)
+LINK_RATIO = 0.10
+# A real route shows at least this many dots per chain fragment
+MIN_CHAIN_DOTS = 4
 
 # Douglas-Peucker epsilon as a fraction of the path length
 SIMPLIFY_RATIO = 0.02
@@ -99,6 +111,46 @@ def extract_route_dots(minimap):
     if not centers:
         return np.empty((0, 2), dtype=np.int32), mask
     return np.int32(np.array(centers)), mask
+
+
+def keep_route_chains(centers, map_w):
+    """Drop dots that cannot belong to a route: route dots have a neighbor
+    at near-uniform spacing and form chains of >= MIN_CHAIN_DOTS dots."""
+    if len(centers) < MIN_CHAIN_DOTS:
+        return np.empty((0, 2), dtype=np.int32)
+    pts = centers.astype(np.float64)
+    dist = np.sqrt(((pts[:, None, :] - pts[None, :, :]) ** 2).sum(-1))
+    np.fill_diagonal(dist, np.inf)
+    nn = dist.min(axis=1)
+    in_band = (nn >= NN_MIN_RATIO * map_w) & (nn <= NN_MAX_RATIO * map_w)
+
+    # Union-find over dots linked within LINK_RATIO*w, restricted to in-band dots
+    parent = list(range(len(centers)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    linked = np.where(np.isfinite(dist), dist, np.inf) <= LINK_RATIO * map_w
+    for i in range(len(centers)):
+        if not in_band[i]:
+            continue
+        for j in range(i + 1, len(centers)):
+            if in_band[j] and linked[i, j]:
+                pi, pj = find(i), find(j)
+                if pi != pj:
+                    parent[pi] = pj
+
+    groups = {}
+    for i in range(len(centers)):
+        if in_band[i]:
+            groups.setdefault(find(i), []).append(i)
+    keep = [i for g in groups.values() if len(g) >= MIN_CHAIN_DOTS for i in g]
+    if not keep:
+        return np.empty((0, 2), dtype=np.int32)
+    return centers[keep]
 
 
 def chain_dots(centers, start):
@@ -162,25 +214,27 @@ def main():
         if roi is None:
             sys.exit("minimap not found; pass --roi x,y,w,h")
     x, y, w, h = roi
-    map_h = int(h * (1 - COMPASS_STRIP_RATIO))
-    minimap = img[y : y + map_h, x : x + w]
-    roi = (x, y, w, map_h)
-    print(f"minimap roi: x={x} y={y} w={w} h={map_h}")
+    map_y = y + int(h * LABEL_STRIP_RATIO)
+    map_h = int(h * (1 - LABEL_STRIP_RATIO - COMPASS_STRIP_RATIO))
+    minimap = img[map_y : map_y + map_h, x : x + w]
+    roi = (x, map_y, w, map_h)
+    print(f"minimap roi: x={x} y={map_y} w={w} h={map_h}")
 
     centers, mask = extract_route_dots(minimap)
+    centers = keep_route_chains(centers, w)
     print(f"route dots: {len(centers)}")
     if len(centers) == 0:
         cv2.imwrite(opt.out, mask)
-        sys.exit(f"no dots found; mask written to {opt.out}")
+        sys.exit(f"no route found; mask written to {opt.out}")
 
     # Player is at the minimap center in D4; chain from the nearest dot.
-    start = np.array([w // 2, h // 2])
+    start = np.array([w // 2, map_h // 2])
     order = chain_dots(centers, start)
     ordered = centers[order]
     waypoints = simplify(ordered)
     print(f"waypoints: {len(waypoints)}")
     for p in waypoints:
-        print(f"  ({x + p[0]}, {y + p[1]})")
+        print(f"  ({roi[0] + p[0]}, {roi[1] + p[1]})")
     if len(waypoints) >= 2:
         dx, dy = waypoints[1] - waypoints[0]
         heading = math.degrees(math.atan2(-dy, dx))  # 0=east, 90=north
