@@ -1,0 +1,297 @@
+{
+  "reference": [
+    1072,
+    603
+  ],
+  "mode": "HeightCentered",
+  "positions": {
+    "rune/monk/cyclonestrike/a": [
+      229.14,
+      149.41,
+      30.82,
+      11.39
+    ],
+    "rune/monk/cyclonestrike/b": [
+      142.04,
+      150.08,
+      42.88,
+      10.72
+    ],
+    "rune/monk/cyclonestrike/c": [
+      383.24,
+      149.41,
+      24.12,
+      12.06
+    ],
+    "rune/monk/cyclonestrike/d": [
+      62.31,
+      149.41,
+      41.54,
+      11.39
+    ],
+    "rune/monk/cyclonestrike/e": [
+      308.2,
+      150.08,
+      30.82,
+      10.05
+    ],
+    "rune/monk/cyclonestrike/none": [
+      0,
+      148.07,
+      20.1,
+      14.74
+    ],
+    "rune/monk/dashingstrike/b": [
+      62.31,
+      150.08,
+      41.54,
+      10.72
+    ],
+    "rune/monk/dashingstrike/c": [
+      142.71,
+      150.75,
+      40.2,
+      10.05
+    ],
+    "rune/monk/dashingstrike/d": [
+      222.44,
+      149.41,
+      42.88,
+      12.06
+    ],
+    "rune/monk/dashingstrike/e": [
+      303.51,
+      149.41,
+      41.54,
+      12.06
+    ],
+    "rune/monk/dashingstrike/none": [
+      0,
+      148.74,
+      18.76,
+      14.07
+    ],
+    "rune/monk/epiphany/a": [
+      67,
+      150.08,
+      30.82,
+      11.39
+    ],
+    "rune/monk/epiphany/b": [
+      227.8,
+      149.41,
+      32.16,
+      12.06
+    ],
+    "rune/monk/epiphany/c": [
+      307.53,
+      149.41,
+      33.5,
+      12.06
+    ],
+    "rune/monk/epiphany/d": [
+      389.27,
+      150.08,
+      17.42,
+      10.72
+    ],
+    "rune/monk/epiphany/e": [
+      147.4,
+      149.41,
+      30.82,
+      12.06
+    ],
+    "rune/monk/epiphany/none": [
+      0,
+      148.07,
+      20.1,
+      14.74
+    ],
+    "rune/monk/mystically/a": [
+      142.71,
+      150.08,
+      40.2,
+      10.72
+    ],
+    "rune/monk/mystically/b": [
+      62.31,
+      149.41,
+      40.2,
+      11.39
+    ],
+    "rune/monk/mystically/d": [
+      223.11,
+      149.41,
+      40.2,
+      11.39
+    ],
+    "rune/monk/mystically/e": [
+      304.18,
+      150.08,
+      38.86,
+      11.39
+    ],
+    "rune/monk/mystically/none": [
+      0,
+      148.07,
+      20.1,
+      14.74
+    ],
+    "rune/monk/sweepingwind/a": [
+      141.37,
+      149.41,
+      42.88,
+      12.06
+    ],
+    "rune/monk/sweepingwind/b": [
+      223.78,
+      150.08,
+      40.2,
+      10.72
+    ],
+    "rune/monk/sweepingwind/d": [
+      302.84,
+      150.08,
+      41.54,
+      10.72
+    ],
+    "rune/monk/sweepingwind/e": [
+      62.31,
+      149.41,
+      41.54,
+      11.39
+    ],
+    "rune/monk/sweepingwind/none": [
+      0,
+      148.07,
+      20.1,
+      14.74
+    ],
+    "rune/monk/wayofthehundredfists/a": [
+      223.11,
+      150.08,
+      41.54,
+      11.39
+    ],
+    "rune/monk/wayofthehundredfists/b": [
+      62.31,
+      149.41,
+      41.54,
+      11.39
+    ],
+    "rune/monk/wayofthehundredfists/c": [
+      142.71,
+      149.41,
+      40.2,
+      11.39
+    ],
+    "rune/monk/wayofthehundredfists/d": [
+      303.51,
+      150.08,
+      40.2,
+      11.39
+    ],
+    "rune/monk/wayofthehundredfists/none": [
+      0,
+      148.07,
+      20.1,
+      14.74
+    ],
+    "skill/monk/cripplingwave": [
+      228.47,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/cyclonestrike": [
+      67,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/dashingstrike": [
+      107.2,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/deadlyreach": [
+      147.4,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/epiphany": [
+      308.2,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/explodingpalm": [
+      187.6,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/fistsofthunder": [
+      67,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/mystically": [
+      228.47,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/sevensidedstrike": [
+      147.4,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/sweepingwind": [
+      268,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "skill/monk/wayofthehundredfists": [
+      308.2,
+      -16.08,
+      32.16,
+      32.16
+    ],
+    "template/game_menu_return@game_menu": [
+      462.3,
+      534.66,
+      146.06,
+      20.1
+    ],
+    "template/skill_accept@passive_chooser": [
+      412.05,
+      446.89,
+      107.87,
+      18.76
+    ],
+    "template/skill_accept@skill_chooser": [
+      412.05,
+      442.87,
+      107.87,
+      18.76
+    ],
+    "template/skill_page_next@skill_chooser": [
+      739.01,
+      97.82,
+      30.15,
+      28.14
+    ],
+    "template/skill_page_prev@skill_chooser": [
+      302.84,
+      97.82,
+      28.81,
+      28.14
+    ]
+  }
+}
