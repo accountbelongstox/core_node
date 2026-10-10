@@ -111,7 +111,8 @@ public sealed class D3TownNavigator
         return reading;
     }
 
-    private static D3PanelReading Read(Mat frame, IReadOnlyList<YoloDetection> detections)
+    /// <summary>Open panel, detections and OCR enchant lines of a frame detected by any model with the town classes.</summary>
+    public static D3PanelReading Read(Mat frame, IReadOnlyList<YoloDetection> detections)
     {
         var panel = detections.Where(d => D3TownUi.Panels.Contains(d.ClassName)).OrderByDescending(d => d.Confidence).FirstOrDefault()?.ClassName;
         var text = detections.Where(d => d.ClassName == D3TownUi.EnchantText).OrderByDescending(d => d.Confidence).FirstOrDefault();
@@ -276,7 +277,8 @@ public sealed class D3TownNavigator
         return new ModelUse(lease, YoloInferenceProfile.FromInference(inference) with { Confidence = options.Confidence });
     }
 
-    private static Mat? Capture(out (int X, int Y) offset)
+    /// <summary>The D3 game window as a BGR Mat (window brought to front first) and its screen offset; null when no window.</summary>
+    public static Mat? Capture(out (int X, int Y) offset)
     {
         offset = (0, 0);
         var sd = D3Manager.Instance.CaptureGameWindow(activateFirst: true);
