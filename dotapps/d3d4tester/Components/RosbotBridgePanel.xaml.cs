@@ -79,6 +79,7 @@ public partial class RosbotBridgePanel : UserControl
                 ConfigBinding.BindCheckBox(ChkAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
                 ConfigBinding.BindCheckBox(ChkTakeControl, ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault);
                 ConfigBinding.BindCheckBox(ChkAssist, ConfigKeys.BridgeAssist, ConfigKeys.BridgeAssistDefault);
+                ConfigBinding.BindCheckBox(ChkDebugFull, ConfigKeys.RosbotDebugLevelFull, ConfigKeys.RosbotDebugLevelFullDefault);
                 ConfigBinding.BindTextBox(TxtTownPortalKey, ConfigKeys.BridgeFollowTownPortalKey, ConfigKeys.BridgeFollowTownPortalKeyDefault);
                 var (auto, patterns) = RosbotBridgePluginService.LoadPickupFilter();
                 ChkFilterAuto.IsChecked = auto;
@@ -124,6 +125,8 @@ public partial class RosbotBridgePanel : UserControl
         BtnClickUi.Content = p.GetUiText(I18nKeys.RosbotBridgeClickUi);
         BtnScriptScope.Content = p.GetUiText(I18nKeys.RosbotBridgeScriptScope);
         BtnScriptScope.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeScriptScopeTip);
+        ChkDebugFull.Content = p.GetUiText(I18nKeys.RosbotBridgeDebugFull);
+        ChkDebugFull.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeDebugFullTip);
         TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);
         TxtCapabilities.Text = p.GetUiText(I18nKeys.RosbotBridgeCapabilities);
         foreach (var button in PanelTownNpcs.Children.OfType<Button>())
@@ -545,6 +548,9 @@ public partial class RosbotBridgePanel : UserControl
         }
         Send(RosbotPluginConstants.BridgeActionClickUi, uiId: TxtUiId.Text);
     }
+
+    /// <summary>DebugLevel switched: write it to ROSBOT's ini at once (applies on the next ROSBOT start; also written before every start).</summary>
+    private void ChkDebugFull_Click(object sender, RoutedEventArgs e) => RosbotDebugLevelService.Apply();
 
     private void BtnScriptScope_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionScriptScope);
 

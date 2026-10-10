@@ -1263,6 +1263,8 @@
       "tab_monsters": "怪物",
       "script_scope": "导出 ROSBOT 脚本环境",
       "script_scope_tip": "研究用（只读，不执行任何脚本）：插件在 ROSBOT 进程内找到它的 IronPython 引擎和脚本作用域，把变量名、类型和搜索路径写到插件目录的 script_scope.txt，用来确认 ROSBOT 的战斗逻辑是否是脚本、能否被插件调用。",
+      "debug_full": "ROSBOT 调试日志（DebugLevel = Full）",
+      "debug_full_tip": "默认开启：每次启动 ROSBOT 前把 ROSBOT 的 DebugLevel 写成 Full（关闭则写 Normal），ROSBOT 会在日志里记录目标、移动和决策等开发者信息，用来研究它的战斗策略。写在 文档\\RoS-BoT\\RosBotGlobalSettings.ini；ROSBOT 启动时读取，切换后下次启动 ROSBOT 生效。日志会明显变多。",
       "monster_ros_target": "ROSBOT 目标",
       "monster_elite": "精英",
       "monster_boss": "首领",

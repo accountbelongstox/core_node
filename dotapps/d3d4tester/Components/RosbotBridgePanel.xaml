@@ -131,6 +131,7 @@
       </TabItem>
       <TabItem x:Name="TabAdvanced">
         <StackPanel Margin="4">
+          <CheckBox x:Name="ChkDebugFull" Margin="0,0,0,6" Click="ChkDebugFull_Click"/>
           <WrapPanel Margin="0,0,0,6">
             <TextBox x:Name="TxtUiId" Width="200" Margin="0,0,6,0" VerticalAlignment="Center"/>
             <Button x:Name="BtnClickUi" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnClickUi_Click"/>

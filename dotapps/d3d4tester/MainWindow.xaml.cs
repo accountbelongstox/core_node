@@ -166,6 +166,7 @@ public partial class MainWindow : Window, IMainWindowHost
         RosbotTaskProcessor.Instance.Install();
         Services.Monitor.MonitorService.Instance.Install();
         Services.Monitor.RosbotKeyService.Install();
+        RosbotDebugLevelService.Install();
         D3PlannerService.Initialize();
         D3PlannerTownService.Initialize();
         Core.Bridge.BridgeTownPortal.Install();
