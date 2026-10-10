@@ -30,7 +30,7 @@ const PcFloatingPanel: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 pt-[max(0.75rem,var(--wf-safe-top))] pb-[max(0.75rem,var(--wf-safe-bottom))] sm:p-5"
       onMouseDown={onClose}
     >
       <div

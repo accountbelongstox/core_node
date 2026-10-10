@@ -233,7 +233,7 @@ function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () =
   }, [lib.id, page]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 pt-[max(1rem,var(--wf-safe-top))] pb-[max(1rem,var(--wf-safe-bottom))]">
       <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-xl border border-slate-700 bg-slate-900">
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
           <div>

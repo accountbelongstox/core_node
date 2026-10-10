@@ -335,7 +335,7 @@ export default function VocabWordsTab() {
 
       {/* Edit modal */}
       {edit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 pt-[max(1rem,var(--wf-safe-top))] pb-[max(1rem,var(--wf-safe-bottom))]">
           <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-100">{t('vocabularyPage.words.editWord')}</h3>

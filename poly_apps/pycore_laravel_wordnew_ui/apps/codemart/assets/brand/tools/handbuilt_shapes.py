@@ -135,3 +135,70 @@ def sub_elements():
     ]
     return [Element(f"sub_{n}", fn, p0, kind="stroke", group="sub",
                     extra={"width": lambda p: SHARED["w"], "alpha": lambda p: SHARED["alpha"]}) for n, fn, p0 in spec]
+
+
+MARK = {"c": 233.95}
+HEAD_NODES = [(0, 10.3 + 0, 72, .33), (14.5, 36.0, 30, .36), (35.3, 46.0, 32, .36), (50, 58, 47, .36), (60, 70, 62, .36), (67, 98, 90, .36), (61.7, 118, 115, .36), (44.7, 134, 142, .36), (0, 144.7, 180, .36)]
+HEAD_INIT = [[dx, y, th, k] for dx, y, th, k in [(0, 10.3, 72, .33), (14.5, 26.0, 30, .36), (35.3, 36.0, 32, .36), (50, 48, 47, .36), (60, 60, 62, .36), (67, 88, 90, .36), (61.7, 108, 115, .36), (44.7, 124, 142, .36), (0, 134.7, 180, .36)]]
+FACE_INIT = [[0, 70.4, -55, .33], [22, 62.8, 0, .36], [42.5, 69.5, 40, .36], [53.7, 92, 90, .36], [48.5, 108, 125, .36], [33.65, 120, 140, .36], [0, 126.8, 180, .36]]
+
+
+def mirror_x(p):
+    return (2 * MARK["c"] - p[0], p[1])
+
+
+def mirrored_closed(flat, n_nodes):
+    nodes = np.array(flat, dtype=float).reshape(n_nodes, 4).copy()
+    nodes[0, 0] = 0.0
+    nodes[-1, 0] = 0.0
+    nodes[-1, 2] = 180.0
+    c = MARK["c"]
+    pts = [(c + n[0], n[1]) for n in nodes]
+    tans = [(math.cos(math.radians(n[2])), math.sin(math.radians(n[2]))) for n in nodes]
+    ks = [min(max(n[3], 0.1), 0.7) for n in nodes]
+    right = []
+    for i in range(n_nodes - 1):
+        chord = math.dist(pts[i], pts[i + 1])
+        c1 = (pts[i][0] + tans[i][0] * ks[i] * chord, pts[i][1] + tans[i][1] * ks[i] * chord)
+        c2 = (pts[i + 1][0] - tans[i + 1][0] * ks[i + 1] * chord, pts[i + 1][1] - tans[i + 1][1] * ks[i + 1] * chord)
+        right.append((pts[i], c1, c2, pts[i + 1]))
+    segs = [("M", pts[0])] + [("C", a[1], a[2], a[3]) for a in right]
+    for a in reversed(right):
+        segs.append(("C", mirror_x(a[2]), mirror_x(a[1]), mirror_x(a[0])))
+    segs.append(("Z",))
+    return segs
+
+
+def head_builder(p):
+    return mirrored_closed(p, len(HEAD_INIT))
+
+
+def face_builder(p):
+    return mirrored_closed(p, len(FACE_INIT))
+
+
+def ears_builder(p):
+    dist, cy, rx, ry, rot, hdx, hdy, hrx, hry, hrot = p
+    c = MARK["c"]
+    left = (c - dist, cy)
+    segs = []
+    segs += ellipse_path(left[0], left[1], rx, ry, 0.0)
+    segs += ellipse_path(left[0] + hdx, left[1] + hdy, abs(hrx), abs(hry), hrot)
+    segs += ellipse_path(c + dist, cy, rx, ry, 0.0)
+    segs += ellipse_path(c + dist - hdx, left[1] + hdy, abs(hrx), abs(hry), -hrot)
+    return segs
+
+
+def eyes_builder(p):
+    dx, cy, rx, ry = p
+    c = MARK["c"]
+    return ellipse_path(c - dx, cy, abs(rx), abs(ry)) + ellipse_path(c + dx, cy, abs(rx), abs(ry))
+
+
+def mark_elements():
+    return [
+        Element("mark_ears", ears_builder, [72.75, 74.5, 14, 16, 0, 0, 3.5, 4.2, 5.2, -0.2], group="mark"),
+        Element("mark_head", head_builder, np.array(HEAD_INIT).ravel(), group="mark"),
+        Element("mark_face", face_builder, np.array(FACE_INIT).ravel(), tone="white", group="mark"),
+        Element("mark_eyes", eyes_builder, [33.4, 80.6, 2.4, 2.4], group="mark"),
+    ]

@@ -134,7 +134,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
   return (
     <Portal>
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/70 p-0 backdrop-blur-sm md:p-4"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/70 p-0 pt-[var(--wf-safe-top)] pb-[var(--wf-safe-bottom)] backdrop-blur-sm md:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={t('terminal.logs.title', { number: terminalNumber })}

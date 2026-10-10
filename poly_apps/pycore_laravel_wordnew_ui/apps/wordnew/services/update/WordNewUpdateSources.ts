@@ -26,7 +26,7 @@ function laravelMeshHosts(): string[] {
   const healthyFirst = [...rest.filter((endpoint) => snapshot.health[endpoint.id]?.isHealthy), ...rest.filter((endpoint) => !snapshot.health[endpoint.id]?.isHealthy)];
   return [selected, ...healthyFirst]
     .filter((endpoint): endpoint is NonNullable<typeof endpoint> => !!endpoint && endpoint.protocol === 'https' && !!tailnetDomainOf(endpoint.url))
-    .map((endpoint) => machineHostOf(endpoint.url));
+    .flatMap((endpoint) => [endpoint.url.toLowerCase(), machineHostOf(endpoint.url)]);
 }
 
 function rosterMeshHosts(domain: string): string[] {
@@ -37,7 +37,7 @@ function rosterMeshHosts(domain: string): string[] {
     .map((host) => `${host}.${domain}`);
 }
 
-/** Mesh origins in priority order: selected pycore host, Laravel tailnet endpoints, roster hosts. */
+/** Mesh origins in priority order: selected pycore host, Laravel tailnet endpoints (API host, then machine host), roster hosts. */
 export function meshOrigins(): string[] {
   const direct = [selectedPycoreMeshHost(), ...laravelMeshHosts()].filter(Boolean);
   return meshHostOrigins([...direct, ...rosterMeshHosts(meshDomainOf(direct))]);

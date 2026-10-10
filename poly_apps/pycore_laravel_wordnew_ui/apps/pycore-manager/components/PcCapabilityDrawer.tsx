@@ -144,7 +144,7 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
           open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} />
       {/* panel */}
       <aside
-        className={`fixed top-0 right-0 z-[121] h-full w-full max-w-md pc-glass shadow-2xl border-l border-slate-300/40 dark:border-white/10 transition-transform duration-200 flex flex-col ${
+        className={`shell-safe-area fixed top-0 right-0 z-[121] h-full w-full max-w-md pc-glass shadow-2xl border-l border-slate-300/40 dark:border-white/10 transition-transform duration-200 flex flex-col ${
           open ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-center gap-2 p-4 border-b border-slate-300/30 dark:border-white/10">
           <SlidersHorizontal className="w-4 h-4 text-indigo-500 shrink-0" />
