@@ -15,6 +15,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WithdrawalModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceException;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -95,7 +96,7 @@ class CodeMartV1PaymentCtl extends Controller
             'milestone_id' => 'nullable|exists:codemartv1.codemart_v1_milestones,id',
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:' . implode(',', CodeMartV1Constants::PAYMENT_CREATABLE_TYPES),
-            'payment_method' => 'required|in:' . implode(',', CodeMartV1Constants::getAllPaymentMethods()),
+            'payment_method' => 'required|in:' . implode(',', CodeMartV1PolicyService::list('payment_methods')),
             'description' => 'nullable|string',
         ]);
 
@@ -130,7 +131,7 @@ class CodeMartV1PaymentCtl extends Controller
                     'project_id' => $request->input('project_id'),
                     'milestone_id' => $request->input('milestone_id'),
                     'amount' => $amount,
-                    'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+                    'currency' => CodeMartV1PolicyService::currency(),
                     'type' => $request->input('type'),
                     'payment_method' => $request->input('payment_method'),
                     'description' => $request->input('description'),
@@ -416,8 +417,8 @@ class CodeMartV1PaymentCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:' . CodeMartV1Constants::WITHDRAWAL_MIN_AMOUNT,
-            'method' => 'required|in:' . implode(',', CodeMartV1Constants::WITHDRAWAL_METHODS),
+            'amount' => 'required|numeric|min:' . CodeMartV1PolicyService::float('withdrawal_min_amount'),
+            'method' => 'required|in:' . implode(',', CodeMartV1PolicyService::list('withdrawal_methods')),
             'account_info' => 'required|array',
         ]);
 
@@ -439,7 +440,7 @@ class CodeMartV1PaymentCtl extends Controller
                     $withdrawal = CodeMartV1WithdrawalModel::createRecord([
                         'user_id' => $userId,
                         'amount' => $amount,
-                        'currency' => $wallet->currency ?: CodeMartV1Constants::DEFAULT_CURRENCY,
+                        'currency' => $wallet->currency ?: CodeMartV1PolicyService::currency(),
                         'status' => CodeMartV1Constants::WITHDRAWAL_STATUS_PENDING,
                         'method' => $request->input('method'),
                         'account_info' => $request->input('account_info'),

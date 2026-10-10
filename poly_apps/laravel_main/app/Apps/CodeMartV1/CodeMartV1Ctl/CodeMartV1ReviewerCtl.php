@@ -13,6 +13,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskSubmissionModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperStatsModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -34,16 +35,16 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ALREADY_ACTIVE, __('codemart.messages.you_are_already_a_reviewer'), null, 409);
         }
 
-        $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, CodeMartV1Constants::REVIEWER_RETRY_DAYS);
+        $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, CodeMartV1PolicyService::int('reviewer_retry_days'));
 
         // An unfinished test is resumed instead of blocking the retry window.
         if ($recentApplication && $recentApplication->status === CodeMartV1Constants::REVIEWER_APPLICATION_IN_PROGRESS) {
             return $this->applicationStarted($recentApplication, (array) json_decode((string) $recentApplication->test_cases, true));
         }
         if ($recentApplication) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_n_days', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]), [
-                'retry_days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS,
-                'retry_at' => $recentApplication->created_at?->copy()->addDays(CodeMartV1Constants::REVIEWER_RETRY_DAYS)->toIso8601String(),
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_n_days', ['days' => CodeMartV1PolicyService::int('reviewer_retry_days')]), [
+                'retry_days' => CodeMartV1PolicyService::int('reviewer_retry_days'),
+                'retry_at' => $recentApplication->created_at?->copy()->addDays(CodeMartV1PolicyService::int('reviewer_retry_days'))->toIso8601String(),
             ], 409);
         }
 
@@ -85,12 +86,12 @@ class CodeMartV1ReviewerCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'reviews' => 'required|array|size:' . CodeMartV1Constants::REVIEWER_TEST_SNIPPETS,
+            'reviews' => 'required|array|min:1',
             'reviews.*.code_snippet_id' => 'required|integer|distinct',
             'reviews.*.quality_rating' => 'required|integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING,
             'reviews.*.readability_rating' => 'required|integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING,
             'reviews.*.efficiency_rating' => 'required|integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING,
-            'reviews.*.comments' => 'required|string|min:' . CodeMartV1Constants::REVIEWER_COMMENT_MIN_LENGTH,
+            'reviews.*.comments' => 'required|string|min:' . CodeMartV1PolicyService::int('review_comment_min_length'),
         ]);
 
         if ($validator->fails()) {
@@ -108,9 +109,14 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $testCases = json_decode($application->test_cases, true);
         $userReviews = $request->reviews;
+        if (count($userReviews) !== count($testCases)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), [
+                'reviews' => [__('codemart.messages.reviewer_test_review_count', ['count' => count($testCases)])],
+            ], 422);
+        }
 
         $similarity = $this->calculateReviewSimilarity($testCases, $userReviews);
-        $passed = $similarity >= CodeMartV1Constants::REVIEWER_MIN_SIMILARITY;
+        $passed = $similarity >= CodeMartV1PolicyService::int('reviewer_min_similarity');
 
         $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($application, $userReviews, $similarity, $user, $passed) {
             $application->updateRecord([
@@ -143,7 +149,7 @@ class CodeMartV1ReviewerCtl extends Controller
             'similarity_score' => $similarity,
             'message' => $passed
                 ? __('codemart.messages.reviewer_test_passed')
-                : __('codemart.messages.reviewer_test_failed', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]),
+                : __('codemart.messages.reviewer_test_failed', ['days' => CodeMartV1PolicyService::int('reviewer_retry_days')]),
         ]);
     }
 
@@ -189,7 +195,7 @@ class CodeMartV1ReviewerCtl extends Controller
             'readability_rating' => 'required|' . $ratingRule,
             'efficiency_rating' => 'required|' . $ratingRule,
             'security_rating' => 'nullable|' . $ratingRule,
-            'comments' => 'required|string|min:' . CodeMartV1Constants::REVIEWER_COMMENT_MIN_LENGTH,
+            'comments' => 'required|string|min:' . CodeMartV1PolicyService::int('review_comment_min_length'),
             'recommendation' => 'nullable|in:' . implode(',', CodeMartV1Constants::REVIEW_RECOMMENDATIONS),
             'line_comments' => 'nullable|array',
         ]);
@@ -288,23 +294,7 @@ class CodeMartV1ReviewerCtl extends Controller
 
     private function generateTestCases(): array
     {
-        return [
-            [
-                'code_snippet_id' => 1,
-                'code' => "function calculateTotal(items) {\n  let total = 0;\n  for (let i = 0; i < items.length; i++) {\n    total += items[i].price;\n  }\n  return total;\n}",
-                'expected_ratings' => ['quality' => 4, 'readability' => 4, 'efficiency' => 4],
-            ],
-            [
-                'code_snippet_id' => 2,
-                'code' => "function f(x) { var y = x * 2; var z = y + 10; return z; }",
-                'expected_ratings' => ['quality' => 2, 'readability' => 2, 'efficiency' => 3],
-            ],
-            [
-                'code_snippet_id' => 3,
-                'code' => "const calculateDiscount = (price, percentage) => price * (1 - percentage / 100);",
-                'expected_ratings' => ['quality' => 5, 'readability' => 5, 'efficiency' => 5],
-            ],
-        ];
+        return CodeMartV1PolicyService::reviewerExam();
     }
 
     private function calculateReviewSimilarity(array $testCases, array $userReviews): float

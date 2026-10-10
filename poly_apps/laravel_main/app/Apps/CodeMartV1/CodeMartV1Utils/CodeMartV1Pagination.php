@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use Illuminate\Http\Request;
 
@@ -15,8 +16,8 @@ class CodeMartV1Pagination
     public static function params(Request $request): array
     {
         $page = max(1, (int) $request->input('page', 1));
-        $size = $request->input('page_size', $request->input('pageSize', CodeMartV1Constants::DEFAULT_PAGE_SIZE));
-        $pageSize = min(CodeMartV1Constants::MAX_PAGE_SIZE, max(1, (int) $size));
+        $size = $request->input('page_size', $request->input('pageSize', CodeMartV1PolicyService::int('default_page_size')));
+        $pageSize = min(CodeMartV1PolicyService::int('max_page_size'), max(1, (int) $size));
 
         return [$page, $pageSize];
     }

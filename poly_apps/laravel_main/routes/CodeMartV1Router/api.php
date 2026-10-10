@@ -37,6 +37,7 @@ Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMart
         Route::post('/public/estimate', [CodeMartV1PublicHomeCtl::class, 'estimate'])->name('public.estimate');
         Route::get('/public/estimate-options', [CodeMartV1PublicHomeCtl::class, 'estimateOptions'])->name('public.estimate-options');
         Route::get('/public/showcase', [CodeMartV1PublicHomeCtl::class, 'showcase'])->name('public.showcase');
+        Route::get('/public/policy', [CodeMartV1PublicHomeCtl::class, 'policy'])->name('public.policy');
         Route::get('/public/app-downloads', [CodeMartV1PublicHomeCtl::class, 'appDownloads'])->name('public.app-downloads');
     });
     Route::post('/public/contact', [CodeMartV1PublicHomeCtl::class, 'contact'])
@@ -99,6 +100,7 @@ Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMart
             Route::get('/reviewer-applications', [CodeMartV1AdminCtl::class, 'reviewerApplications'])->name('reviewer-applications');
             Route::post('/reviewer-applications/{applicationId}/revoke', [CodeMartV1AdminCtl::class, 'revokeReviewer'])->name('reviewer-revoke');
             Route::get('/policy', [CodeMartV1AdminCtl::class, 'policy'])->name('policy');
+            Route::put('/policy', [CodeMartV1AdminCtl::class, 'updatePolicy'])->name('policy-update');
             Route::get('/activity', [CodeMartV1AdminCtl::class, 'activity'])->name('activity');
             Route::get('/contact-messages', [CodeMartV1AdminCtl::class, 'contactMessages'])->name('contact-messages');
             Route::post('/contact-messages/{messageId}/handle', [CodeMartV1AdminCtl::class, 'handleContactMessage'])->name('contact-message-handle');

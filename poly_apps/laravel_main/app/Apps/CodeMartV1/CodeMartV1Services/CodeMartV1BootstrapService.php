@@ -310,7 +310,7 @@ class CodeMartV1BootstrapService
             'pending_reviews' => $pendingReviews,
             'protected_funds' => number_format((float) $protectedFunds, 2, '.', ''),
             'wallet_balance' => $wallet ? (string) $wallet->balance : '0.00',
-            'currency' => $wallet?->currency ?? CodeMartV1Constants::DEFAULT_CURRENCY,
+            'currency' => $wallet?->currency ?? CodeMartV1PolicyService::currency(),
             'unread_notifications' => CodeMartV1NotificationModel::unreadCountForUser($userId),
         ];
     }

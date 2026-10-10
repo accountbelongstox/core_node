@@ -23,7 +23,7 @@ class CodeMartV1FinanceService
 
     public static function commission(string $gross): string
     {
-        $raw = bcmul($gross, (string) CodeMartV1Constants::PLATFORM_COMMISSION_RATE, 6);
+        $raw = bcmul($gross, CodeMartV1PolicyService::commissionRateString(), 6);
 
         return self::money(round((float) $raw, 2));
     }

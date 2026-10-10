@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
@@ -82,9 +83,9 @@ class CodeMartV1ArchitectCtl extends Controller
     private function promotionRequirements(): array
     {
         return [
-            'min_completed_projects' => CodeMartV1Constants::ARCHITECT_MIN_PROJECTS,
-            'min_avg_code_score' => CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE,
-            'min_client_satisfaction' => CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION,
+            'min_completed_projects' => CodeMartV1PolicyService::int('architect_min_projects'),
+            'min_avg_code_score' => CodeMartV1PolicyService::int('architect_min_code_score'),
+            'min_client_satisfaction' => CodeMartV1PolicyService::float('architect_min_satisfaction'),
         ];
     }
 
@@ -157,9 +158,9 @@ class CodeMartV1ArchitectCtl extends Controller
 
         $stats = CodeMartV1DeveloperStatsModel::forUser($userId);
         if (!$stats ||
-            $stats->completed_projects < CodeMartV1Constants::ARCHITECT_MIN_PROJECTS ||
-            $stats->avg_code_score < CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE ||
-            $stats->avg_client_satisfaction < CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION) {
+            $stats->completed_projects < CodeMartV1PolicyService::int('architect_min_projects') ||
+            $stats->avg_code_score < CodeMartV1PolicyService::int('architect_min_code_score') ||
+            $stats->avg_client_satisfaction < CodeMartV1PolicyService::float('architect_min_satisfaction')) {
             return $this->codedError(CodeMartV1Constants::ERROR_ARCHITECT_REQUIREMENTS_UNMET, __('codemart.messages.you_do_not_meet_the_requirements_for'), $this->promotionRequirements(), 422);
         }
 

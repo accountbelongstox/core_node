@@ -23,6 +23,7 @@ $script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager
 $script:DISK_OPTIMIZE_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskOptimizeManager.ps1"
 $script:NTFS_LINUX_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "NtfsLinuxRepairManager.ps1"
 $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
+$script:LINUX_DUAL_BOOT_REMOVAL_SCRIPT = Join-Path $script:PS_CURRENT_DIR "LinuxDualBootRemovalManager.ps1"
 $script:FILE_RECOVERY_SCRIPT = Join-Path $script:PS_CURRENT_DIR "FileRecoveryManager.ps1"
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
@@ -139,6 +140,7 @@ function Show-SystemToolsMenu {
         @{ Text = "File recovery (winfr / DMDE)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:FILE_RECOVERY_SCRIPT } },
         @{ Text = "Repair Chrome crash (PUP + compat shim / 0xC0000409)"; Action = { Invoke-ChromeRepair } },
         @{ Text = "Linux dual boot readiness (Fast Startup)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT } },
+        @{ Text = "Remove Linux dual boot (partitions + UEFI entries, keeps Windows)"; Action = { Invoke-ConsoleScript -ScriptPath $script:LINUX_DUAL_BOOT_REMOVAL_SCRIPT } },
         @{ Text = "Network router (USB uplink NAT gateway / ICS)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:NETWORK_ROUTER_SCRIPT -ScriptArguments @("menu") } }
     )
 }

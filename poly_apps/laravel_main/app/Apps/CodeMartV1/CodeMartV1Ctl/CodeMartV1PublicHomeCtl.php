@@ -5,6 +5,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EstimateService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1PublicHomeService;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
@@ -71,10 +72,11 @@ class CodeMartV1PublicHomeCtl extends Controller
     public function estimate(Request $request): JsonResponse
     {
         $options = $this->estimateService->defaults();
+        $limits = $this->estimateService->limits();
         $validator = Validator::make($request->all(), [
             'complexity' => ['required', Rule::in($options['complexities'])],
-            'platforms' => 'nullable|integer|min:' . CodeMartV1EstimateService::MIN_PLATFORMS . '|max:' . CodeMartV1EstimateService::MAX_PLATFORMS,
-            'features' => 'nullable|integer|min:' . CodeMartV1EstimateService::MIN_FEATURES . '|max:' . CodeMartV1EstimateService::MAX_FEATURES,
+            'platforms' => 'nullable|integer|min:' . $limits['platforms']['min'] . '|max:' . $limits['platforms']['max'],
+            'features' => 'nullable|integer|min:' . $limits['features']['min'] . '|max:' . $limits['features']['max'],
             'budget_type' => ['nullable', Rule::in($options['budget_types'])],
         ]);
 
@@ -84,10 +86,16 @@ class CodeMartV1PublicHomeCtl extends Controller
 
         return $this->success($this->estimateService->estimate([
             'complexity' => (string) $request->input('complexity'),
-            'platforms' => (int) $request->input('platforms', CodeMartV1EstimateService::DEFAULT_PLATFORMS),
-            'features' => (int) $request->input('features', CodeMartV1EstimateService::DEFAULT_FEATURES),
+            'platforms' => (int) $request->input('platforms', $limits['platforms']['default']),
+            'features' => (int) $request->input('features', $limits['features']['default']),
             'budget_type' => (string) $request->input('budget_type', CodeMartV1Constants::BUDGET_TYPE_FIXED),
         ]));
+    }
+
+    /** Policy numbers the signed-out pages need (registration, estimate). */
+    public function policy(): JsonResponse
+    {
+        return $this->success(CodeMartV1PolicyService::publicPolicy());
     }
 
     public function estimateOptions(): JsonResponse

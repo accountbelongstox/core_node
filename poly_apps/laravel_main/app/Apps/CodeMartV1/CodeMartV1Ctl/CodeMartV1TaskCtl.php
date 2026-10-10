@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Http\Controllers\Controller;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Traits\ApiResponse;
@@ -421,7 +422,7 @@ class CodeMartV1TaskCtl extends Controller
             'submission_note' => 'nullable|string',
             'files' => 'nullable|array',
             'uploads' => 'nullable|array',
-            'uploads.*' => 'file|max:' . CodeMartV1Constants::MAX_ATTACHMENT_SIZE,
+            'uploads.*' => 'file|max:' . CodeMartV1PolicyService::int('max_attachment_size_kb'),
         ]);
 
         if ($validator->fails()) {
