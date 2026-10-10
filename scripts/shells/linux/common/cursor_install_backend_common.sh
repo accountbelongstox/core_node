@@ -471,7 +471,7 @@ EOF
         --icon "$desktop_icon" \
         --categories "Development;IDE;TextEditor;" \
         --keywords "cursor;editor;ide;ai;code;" \
-        --mimetype "text/plain;inode/directory;" \
+        --mimetype "text/plain;" \
         --startup-wmclass "Cursor" \
         --extra "StartupNotify=true"
     print_success_from_common_functions "System-wide desktop entry created: $DSM_APPLICATIONS_DIR/cursor.desktop"

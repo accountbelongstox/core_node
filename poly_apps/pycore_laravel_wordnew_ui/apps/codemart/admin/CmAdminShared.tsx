@@ -1,28 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
-import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CM_ADMIN_ROUTE, cmAdminUserPath, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
-import { CmNotice, type CmNoticeState } from '../components/workspace/CmStateViews';
-import {
-  cmFormatDate,
-  cmFormatDateTime,
-  cmFormatMoney,
-  cmFormatNumber,
-  cmFormatTime,
-  cmHumanize,
-} from '../components/workspace/cmWorkspaceFormat';
-import { useCmPagedList, type CmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
-import {
-  type CmAdminActivityRow,
-  type CmAdminPage,
-  type CmAdminQuery,
-  type CmAdminUserSummary,
-} from './CmAdminTypes';
+import { CmNotice } from '../components/workspace/CmStateViews';
+import { cmHumanize } from '../components/workspace/cmWorkspaceFormat';
+import { useCmAdminFormat } from './useCmAdminData';
+import { useCmAdminActionState, type CmAdminActionRequest } from './useCmAdminActions';
+import type { CmAdminActivityRow, CmAdminUserSummary } from './CmAdminTypes';
 
 /** Locale prefix holding each server state group's translations (vocabulary.activity.resource_state_groups). */
 const CM_ACTIVITY_STATE_GROUP_PREFIX: Record<string, string> = {
@@ -42,84 +28,15 @@ const CM_ACTIVITY_STATE_GROUP_PREFIX: Record<string, string> = {
   contact_message: 'admin.states.contact',
 };
 
-export type CmAdminReasonMode = 'none' | 'optional' | 'required';
-
-export interface CmAdminActionRequest {
-  title: string;
-  body?: string;
-  confirmLabel: string;
-  tone?: 'primary' | 'danger';
-  reason?: CmAdminReasonMode;
-  reasonLabel?: string;
-  successKey: string;
-  successText?: (data: unknown) => string;
-  run: (reason: string) => Promise<APIResponse<unknown>>;
-}
-
-type CmAdminFetcher<T> = (query: CmAdminQuery) => Promise<APIResponse<CmAdminPage<T>>>;
-
-function extractAdminPage<T>(data: CmAdminPage<T>): CmPagedSlice<T> {
-  return { items: data.items, totalPages: data.total_pages, total: data.total };
-}
-
-/** Locale-aware money, number and date formatting for the console. */
-export function useCmAdminFormat() {
-  const { i18n } = useTranslation('cm');
-  const language = i18n.language || 'en';
-  const defaultCurrency = useCmPolicy().currency;
-
-  return useMemo(() => {
-    const money = (amount: string | number, currency?: string | null): string => cmFormatMoney(amount, currency || defaultCurrency, language);
-    const number = (value: number, maxFractionDigits?: number): string => cmFormatNumber(value, language, maxFractionDigits);
-    const date = (value: string, withTime: boolean, calendar = false): string => (
-      withTime ? cmFormatDateTime(value, language) : cmFormatDate(value, language, calendar)
-    );
-    const time = (value: string): string => cmFormatTime(value, language);
-    return { language, money, number, date, time };
-  }, [defaultCurrency, language]);
-}
-
-/** Admin list on the shared paged-list hook: the filters feed each request and a filter change restarts at page 1. */
-export function useCmAdminList<T>(fetcher: CmAdminFetcher<T>, filters: CmAdminQuery): CmPagedList<T> {
-  const filterKey = JSON.stringify(filters);
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
-  const fetchPage = useCallback(
-    (page: number) => fetcherRef.current({ ...(JSON.parse(filterKey) as CmAdminQuery), page }),
-    [filterKey],
-  );
-  return useCmPagedList(fetchPage, extractAdminPage<T>, 'admin.loadFailed');
-}
-
-/** Initial filter value taken from the query string (used by overview counter links). */
-export function useCmAdminParam(key: string, fallback = ''): string {
-  const [searchParams] = useSearchParams();
-  return searchParams.get(key) ?? fallback;
-}
+export type { CmAdminActionRequest, CmAdminReasonMode } from './useCmAdminActions';
+export { useCmAdminFormat, useCmAdminList, useCmAdminParam } from './useCmAdminData';
 
 /** Confirmation dialog workflow with optional or required reason for every admin mutation. */
 export function useCmAdminAction(onDone: () => void | Promise<void>) {
-  const { t } = useTranslation('cm');
-  const [request, setRequest] = useState<CmAdminActionRequest | null>(null);
-  const [notice, setNotice] = useState<CmNoticeState | null>(null);
+  const state = useCmAdminActionState(onDone);
+  const dialog = state.request ? <CmAdminDialog request={state.request} onCancel={state.close} onSubmit={state.submit} /> : null;
 
-  const close = useCallback(() => setRequest(null), []);
-
-  const submit = useCallback(async (reason: string): Promise<string | null> => {
-    if (!request) return null;
-    const response = await request.run(reason);
-    if (!response.success) {
-      return cmErrorMessage(t, response, 'admin.actionFailed');
-    }
-    setNotice({ tone: 'success', text: request.successText ? request.successText(response.data) : t(request.successKey) });
-    setRequest(null);
-    await onDone();
-    return null;
-  }, [onDone, request, t]);
-
-  const dialog = request ? <CmAdminDialog request={request} onCancel={close} onSubmit={submit} /> : null;
-
-  return { ask: setRequest, dialog, notice, setNotice };
+  return { ask: state.ask, dialog, notice: state.notice, setNotice: state.setNotice };
 }
 
 const CmAdminDialog: React.FC<{

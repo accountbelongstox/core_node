@@ -10,7 +10,7 @@ import shutil
 from brand_common import *
 from forms import *
 
-UI_ROOT = BRAND_DIR.parents[2]
+UI_ROOT = BRAND_DIR.parents[3]
 DEFAULT_DIR = BRAND_DIR / "default"
 TS_FILE = BRAND_DIR / "cmBrandDefault.generated.ts"
 FLAVOR_DIR = UI_ROOT / "flavors" / "codemart"

@@ -39,7 +39,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onClose, tabPa
   ));
 
   return (
-    <div className={`cmm-drawer-layer ${open ? 'is-open' : ''}`} aria-hidden={!open}>
+    <div className={`cmm-drawer-layer ${open ? 'is-open' : ''}`} aria-hidden={!open} inert={!open}>
       <button type="button" className="cmm-scrim" tabIndex={open ? 0 : -1} aria-label={t('mobile.shell.closeMenu')} onClick={onClose} />
       <aside className="cmm-drawer" aria-label={t('mobile.shell.menu')}>
         <header className="cmm-drawer__account">

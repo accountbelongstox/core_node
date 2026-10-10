@@ -11,6 +11,7 @@ export const CM_PUBLIC_ROUTE = {
   terms: '/codemart/terms',
   information: '/codemart/information',
   showcase: '/codemart/showcase',
+  brandGallery: '/codemart/brand-gallery',
   showcaseOpenWork: '/codemart/showcase#cm-showcase-open-tasks',
   login: '/codemart/login',
   register: '/codemart/register',

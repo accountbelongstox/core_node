@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Aperture, AudioLines, Camera, Check, ClipboardPaste, Copy, CornerDownLeft, FileAudio, FilePlus, FileText, ImagePlus, Keyboard, Loader2, Mic, MonitorDown, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
+import { AudioLines, Camera, Check, ClipboardPaste, Copy, CornerDownLeft, FileMusic, FileText, ImagePlus, Keyboard, Loader2, Mic, MonitorDown, Paperclip, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
@@ -502,7 +502,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                   aria-label={t('terminal.voice.audioFile')}
                   className={iconButton}
                 >
-                  <FileAudio className="h-4 w-4" />
+                  <FileMusic className="h-4 w-4" />
                 </button>
               )}
             </>
@@ -539,7 +539,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             aria-label={t('terminal.images.attachDocument')}
             className={iconButton}
           >
-            <FilePlus className="h-4 w-4" />
+            <Paperclip className="h-4 w-4" />
           </button>
           {cameraSupported && (
             <button
@@ -550,7 +550,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               aria-label={t('terminal.images.camera.action')}
               className={iconButton}
             >
-              {shooting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Aperture className="h-4 w-4" />}
+              {shooting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             </button>
           )}
           <button

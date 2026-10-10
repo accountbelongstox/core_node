@@ -560,6 +560,7 @@ terminal: {
       record: '录一段语音',
       stop: '停止录音（{{duration}}）',
       audioFile: '录音或选择音频文件',
+      systemRecorder: '选择音频文件或录音',
       sizeLocal: '录音大小（上传中）',
       sizeStored: 'pycore 保存的大小',
       recordings: '语音录音',

@@ -5,13 +5,14 @@ Usage: python build_candidates.py [--only a-potrace-r1,b-hand-r1,...] [--default
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import datetime, timezone
 
 from brand_common import *
 from forms import *
 
 SRC_MARK_BBOX = MARK_BBOX
-RASTER_FILL = 0.0
+SCORE_TIE_BAND = 0.01
 
 
 def now() -> str:
@@ -52,7 +53,7 @@ def build_vector(cid: str, spec: dict) -> dict:
     files = write_forms(layers, out)
     (out / "layers.json").write_text(json.dumps(layers))
     return {"id": cid, "method": spec["method"], "round": spec["round"], "tool": spec["tool"], "kind": "vector", "status": "ok",
-            "created_at": now(), "note": spec["note"], "score": score_layers(layers), "files": files}
+            "created_at": now(), "note": spec["note"], "score": score_layers(layers), "nodes": node_count(layers), "files": files}
 
 
 def align_raster(path: Path) -> Image.Image:
@@ -87,12 +88,20 @@ def unavailable(cid: str, method: str, round_: int, tool: str, note: str) -> dic
     return {"id": cid, "method": method, "round": round_, "tool": tool, "kind": "raster", "status": "unavailable", "created_at": now(), "note": note, "score": None, "files": {}}
 
 
+def node_count(layers: dict) -> int:
+    return sum(len(re.findall(r"[MLCZ]", el["d"])) for group in layers.values() for el in group)
+
+
 def pick_default(manifest: dict) -> None:
-    ranked = [c for c in manifest["candidates"] if c["status"] == "ok" and c["kind"] == "vector" and {"mark", "lockup", "text"} <= set(c["files"])]
-    ranked.sort(key=lambda c: c["score"]["score"], reverse=True)
-    manifest["ranking"] = [c["id"] for c in sorted([c for c in manifest["candidates"] if c["status"] == "ok"], key=lambda c: c["score"]["score"], reverse=True)]
-    if ranked:
-        manifest["default"] = ranked[0]["id"]
+    """Best score wins; scores within SCORE_TIE_BAND of the best are a tie and the simplest geometry (fewest path nodes) takes it."""
+    ok = [c for c in manifest["candidates"] if c["status"] == "ok"]
+    manifest["ranking"] = [c["id"] for c in sorted(ok, key=lambda c: c["score"]["score"], reverse=True)]
+    vector = [c for c in ok if c["kind"] == "vector" and {"mark", "lockup", "text"} <= set(c["files"])]
+    if vector:
+        best = max(c["score"]["score"] for c in vector)
+        tied = [c for c in vector if best - c["score"]["score"] <= SCORE_TIE_BAND]
+        manifest["default"] = min(tied, key=lambda c: c["nodes"])["id"]
+        manifest["default_rule"] = {"tie_band": SCORE_TIE_BAND, "tie_break": "fewest path nodes"}
 
 
 def main() -> int:
@@ -115,6 +124,7 @@ def main() -> int:
                                           "text-to-image only; the gateway accepts no reference image, so the result is an unfaithful monkey and has no text", raw))
         for cid, tool in (("c-chatgpt-r1", "ChatGPT via mcp-chrome"), ("c-gemini-r1", "Gemini via mcp-chrome")):
             upsert(manifest, unavailable(cid, "C", 1, tool, "mcp-chrome endpoint 127.0.0.1:12306 was not listening, so the signed-in Chrome could not be driven"))
+    manifest["forms"] = {form: [b[0] - PAD, b[1] - PAD, b[2] - b[0] + 2 * PAD, b[3] - b[1] + 2 * PAD] for form, b in FORM_BBOX.items()}
     pick_default(manifest)
     if args.default:
         manifest["default"] = args.default

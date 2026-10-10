@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
 import { Landmark, Lock, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import type { CmDepositBankInfo, CmWallet } from '../api/CmApiTypes';
@@ -31,12 +30,7 @@ import {
   useCmWalletTopUp,
   useCmWithdrawalForm,
 } from '../shared/useCmWalletActions';
-
-const WALLET_TABS = ['transactions', 'deposits', 'payments', 'invoices', 'refunds', 'withdrawals'] as const;
-const WITHDRAW_TAB = 'withdrawals';
-const TAB_QUERY_KEY = 'cm_wallet_tab';
-
-type CmWalletTab = typeof WALLET_TABS[number];
+import { useCmWalletTab } from '../shared/useCmWalletTab';
 
 /** Loading, error, and empty handling shared by every wallet table. */
 function CmListBody<T>({ list, emptyKey, children }: { list: CmPagedList<T>; emptyKey: string; children: React.ReactNode }): React.ReactElement {
@@ -534,44 +528,12 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
   );
 };
 
-function readStoredTab(): CmWalletTab {
-  try {
-    const value = window.sessionStorage.getItem(TAB_QUERY_KEY);
-    return (WALLET_TABS as readonly string[]).includes(value ?? '') ? (value as CmWalletTab) : 'transactions';
-  } catch {
-    return 'transactions';
-  }
-}
-
 export const CmWalletPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, hasCapability } = useCmBootstrap();
-  const [searchParams] = useSearchParams();
-  const canWithdraw = hasCapability('finance.withdraw');
+  const { bootstrap } = useCmBootstrap();
+  const { tab: activeTab, tabs, setTab, canWithdraw } = useCmWalletTab();
   const { wallet, loading: walletLoading, error: walletError, currency: walletCurrency, balances: balanceValues, reload: onChanged } = useCmWallet();
-  const [tab, setTabState] = useState<CmWalletTab>(readStoredTab);
-  const tabs = WALLET_TABS.filter((item) => item !== WITHDRAW_TAB || canWithdraw);
-  const activeTab = tabs.includes(tab) ? tab : tabs[0];
-
-  const setTab = (next: CmWalletTab): void => {
-    setTabState(next);
-    try {
-      window.sessionStorage.setItem(TAB_QUERY_KEY, next);
-    } catch {
-      /* storage unavailable: keep the in-memory tab */
-    }
-  };
-
-  // Deep links (e.g. the fund panel's "top up" hint) open a tab directly via
-  // ?tab=<name>; the tab is then persisted like a manual switch.
-  useEffect(() => {
-    const requested = searchParams.get('tab');
-    if ((WALLET_TABS as readonly string[]).includes(requested ?? '') && requested !== tab) {
-      setTab(requested as CmWalletTab);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   const balances = balanceValues.map((item) => ({ ...item, Icon: BALANCE_ICONS[item.key] }));
 

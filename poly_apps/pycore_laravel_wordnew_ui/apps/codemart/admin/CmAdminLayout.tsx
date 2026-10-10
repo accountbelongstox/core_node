@@ -15,6 +15,7 @@ import {
   ListChecks,
   Menu,
   MessageSquareQuote,
+  Palette,
   RotateCcw,
   ShieldCheck,
   SlidersHorizontal,
@@ -29,7 +30,7 @@ import { CmBootstrapRefreshNotice } from '../components/access/CmBootstrapRefres
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmChromeControls } from '../components/CmChromeControls';
 import { CmBrand } from '../components/CmBrand';
-import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
+import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { cmUserDisplayName } from '../shared/cmAccount';
 
 const ADMIN_NAV = [
@@ -47,6 +48,7 @@ const ADMIN_NAV = [
   { id: 'contact', path: CM_ADMIN_ROUTE.contactMessages, labelKey: 'admin.nav.contact', Icon: Inbox, end: false },
   { id: 'activity', path: CM_ADMIN_ROUTE.activity, labelKey: 'admin.nav.activity', Icon: History, end: false },
   { id: 'policy', path: CM_ADMIN_ROUTE.policy, labelKey: 'admin.nav.policy', Icon: SlidersHorizontal, end: false },
+  { id: 'brand', path: CM_PUBLIC_ROUTE.brandGallery, labelKey: 'admin.nav.brandGallery', Icon: Palette, end: false },
 ] as const;
 
 /**

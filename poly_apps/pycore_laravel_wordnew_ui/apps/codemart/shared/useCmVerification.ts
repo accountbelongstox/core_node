@@ -299,7 +299,7 @@ export interface CmTestimonialFormModel {
   nameMaxLength: number;
   valid: boolean;
   busy: boolean;
-  submit: () => Promise<void>;
+  submit: () => Promise<boolean>;
 }
 
 /** Testimonial submission in one or more languages, optionally tied to a completed project. */
@@ -332,8 +332,8 @@ export function useCmTestimonialForm(feedback: CmFeedback): CmTestimonialFormMod
   const tooShortAny = Object.values(filled).some((text) => text.length < CM_TESTIMONIAL_MIN_LENGTH);
   const valid = Object.keys(filled).length > 0 && !tooShortAny;
 
-  const submit = async (): Promise<void> => {
-    if (busy || !valid) return;
+  const submit = async (): Promise<boolean> => {
+    if (busy || !valid) return false;
     setBusy(true);
     feedback.clear();
     const response = await cmApi.submitTestimonial({
@@ -346,9 +346,10 @@ export function useCmTestimonialForm(feedback: CmFeedback): CmTestimonialFormMod
     if (response.success) {
       setQuotes({});
       feedback.success(t('verification.testimonialSubmitted'));
-    } else {
-      feedback.error(cmErrorMessage(t, response, 'verification.testimonialFailed'));
+      return true;
     }
+    feedback.error(cmErrorMessage(t, response, 'verification.testimonialFailed'));
+    return false;
   };
 
   return {

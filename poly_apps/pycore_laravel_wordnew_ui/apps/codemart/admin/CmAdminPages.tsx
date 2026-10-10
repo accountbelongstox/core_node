@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -20,7 +20,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmErrorMessage } from '../api/cmErrors';
 import { cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
 import { CmImage } from '../components/CmImage';
 import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
@@ -43,79 +42,37 @@ import {
   useCmAdminList,
   useCmAdminParam,
 } from './CmAdminShared';
+import { useCmAdminActionBuilders } from './useCmAdminActions';
+import { useCmAdminKycDocument, useCmAdminOverview } from './useCmAdminData';
 import {
-  type CmAdminKycDocument,
   type CmAdminKycRecord,
-  type CmAdminOverviewData,
   type CmAdminPolicy,
 } from './CmAdminTypes';
 
 const GLOSSARY_TERMS = ['deposit', 'escrow', 'dispute', 'refund', 'withdrawal', 'kyc', 'roleStatus', 'reviewer', 'testimonial'] as const;
 
-type CmAdminQueue = {
-  id: string;
-  count: number;
-  to: string;
-  Icon: LucideIcon;
+const QUEUE_ICONS: Record<string, LucideIcon> = {
+  kyc: ShieldCheck,
+  deposits: WalletCards,
+  refunds: RotateCcw,
+  withdrawals: Banknote,
+  roles: UserCog,
+  testimonials: MessageSquareQuote,
+  contact: Inbox,
 };
 
-function queuesFor(overview: CmAdminOverviewData): CmAdminQueue[] {
-  return [
-    { id: 'kyc', count: overview.kyc_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.kyc, { status: 'pending' }), Icon: ShieldCheck },
-    { id: 'deposits', count: overview.deposits_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.deposits, { status: 'pending' }), Icon: WalletCards },
-    { id: 'refunds', count: overview.refunds_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.refunds, { status: 'pending' }), Icon: RotateCcw },
-    { id: 'withdrawals', count: overview.withdrawals_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.withdrawals, { status: 'pending' }), Icon: Banknote },
-    { id: 'roles', count: overview.roles_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.users, { status: 'pending' }), Icon: UserCog },
-    { id: 'testimonials', count: overview.testimonials_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.testimonials, { status: 'pending' }), Icon: MessageSquareQuote },
-    { id: 'contact', count: overview.contact_messages_new, to: cmRouteWithQuery(CM_ADMIN_ROUTE.contactMessages, { status: 'new' }), Icon: Inbox },
-  ];
-}
+const TOTAL_ICONS: Record<string, LucideIcon> = {
+  users: Users,
+  roleHolders: UserCog,
+  projects: BriefcaseBusiness,
+  tasks: ListChecks,
+  reviewersPassed: BadgeCheck,
+};
 
 export const CmAdminOverviewPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
-  const { states } = useCmBootstrap();
-  const [overview, setOverview] = useState<CmAdminOverviewData | null>(null);
-  const [policy, setPolicy] = useState<CmAdminPolicy | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    const [overviewResponse, policyResponse] = await Promise.all([cmAdminApi.overview(), cmAdminApi.policy()]);
-    if (overviewResponse.success && overviewResponse.data) {
-      setOverview(overviewResponse.data);
-    } else {
-      setOverview(null);
-      setError(cmErrorMessage(t, overviewResponse, 'admin.loadFailed'));
-    }
-    setPolicy(policyResponse.success && policyResponse.data ? policyResponse.data : null);
-    setLoading(false);
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const queues = overview ? queuesFor(overview) : [];
-  const openQueues = queues.filter((queue) => queue.count > 0);
-  const clearQueues = queues.filter((queue) => queue.count === 0);
-  const pendingTotal = openQueues.reduce((sum, queue) => sum + queue.count, 0);
-  const projectCounts = overview?.projects_by_status ?? {};
-  const knownProjectStatuses = states('project');
-  const projectStatuses = [
-    ...knownProjectStatuses.filter((status) => projectCounts[status]),
-    ...Object.keys(projectCounts).filter((status) => !knownProjectStatuses.includes(status)),
-  ];
-
-  const totals = overview ? [
-    { key: 'users', value: overview.users_total, to: CM_ADMIN_ROUTE.users, Icon: Users },
-    { key: 'roleHolders', value: overview.codeMart_role_holders, to: cmRouteWithQuery(CM_ADMIN_ROUTE.users, { status: 'active' }), Icon: UserCog },
-    { key: 'projects', value: overview.projects_total, to: CM_ADMIN_ROUTE.projects, Icon: BriefcaseBusiness },
-    { key: 'tasks', value: overview.tasks_total, to: null, Icon: ListChecks },
-    { key: 'reviewersPassed', value: overview.reviewer_applications_passed, to: cmRouteWithQuery(CM_ADMIN_ROUTE.reviewerApplications, { status: 'passed' }), Icon: BadgeCheck },
-  ] : [];
+  const { overview, policy, loading, error, load, openQueues, clearQueues, pendingTotal, totals, projectCounts, projectStatuses } = useCmAdminOverview();
 
   return (
     <main className="cm-workspace-page">
@@ -142,9 +99,9 @@ export const CmAdminOverviewPage: React.FC = () => {
             {openQueues.length > 0 && (
               <div className="cm-admin-queue-grid">
                 {openQueues.map((queue) => {
-                  const Icon = queue.Icon;
+                  const Icon = QUEUE_ICONS[queue.id];
                   return (
-                    <Link key={queue.id} to={queue.to} className="cm-admin-queue" data-active="true">
+                    <Link key={queue.id} to={queue.route} className="cm-admin-queue" data-active="true">
                       <span className="cm-admin-queue__icon"><Icon aria-hidden="true" /></span>
                       <span className="cm-admin-queue__body">
                         <strong>{format.number(queue.count)}</strong>
@@ -163,7 +120,7 @@ export const CmAdminOverviewPage: React.FC = () => {
               <div className="cm-admin-clear-list">
                 <span><CheckCircle2 aria-hidden="true" /> {t('admin.overview.noPending')}</span>
                 {clearQueues.map((queue) => (
-                  <Link key={queue.id} to={queue.to} className="cm-workspace-link">{t(`admin.overview.queue.${queue.id}.title`)}</Link>
+                  <Link key={queue.id} to={queue.route} className="cm-workspace-link">{t(`admin.overview.queue.${queue.id}.title`)}</Link>
                 ))}
               </div>
             )}
@@ -173,7 +130,7 @@ export const CmAdminOverviewPage: React.FC = () => {
             <h2 id="cm-admin-totals">{t('admin.overview.platformTitle')}</h2>
             <div className="cm-admin-counter-grid">
               {totals.map((card) => {
-                const Icon = card.Icon;
+                const Icon = TOTAL_ICONS[card.key];
                 const content = (
                   <>
                     <Icon aria-hidden="true" />
@@ -181,8 +138,8 @@ export const CmAdminOverviewPage: React.FC = () => {
                     <span>{t(`admin.metrics.${card.key}`)}</span>
                   </>
                 );
-                return card.to
-                  ? <Link key={card.key} to={card.to} className="cm-admin-counter">{content}</Link>
+                return card.route
+                  ? <Link key={card.key} to={card.route} className="cm-admin-counter">{content}</Link>
                   : <div key={card.key} className="cm-admin-counter">{content}</div>;
               })}
             </div>
@@ -395,43 +352,7 @@ export const CmAdminUsersPage: React.FC = () => {
 /** Authenticated private KYC document preview (blob -> object URL, revoked on change/unmount). */
 export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAdminKycRecord['documents'] }> = ({ kycId, documents }) => {
   const { t } = useTranslation('cm');
-  const { policyList } = useCmBootstrap();
-  const [active, setActive] = useState<CmAdminKycDocument | null>(null);
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const requestRef = useRef(0);
-  const available = policyList('kyc_document_slots').filter((type) => documents?.[type]);
-
-  useEffect(() => () => {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-  }, [objectUrl]);
-
-  useEffect(() => () => {
-    requestRef.current += 1;
-  }, []);
-
-  const open = async (type: CmAdminKycDocument): Promise<void> => {
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
-    setObjectUrl(null);
-    setError(null);
-    if (active === type) {
-      setActive(null);
-      setLoading(false);
-      return;
-    }
-    setActive(type);
-    setLoading(true);
-    const response = await cmAdminApi.kycFile(kycId, type);
-    if (requestId !== requestRef.current) return;
-    setLoading(false);
-    if (response.success && response.data) {
-      setObjectUrl(URL.createObjectURL(response.data));
-    } else {
-      setError(cmErrorMessage(t, response, 'admin.kyc.documentFailed'));
-    }
-  };
+  const { available, active, objectUrl, loading, error, open } = useCmAdminKycDocument(kycId, documents);
 
   if (available.length === 0) {
     return <p className="cm-contract-note">{t('admin.kyc.noDocuments')}</p>;
@@ -474,28 +395,7 @@ export const CmAdminKycPage: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.kyc(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const userLabel = (item: CmAdminKycRecord): string => item.user?.username ?? t('admin.userNumber', { id: item.user_id });
-
-  const approve = (item: CmAdminKycRecord): void => action.ask({
-    title: t('admin.kyc.approveTitle', { name: item.real_name }),
-    body: t('admin.kyc.approveBody', { user: userLabel(item) }),
-    confirmLabel: t('admin.approve'),
-    reason: 'optional',
-    reasonLabel: t('admin.dialog.notes'),
-    successKey: 'admin.kyc.approved',
-    run: (notes) => cmAdminApi.approveKyc(item.id, notes),
-  });
-
-  const reject = (item: CmAdminKycRecord): void => action.ask({
-    title: t('admin.kyc.rejectTitle', { name: item.real_name }),
-    body: t('admin.kyc.rejectBody', { user: userLabel(item) }),
-    confirmLabel: t('admin.reject'),
-    tone: 'danger',
-    reason: 'required',
-    reasonLabel: t('admin.kyc.rejectReason'),
-    successKey: 'admin.kyc.rejected',
-    run: (notes) => cmAdminApi.rejectKyc(item.id, notes),
-  });
+  const { approveKyc: approve, rejectKyc: reject } = useCmAdminActionBuilders(action.ask);
 
   return (
     <main className="cm-workspace-page">

@@ -1217,7 +1217,6 @@
   .cm-workspace-mobile-header .cm-chrome-controls__language { padding: 0 6px; }
   .cm-workspace-mobile-header .cm-chrome-controls__language svg { display: none; }
   .cm-workspace-mobile-header .cm-chrome-controls__language select { max-width: 104px; }
-  .cm-workspace-mobile-header .cm-brand__tagline { display: none; }
   .cm-record-card { align-items: flex-start; flex-direction: column; }
   .cm-record-card__actions { width: 100%; }
   .cm-record-card__actions .cm-workspace-button { flex: 1; }
@@ -1971,7 +1970,8 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
   .cm-workspace-content { height: calc(100vh - var(--cm-mobile-header-h)); }
 }
 @media (max-width: 420px) {
-  .cm-workspace-mobile-header .cm-brand__name { display: none; }
+  .cm-workspace-mobile-header .cm-brand__lockup { display: none; }
+  .cm-workspace-mobile-header .cm-brand__mark-only { display: block; }
   .cm-workspace-mobile-header .cm-chrome-controls__language select { max-width: none; }
 }
 
