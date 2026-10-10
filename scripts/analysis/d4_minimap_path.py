@@ -236,7 +236,8 @@ def main():
     for p in waypoints:
         print(f"  ({roi[0] + p[0]}, {roi[1] + p[1]})")
     if len(waypoints) >= 2:
-        dx, dy = waypoints[1] - waypoints[0]
+        k = min(2, len(waypoints) - 1)
+        dx, dy = waypoints[k] - start  # from player toward a point along the route
         heading = math.degrees(math.atan2(-dy, dx))  # 0=east, 90=north
         print(f"heading: {heading:.1f} deg")
 
