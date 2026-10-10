@@ -9,8 +9,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { PcLayout } from './PcLayout';
 import { PcProviders } from './PcProviders';
 import {
-  checkPycoreNow, syncPycoreOfflineRecheckLoop, stopPycoreOfflineRecheckLoop,
+  checkPycoreNow, getPycoreSelectedTarget, syncPycoreOfflineRecheckLoop, stopPycoreOfflineRecheckLoop,
 } from '@/apps/pycore-manager/api';
+import { choosePycoreFirstRunTarget } from '../../core/integrations/pycore/PycoreFirstRun';
 import { registerPcLocales } from './pc-locales';
 import { PcLanguageSync } from './PcLanguageSync';
 import { PcUiStateBackupGate } from './persistence/PcUiStateBackupGate';
@@ -25,6 +26,9 @@ import { PcCloudClipboardRedirect } from './components/PcCloudClipboardRedirect'
 import { CLOUD_CLIPBOARD_PAGE_SLUG } from '../../shared/cloud-clipboard/CloudClipboardNavigation';
 
 registerPcLocales();
+
+/** Without a selection, the first-run choice runs again at this pace until something answers. */
+const FIRST_RUN_RETRY_MS = 15_000;
 
 const Fallback: React.FC = () => <div className="p-8 text-slate-500">Loading…</div>;
 const wrap = (node: React.ReactNode) => <Suspense fallback={<Fallback />}>{node}</Suspense>;
@@ -55,11 +59,22 @@ const PcApp: React.FC = () => {
   // recovery and on unmount.
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | undefined;
+    // First run only: a reachable entry becomes the persisted selection (the page reloads onto it);
+    // until one answers the default stays and the choice is retried.
+    const firstRun = () => {
+      if (getPycoreSelectedTarget()) return;
+      void choosePycoreFirstRunTarget({ reload: true, isCurrent: () => !cancelled }).then((url) => {
+        if (!url && !cancelled) retryTimer = window.setTimeout(firstRun, FIRST_RUN_RETRY_MS);
+      });
+    };
+    firstRun();
     checkPycoreNow().then(() => {
       if (!cancelled) syncPycoreOfflineRecheckLoop();
     });
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
       stopPycoreOfflineRecheckLoop();
     };
   }, []);

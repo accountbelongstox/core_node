@@ -33,7 +33,7 @@ errorCodes: {
     LARAVEL_HTTP_ERROR: 'Laravel 返回错误（{{detail}}）。',
     LARAVEL_BAD_RESPONSE: 'Laravel 返回了无法识别的响应。',
     LARAVEL_REQUEST_FAILED: 'Laravel 请求失败。',
-    LARAVEL_LOGIN_REQUIRED: '请先登录 Laravel 再执行此操作。',
+    LARAVEL_LOGIN_REQUIRED: '请先登录 Laravel 后继续。',
     BOOK_SYNC_INTERRUPTED: '上次同步被中断，重试即可续传。',
     BOOKS_CACHE_WRITE_FAILED: '书籍列表无法保存到本地。',
     BOOK_SENTENCE_PAGE_MISSING: 'Laravel 未返回该书的句子分页。',

@@ -76,7 +76,11 @@ export const PcAssistStrip: React.FC = () => {
       <section className="pc-glass p-3 flex items-center gap-2 text-xs text-slate-500">
         <Handshake className="w-4 h-4 text-rose-400 shrink-0" />
         <span className="font-bold text-slate-600 dark:text-slate-300">{t('queueCenter.assist.title')}</span>
-        <span className="truncate">{hub.error ? pcErrorCodeText(hub.error) : t('queueCenter.assist.loading')}</span>
+        <span className="truncate">
+          {!hub.pycoreReachable
+            ? t('queueCenter.assist.unreachable')
+            : hub.error ? pcErrorCodeText(hub.error) : t('queueCenter.assist.loading')}
+        </span>
         <button type="button" onClick={() => hub.refreshHub()} disabled={loading}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 disabled:opacity-50">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

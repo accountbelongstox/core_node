@@ -18,6 +18,7 @@ import {
   normalizeQueueCenterSections,
   queueCenterExchangeApi,
   pycoreApi,
+  pycoreLink,
   PYCORE_HTTP_DEFAULTS,
   useAudioLaneState,
 } from '@/apps/pycore-manager/api';
@@ -47,6 +48,7 @@ import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrat
 import { NETWORK_TIMEOUTS } from '../../../core/config/NetworkTiming';
 import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { StorageManager } from '../../../core/persistence';
+import { subscribeAuthSession } from '../../../core/auth/AuthSession';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 import { PC_REQUEST_FAILED_CODE, PcLocalizedError, pcCaughtErrorMessage, pcFailureMessage } from '../utils/pcErrorCodes';
 import { PC_AUDIO_LANES } from '../utils/pcAudioLanes';
@@ -55,6 +57,15 @@ const defaultSectionContracts = normalizeQueueCenterSections(null, null);
 
 /** Which side a Queue Center read refreshes: pycore pushes refresh the local slice, Laravel pushes the Laravel one. */
 type QcPollScope = 'all' | 'local' | 'laravel';
+type QcSide = Exclude<QcPollScope, 'all'>;
+
+/** Single-flight read state of one side; `settled` once it answered (or failed) for the current endpoint. */
+interface QcSideRead {
+  running: Promise<void> | null;
+  queued: boolean;
+  remoteRefresh: boolean;
+  settled: boolean;
+}
 
 const EMPTY_LOCAL_SLICE: QueueCenterLocalSlice = { snapshot: null, errors: {} };
 const EMPTY_LARAVEL_SLICE: QueueCenterLaravelSlice = {
@@ -186,9 +197,10 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   const requestId = useRef(0);
   const offlineRetryAtRef = useRef(0);
   const offlineBackoffRef = useRef(new Backoff(PYCORE_HTTP_DEFAULTS.reconnectMinMs, PYCORE_HTTP_DEFAULTS.reconnectMaxMs, { jitter: 'none', initialStep: 1 }));
-  const pollInFlightRef = useRef(false);
-  const pollQueuedRef = useRef<QcPollScope | null>(null);
-  const remoteRefreshQueuedRef = useRef(false);
+  const sideReadsRef = useRef<Record<QcSide, QcSideRead>>({
+    local: { running: null, queued: false, remoteRefresh: false, settled: false },
+    laravel: { running: null, queued: false, remoteRefresh: false, settled: false },
+  });
   const localSliceRef = useRef<QueueCenterLocalSlice>(EMPTY_LOCAL_SLICE);
   const laravelSliceRef = useRef<QueueCenterLaravelSlice>(EMPTY_LARAVEL_SLICE);
   const pollRef = useRef<(silent?: boolean, requestRemoteRefresh?: boolean, scope?: QcPollScope) => Promise<void>>(
@@ -211,116 +223,134 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, []);
 
-  const poll = useCallback(async (silent = false, requestRemoteRefresh = false, scope: QcPollScope = 'all') => {
-    if (pollInFlightRef.current) {
-      const queued = pollQueuedRef.current;
-      pollQueuedRef.current = queued === null || queued === scope ? scope : 'all';
-      remoteRefreshQueuedRef.current = remoteRefreshQueuedRef.current || requestRemoteRefresh;
-      return;
-    }
-    pollInFlightRef.current = true;
-    try {
-      const currentRequest = ++requestId.current;
-      const now = Date.now();
-      const pollStartedAt = now;
-      if (now < offlineRetryAtRef.current) {
-        if (!silent) setHub((previous) => ({ ...previous, loading: false }));
-        return;
-      }
-      if (!silent) {
-        setHub((previous) => ({
-          ...previous,
-          loading: true,
-          hubState: previous.hubState === 'idle' ? 'loading' : previous.hubState,
-        }));
-      }
+  /** Compose both slices into the hub; a side that has not answered yet keeps its last known reachability. */
+  const applySlices = useCallback((pollStartedAt: number) => {
+    const reads = sideReadsRef.current;
+    const local = localSliceRef.current;
+    const laravel = laravelSliceRef.current;
+    const exchange = queueCenterExchangeApi.compose(local, laravel);
+    const bothSettled = reads.local.settled && reads.laravel.settled;
+    const laravelComplete = !exchange.errors.overview
+      && !exchange.errors.queue_metrics
+      && !exchange.errors.translation
+      && !exchange.errors.sentence_queue;
 
-      try {
-        const [local, laravel] = await Promise.all([
-          scope === 'laravel' ? localSliceRef.current : queueCenterExchangeApi.readLocal(requestRemoteRefresh),
-          scope === 'local' ? laravelSliceRef.current : queueCenterExchangeApi.readLaravel(),
-        ]);
-        if (!mounted.current || currentRequest !== requestId.current) return;
-        localSliceRef.current = local;
-        laravelSliceRef.current = laravel;
-        const exchange = queueCenterExchangeApi.compose(local, laravel);
-        const laravelComplete = !exchange.errors.overview
-          && !exchange.errors.queue_metrics
-          && !exchange.errors.translation
-          && !exchange.errors.sentence_queue;
-        const hubState: QueueCenterHubLifecycle = exchange.pycoreReachable
-          && exchange.laravelReachable
-          && laravelComplete
+    // A lane push that arrived after this read started is newer truth:
+    // keep it instead of the exchange's older audio lane fields.
+    const heldLanes = getAudioLaneStoreState();
+    const lanePatch = heldLanes.payload && heldLanes.receivedAt > pollStartedAt
+      ? laneStatePatch(heldLanes.payload, exchange.sectionContracts)
+      : null;
+    setHub((previous) => {
+      // pycore reads wait on the link while the selected node is down: that wait is "unreachable", not "loading".
+      const pycoreReachable = reads.local.settled
+        ? exchange.pycoreReachable
+        : previous.pycoreReachable && !pycoreLink.isReconnecting();
+      const laravelReachable = reads.laravel.settled ? exchange.laravelReachable : previous.laravelReachable;
+      const hubState: QueueCenterHubLifecycle = !bothSettled
+        ? (pycoreReachable || laravelReachable ? 'degraded' : 'loading')
+        : pycoreReachable && laravelReachable && laravelComplete
           ? 'ready'
-          : exchange.pycoreReachable || exchange.laravelReachable
+          : pycoreReachable || laravelReachable
             ? 'degraded'
             : 'error';
+      return {
+        hubState,
+        diagnostics: null,
+        pycoreReachable,
+        laravelReachable,
+        laravelStoredEndpoint: laravelEndpoint || null,
+        laravelActiveEndpoint: exchange.laravelActiveEndpoint ?? previous.laravelActiveEndpoint,
+        workerApiUrl: exchange.workerApiUrl ?? previous.workerApiUrl,
+        laravelSnapshotAgeS: exchange.laravelSnapshotAgeS ?? previous.laravelSnapshotAgeS,
+        translationPending: exchange.translation?.summary?.pending ?? previous.translationPending,
+        voiceWord: exchange.wordAudio ?? previous.voiceWord,
+        voiceSentence: exchange.sentenceAudio ?? previous.voiceSentence,
+        assist: exchange.assist ?? previous.assist,
+        tts: exchange.tts ?? previous.tts,
+        overview: exchange.overview ?? previous.overview,
+        sentenceQueue: exchange.sentenceQueue ?? previous.sentenceQueue,
+        recent: exchange.recent ?? previous.recent,
+        translationQueue: exchange.translation ?? previous.translationQueue,
+        controls: previous.controls,
+        sliceErrors: exchange.errors,
+        timestamp: exchange.generatedAt,
+        loading: false,
+        error: exchange.errors.pycore || (reads.local.settled || pycoreReachable ? null : PC_REQUEST_FAILED_CODE),
+        sectionContracts: exchange.sectionContracts,
+        ...(lanePatch ?? {}),
+      };
+    });
 
-        if (hubState === 'error') {
-          offlineRetryAtRef.current = Date.now() + offlineBackoffRef.current.next();
-        } else {
-          offlineBackoffRef.current.reset();
-          offlineRetryAtRef.current = 0;
-        }
-
-        // A lane push that arrived after this poll started is newer truth:
-        // keep it instead of the exchange's older audio lane fields.
-        const heldLanes = getAudioLaneStoreState();
-        const lanePatch = heldLanes.payload && heldLanes.receivedAt > pollStartedAt
-          ? laneStatePatch(heldLanes.payload, exchange.sectionContracts)
-          : null;
-        setHub((previous) => ({
-          hubState,
-          diagnostics: null,
-          pycoreReachable: exchange.pycoreReachable,
-          laravelReachable: exchange.laravelReachable,
-          laravelStoredEndpoint: laravelEndpoint || null,
-          laravelActiveEndpoint: exchange.laravelActiveEndpoint,
-          workerApiUrl: exchange.workerApiUrl ?? previous.workerApiUrl,
-          laravelSnapshotAgeS: exchange.laravelSnapshotAgeS,
-          translationPending: exchange.translation?.summary?.pending ?? previous.translationPending,
-          voiceWord: exchange.wordAudio ?? previous.voiceWord,
-          voiceSentence: exchange.sentenceAudio ?? previous.voiceSentence,
-          assist: exchange.assist ?? previous.assist,
-          tts: exchange.tts ?? previous.tts,
-          overview: exchange.overview ?? previous.overview,
-          sentenceQueue: exchange.sentenceQueue ?? previous.sentenceQueue,
-          recent: exchange.recent ?? previous.recent,
-          translationQueue: exchange.translation ?? previous.translationQueue,
-          controls: previous.controls,
-          sliceErrors: exchange.errors,
-          timestamp: exchange.generatedAt,
-          loading: false,
-          error: exchange.errors.pycore || null,
-          sectionContracts: exchange.sectionContracts,
-          ...(lanePatch ?? {}),
-        }));
-
-        if (exchange.recent) pycoreTaskCenterState.ingestRecent(exchange.recent);
-      } catch {
-        if (!mounted.current || currentRequest !== requestId.current) return;
+    if (bothSettled) {
+      if (!exchange.pycoreReachable && !exchange.laravelReachable) {
         offlineRetryAtRef.current = Date.now() + offlineBackoffRef.current.next();
-        setHub((previous) => ({
-          ...previous,
-          pycoreReachable: false,
-          loading: false,
-          hubState: 'error',
-          error: PC_REQUEST_FAILED_CODE,
-        }));
-      }
-    } finally {
-      pollInFlightRef.current = false;
-      const queuedScope = pollQueuedRef.current;
-      if (queuedScope !== null && mounted.current) {
-        const queuedRemoteRefresh = remoteRefreshQueuedRef.current;
-        pollQueuedRef.current = null;
-        remoteRefreshQueuedRef.current = false;
-        window.setTimeout(() => {
-          if (mounted.current) void pollRef.current(true, queuedRemoteRefresh, queuedScope);
-        }, 0);
+      } else {
+        offlineBackoffRef.current.reset();
+        offlineRetryAtRef.current = 0;
       }
     }
+    if (exchange.recent) pycoreTaskCenterState.ingestRecent(exchange.recent);
   }, [laravelEndpoint]);
+
+  /**
+   * One side's read (pycore or Laravel), single-flight per side: a side never waits for the
+   * other, so a pycore node that is down (its reads wait on the link) never hides Laravel's
+   * answer, and Laravel pushes keep refreshing while pycore reconnects.
+   */
+  const readSide = useCallback((side: QcSide, requestRemoteRefresh: boolean): Promise<void> => {
+    const read = sideReadsRef.current[side];
+    if (read.running) {
+      read.queued = true;
+      read.remoteRefresh = read.remoteRefresh || requestRemoteRefresh;
+      return read.running;
+    }
+    const generation = requestId.current;
+    const startedAt = Date.now();
+    const run = (async () => {
+      try {
+        if (side === 'local') {
+          const local = await queueCenterExchangeApi.readLocal(requestRemoteRefresh);
+          if (!mounted.current || generation !== requestId.current) return;
+          localSliceRef.current = local;
+        } else {
+          const laravel = await queueCenterExchangeApi.readLaravel();
+          if (!mounted.current || generation !== requestId.current) return;
+          laravelSliceRef.current = laravel;
+        }
+      } catch {
+        if (!mounted.current || generation !== requestId.current) return;
+        if (side === 'local') localSliceRef.current = { snapshot: null, errors: { pycore: PC_REQUEST_FAILED_CODE } };
+      }
+      read.settled = true;
+      applySlices(startedAt);
+    })().finally(() => {
+      read.running = null;
+      if (!read.queued || !mounted.current) return;
+      const queuedRemoteRefresh = read.remoteRefresh;
+      read.queued = false;
+      read.remoteRefresh = false;
+      void readSide(side, queuedRemoteRefresh);
+    });
+    read.running = run;
+    return run;
+  }, [applySlices]);
+
+  const poll = useCallback(async (silent = false, requestRemoteRefresh = false, scope: QcPollScope = 'all') => {
+    if (Date.now() < offlineRetryAtRef.current) {
+      if (!silent) setHub((previous) => ({ ...previous, loading: false }));
+      return;
+    }
+    if (!silent) {
+      setHub((previous) => ({
+        ...previous,
+        loading: true,
+        hubState: previous.hubState === 'idle' ? 'loading' : previous.hubState,
+      }));
+    }
+    const sides: QcSide[] = scope === 'all' ? ['local', 'laravel'] : [scope];
+    await Promise.all(sides.map((side) => readSide(side, side === 'local' && requestRemoteRefresh)));
+  }, [readSide]);
   pollRef.current = poll;
 
   useEffect(() => { void poll(false); }, [poll]);
@@ -365,6 +395,9 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
 
   const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
 
+  // A login (or logout) changes what Laravel answers: re-read its slices at once.
+  useEffect(() => subscribeAuthSession(() => { void pollRef.current(true, false, 'laravel'); }), []);
+
   // State-driven audio lanes: every pycore push (switch, lifecycle, queue,
   // full pull, worker) lands in the Word/Sentence/Phrase Audio sections at once.
   useEffect(() => {
@@ -390,6 +423,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     const handleEndpointChanged = () => {
       requestId.current += 1;
       laravelSliceRef.current = EMPTY_LARAVEL_SLICE;
+      sideReadsRef.current.laravel.settled = false;
       setHub((previous) => ({
         ...previous,
         hubState: 'loading',

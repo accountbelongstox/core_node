@@ -13,6 +13,7 @@ export const cmMobileShell = defineMobileLocale(
       me: 'Me',
       welcome: 'Welcome',
       showcase: 'Showcase',
+      admin: 'Admin',
     },
     shell: {
       menu: 'Menu',
@@ -45,6 +46,7 @@ export const cmMobileShell = defineMobileLocale(
       me: '我的',
       welcome: '欢迎',
       showcase: '案例',
+      admin: '管理',
     },
     shell: {
       menu: '菜单',
