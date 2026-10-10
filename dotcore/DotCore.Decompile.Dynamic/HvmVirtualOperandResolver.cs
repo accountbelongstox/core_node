@@ -69,6 +69,7 @@ public sealed class HvmMethodMetadataDocument
 
 public sealed class HvmJitCaptureMethod
 {
+    public int CallIndex { get; set; }
     public uint MethodToken { get; set; }
     public string ILBytes { get; set; } = string.Empty;
     public int MaxStack { get; set; }
@@ -134,8 +135,8 @@ public sealed class HvmVirtualOperandResolver
             .ToDictionary(group => group.Key, group => group.First().ModulePath, StringComparer.OrdinalIgnoreCase);
         Dictionary<string, ModuleDefinition> sourceModules = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, IMetadataMember?> resolvedMembers = new(StringComparer.Ordinal);
-        Dictionary<uint, HvmJitCaptureMethod> capturedMethods = captures.GroupBy(item => item.MethodToken)
-            .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.ILBytes.Length).First());
+        Dictionary<uint, HvmJitCaptureMethod[]> capturedMethods = captures.GroupBy(item => item.MethodToken)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.ILBytes.Length).ToArray());
         List<string> failures = new();
         HashSet<uint> decodedMethodTokens = new();
         int mappedOperands = 0;
@@ -152,24 +153,42 @@ public sealed class HvmVirtualOperandResolver
             if (!targetMethods.TryGetValue(unchecked((int)methodGroup.Key), out MethodDefinition? method)
                 || method.CilMethodBody == null
                 || !DnGuardMethodBodyClassifier.IsPlaceholder(method.CilMethodBody)
-                || !capturedMethods.TryGetValue(methodGroup.Key, out HvmJitCaptureMethod? capture))
+                || !capturedMethods.TryGetValue(methodGroup.Key, out HvmJitCaptureMethod[]? methodCaptures))
                 continue;
             CilMethodBody originalBody = method.CilMethodBody;
-            byte[] rawBody = ParseHex(capture.ILBytes);
+            HvmContextOperand[] methodOperands = methodGroup.ToArray();
+            HvmJitCaptureMethod? acceptedCapture = null;
+            HvmContextOperand[] acceptedOperands = Array.Empty<HvmContextOperand>();
+            byte[] rawBody = Array.Empty<byte>();
             Dictionary<uint, IMetadataMember> methodMembers = new();
-            foreach (HvmContextOperand mapping in methodGroup)
+            foreach (HvmJitCaptureMethod capture in OrderCaptures(methodCaptures, methodOperands))
             {
-                IMetadataMember? member = ResolveMember(mapping, targetModule, methodHandles, modulePaths,
-                    sourceModules, resolvedMembers, failures);
-                if (member != null)
-                    methodMembers[mapping.VirtualToken] = member;
+                HvmContextOperand[] captureOperands = methodOperands
+                    .Where(item => capture.CallIndex == 0 || item.JitCallIndex == capture.CallIndex)
+                    .ToArray();
+                if (captureOperands.Length == 0) continue;
+                rawBody = ParseHex(capture.ILBytes);
+                methodMembers = new Dictionary<uint, IMetadataMember>();
+                foreach (HvmContextOperand mapping in captureOperands)
+                {
+                    IMetadataMember? member = ResolveMember(mapping, targetModule, methodHandles, modulePaths,
+                        sourceModules, resolvedMembers, failures);
+                    if (member != null)
+                        methodMembers[mapping.VirtualToken] = member;
+                }
+                if (!TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key,
+                        capture.CallIndex == 0 ? captureOperands[0].JitCallIndex : capture.CallIndex,
+                        methodMembers, localTypes, failures))
+                    continue;
+                acceptedCapture = capture;
+                acceptedOperands = captureOperands;
+                break;
             }
-            if (!TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key,
-                    methodGroup.First().JitCallIndex, methodMembers, localTypes, failures))
+            if (acceptedCapture == null)
                 continue;
             int methodMappedOperands = 0;
             int methodUnresolvedOperands = 0;
-            foreach (HvmContextOperand mapping in methodGroup)
+            foreach (HvmContextOperand mapping in acceptedOperands)
             {
                 methodMembers.TryGetValue(mapping.VirtualToken, out IMetadataMember? resolved);
                 bool found = false;
@@ -225,6 +244,14 @@ public sealed class HvmVirtualOperandResolver
             decodedMethods, rejectedMethods, rejectedOperands, failures.AsReadOnly());
     }
 
+    private static IEnumerable<HvmJitCaptureMethod> OrderCaptures(IEnumerable<HvmJitCaptureMethod> captures,
+        IReadOnlyCollection<HvmContextOperand> operands)
+    {
+        var contextualCallIndexes = new HashSet<int>(operands.Select(item => item.JitCallIndex));
+        return captures.OrderByDescending(item => contextualCallIndexes.Contains(item.CallIndex))
+            .ThenByDescending(item => item.ILBytes.Length);
+    }
+
     private static bool TryDecodeCapturedBody(MethodDefinition method, HvmJitCaptureMethod capture, byte[] rawBody,
         uint methodToken, int jitCallIndex, IReadOnlyDictionary<uint, IMetadataMember> mappedMembers,
         HvmLocalTypeDocument localTypes, ICollection<string> failures)
@@ -259,6 +286,7 @@ public sealed class HvmVirtualOperandResolver
             var disassembler = new CilDisassembler(in reader, resolver);
             candidateBody.Instructions.AddRange(disassembler.ReadInstructions());
             candidateBody.VerifyLabels();
+            candidateBody.MaxStack = candidateBody.ComputeMaxStack();
             method.CilMethodBody = candidateBody;
             return true;
         }
