@@ -1,5 +1,6 @@
 // PY-REF: none (DOT-only)
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
@@ -11,9 +12,11 @@ namespace CoreNodeBridge;
 /// <summary>
 /// Combat assist, one setting shared by every mode the app controls (the "assist" line every app command carries, or command "assist"):
 /// the plugin cannot cast, so it only finds the fight and positions the hero; the app's combat macro casts while Combat is set.
-/// Scan: hostile monsters within AssistRange of the followed player (else within SelfDefenseRange of the hero) set Combat (kept
-/// CombatLingerMs after the last one) and pick the best one (elites / bosses first, then nearest). Step: walk to within AttackReach of
-/// it, never farther than LeashDistance from the followed player. Follow steps while it follows; while the app holds ROSBOT without
+/// Scan: hostile monsters within AssistRange of the followed player (else within ROSBOT's ScanRange, SelfDefenseRange when unknown, of
+/// the hero) set Combat (kept CombatLingerMs after the last one). The target follows ROSBOT's own strategy: the first of ROSBOT's attack
+/// targets (Context.AttackActors, its target selection) inside that area; else the best by ROSBOT's target weights (RosSettings:
+/// elite / goblin / normal weight per yard of distance; defaults when unreadable). Step: walk to within AttackReach of it, never farther
+/// than LeashDistance from the followed player. Follow steps while it follows; while the app holds ROSBOT without
 /// follow or standby the plugin steps idle; standby and running commands only scan (they own the movement).
 /// </summary>
 internal sealed class CombatAssist
@@ -25,6 +28,14 @@ internal sealed class CombatAssist
     private const float StepReach = 6f;
     private const int StepMs = 800;
     private const int CombatLingerMs = 2500;
+    private const int MinScanRange = 10;
+    private const int MaxScanRange = 80;
+    private const int DefaultEliteWeight = 3;
+    private const int DefaultGoblinWeight = 2;
+    private const int DefaultNormalWeight = 1;
+    private const string GoblinName = "goblin";
+    public const string SourceRosbot = "rosbot";
+    public const string SourceWeights = "weights";
 
     private readonly Action<string> _log;
     private readonly Stopwatch _sinceCombat = new();
@@ -39,6 +50,15 @@ internal sealed class CombatAssist
     /// <summary>Name of the monster fought, "" when none.</summary>
     public string Target { get; private set; } = "";
 
+    /// <summary>Where the target came from: SourceRosbot (ROSBOT's attack targets) or SourceWeights (ROSBOT's target weights), "" when none.</summary>
+    public string Source { get; private set; } = "";
+
+    /// <summary>RActorIds of ROSBOT's attack targets at the last read (published with the monster list).</summary>
+    public HashSet<uint> RosTargetIds { get; private set; } = new();
+
+    /// <summary>One of ROSBOT's target settings (RosSettings), -1 when unreadable.</summary>
+    public static int RosSetting(Func<int> getter) => WorldScanner.Safe(getter, -1);
+
     public void Set(bool on)
     {
         if (on == Enabled) return;
@@ -52,6 +72,15 @@ internal sealed class CombatAssist
     {
         _sinceCombat.Reset();
         Target = "";
+        Source = "";
+    }
+
+    /// <summary>Read ROSBOT's attack targets (tick thread only: the state writer never calls ROSBOT's targeting).</summary>
+    public IActor[] RefreshRosTargets()
+    {
+        var targets = WorldScanner.RosTargets();
+        RosTargetIds = new HashSet<uint>(targets.Select(a => WorldScanner.Safe(() => a.RActorId, 0u)));
+        return targets;
     }
 
     /// <summary>Best hostile monster around the followed player (null: around the hero), or null; keeps Combat and Target.</summary>
@@ -59,20 +88,40 @@ internal sealed class CombatAssist
     {
         if (!Enabled) return null;
         var anchor = around == null ? (Vector3?)null : WorldScanner.Safe(() => around.Position, LocalPlayer.Position);
-        var best = WorldScanner.HostileMonsters(actors)
-            .Select(m => (Actor: m, Position: WorldScanner.Safe(() => m.Position, Vector3.Zero), Distance: WorldScanner.Safe(() => m.Distance, float.MaxValue)))
-            .Where(m => anchor is { } a ? Vector3.Distance(m.Position, a) <= AssistRange : m.Distance <= SelfDefenseRange)
-            .OrderBy(m => WorldScanner.Safe(() => m.Actor.IsElite || m.Actor.IsBoss, false) ? 0 : 1)
-            .ThenBy(m => m.Distance)
-            .FirstOrDefault();
-        if (best.Actor == null)
+        int scan = RosSetting(() => RosSettings.ScanRange);
+        float selfRange = scan is >= MinScanRange and <= MaxScanRange ? scan : SelfDefenseRange;
+        bool InArea(IActor m) => anchor is { } a
+            ? Vector3.Distance(WorldScanner.Safe(() => m.Position, Vector3.Zero), a) <= AssistRange
+            : WorldScanner.Safe(() => m.Distance, float.MaxValue) <= selfRange;
+        bool Alive(IActor m) => WorldScanner.Safe(() => m.IsValid && !m.IsDead && m.IsHostile, false);
+        var best = RefreshRosTargets().FirstOrDefault(m => Alive(m) && InArea(m));
+        Source = SourceRosbot;
+        if (best == null)
+        {
+            best = WorldScanner.HostileMonsters(actors).Where(InArea).OrderByDescending(Score).FirstOrDefault();
+            Source = SourceWeights;
+        }
+        if (best == null)
         {
             Target = "";
+            Source = "";
             return null;
         }
         _sinceCombat.Restart();
-        Target = WorldScanner.Safe(() => best.Actor.Name, "") ?? "";
-        return best.Actor;
+        Target = WorldScanner.Safe(() => best.Name, "") ?? "";
+        return best;
+    }
+
+    /// <summary>ROSBOT's target weight (elite / boss, goblin, normal) per yard of distance.</summary>
+    private static float Score(IActor m)
+    {
+        bool elite = WorldScanner.Safe(() => m.IsElite || m.IsBoss, false);
+        bool goblin = (WorldScanner.Safe(() => m.InternalName, "") ?? "").IndexOf(GoblinName, StringComparison.OrdinalIgnoreCase) >= 0;
+        int weight = elite ? RosSetting(() => RosSettings.EliteWeight)
+            : goblin ? RosSetting(() => RosSettings.GoblinWeight)
+            : RosSetting(() => RosSettings.NormalMonsterWeight);
+        if (weight <= 0) weight = elite ? DefaultEliteWeight : goblin ? DefaultGoblinWeight : DefaultNormalWeight;
+        return weight / Math.Max(1f, WorldScanner.Safe(() => m.Distance, float.MaxValue));
     }
 
     /// <summary>One bounded step (StepMs) to within AttackReach of the monster, kept within LeashDistance of the followed player (null: no leash).</summary>

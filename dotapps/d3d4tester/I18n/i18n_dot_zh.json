@@ -1260,6 +1260,21 @@
       "control_end": "结束接管 · 继续监控",
       "control_taken": "插件接管中",
       "combat_target": "战斗：{0}",
+      "tab_monsters": "怪物",
+      "script_scope": "导出 ROSBOT 脚本环境",
+      "script_scope_tip": "研究用（只读，不执行任何脚本）：插件在 ROSBOT 进程内找到它的 IronPython 引擎和脚本作用域，把变量名、类型和搜索路径写到插件目录的 script_scope.txt，用来确认 ROSBOT 的战斗逻辑是否是脚本、能否被插件调用。",
+      "debug_full": "ROSBOT 调试日志（DebugLevel = Full）",
+      "debug_full_tip": "默认开启：每次启动 ROSBOT 前把 ROSBOT 的 DebugLevel 写成 Full（关闭则写 Normal），ROSBOT 会在日志里记录目标、移动和决策等开发者信息，用来研究它的战斗策略。写在 文档\\RoS-BoT\\RosBotGlobalSettings.ini；ROSBOT 启动时读取，切换后下次启动 ROSBOT 生效。日志会明显变多。",
+      "monster_ros_target": "ROSBOT 目标",
+      "monster_elite": "精英",
+      "monster_boss": "首领",
+      "monster_hp": "生命 {0:0}%",
+      "monster_info": "ROSBOT 攻击目标 {0} 个 · 战斗目标来源：{1} · ROSBOT 设置（-1 = 读不到）：扫描 {2} 码，精英权重 {3}，哥布林权重 {4}，普通权重 {5}",
+      "combat_source": {
+        "rosbot": "ROSBOT 目标列表",
+        "weights": "ROSBOT 目标权重",
+        "none": "无"
+      },
       "take_control": "操作游戏时自动暂停监控和 ROSBOT（跟随、NPC、分解等）",
       "plugin_not_running": "未发送：插件未运行（请启动 ROSBOT 并启用 CoreNode Bridge）"
     },

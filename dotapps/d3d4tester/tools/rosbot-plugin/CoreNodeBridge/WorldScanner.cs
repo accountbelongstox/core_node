@@ -35,6 +35,9 @@ internal sealed class EntityInfo
     /// <summary>Players: party slot from the banners (0 unknown) and the Leader attribute.</summary>
     public int PartySlot;
     public bool IsLeader;
+    /// <summary>Monsters: hit points 0-1 (-1 unknown) and whether ROSBOT's own target selection (Context.AttackActors) lists it.</summary>
+    public double HpPct = -1;
+    public bool RosTarget;
     /// <summary>Watched affix values (ItemWatch), null when the item is not watched.</summary>
     public Dictionary<string, double> Attrs;
 }
@@ -100,6 +103,39 @@ internal static class WorldScanner
         actors.Where(a => Safe(() => a.IsValid && a.IsPlayer && !a.IsMe, false) && Safe(() => a.Distance, float.MaxValue) <= PlayerRange)
             .OrderBy(a => Safe(() => a.Distance, float.MaxValue))
             .ToList();
+
+    public const double MonsterRange = 100;
+    public const int MaxMonsters = 40;
+
+    /// <summary>Hostile monsters nearby, nearest first, with hit points and ROSBOT's target mark (rosTargets = RActorIds of AttackActors).</summary>
+    public static List<EntityInfo> Monsters(IActor[] actors, ICollection<uint> rosTargets) =>
+        HostileMonsters(actors).Where(a => Safe(() => a.Distance, float.MaxValue) <= MonsterRange)
+            .OrderBy(a => Safe(() => a.Distance, float.MaxValue))
+            .Take(MaxMonsters)
+            .Select(a =>
+            {
+                var info = FromActor(a);
+                info.RosTarget = rosTargets.Contains(info.Id);
+                if (Safe(() => a.CommData, null) is { } acd) info.HpPct = HpPct(acd);
+                return info;
+            })
+            .ToList();
+
+    /// <summary>ROSBOT's own attack targets in its priority order (its target selection), empty when unavailable.</summary>
+    public static IActor[] RosTargets() => Safe(() => Context.AttackActors, null) ?? Array.Empty<IActor>();
+
+    /// <summary>Hit points 0-1 from Hitpoints_Cur / Hitpoints_Max_Total, -1 when unknown.</summary>
+    public static double HpPct(IAcd acd)
+    {
+        float cur = AttributeFloat(acd, "Hitpoints_Cur", -1f), max = AttributeFloat(acd, "Hitpoints_Max_Total", -1f);
+        return cur >= 0 && max > 0 ? Math.Min(1d, cur / max) : -1d;
+    }
+
+    public static float AttributeFloat(IAcd acd, string name, float fallback)
+    {
+        int id = AttributeId(name);
+        return id == int.MinValue ? fallback : Safe(() => acd.GetAttribute<float>(id), fallback);
+    }
 
     /// <summary>Valid, living, hostile monsters in this world.</summary>
     public static IEnumerable<IActor> HostileMonsters(IActor[] actors) =>

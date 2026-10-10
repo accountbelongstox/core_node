@@ -94,6 +94,13 @@
           <ListBox x:Name="LstNpcs" MinHeight="60"/>
         </DockPanel>
       </TabItem>
+      <!-- Monsters the plugin sees: ROSBOT's attack-target mark, elite / boss, hit points, distance; ROSBOT's target settings above -->
+      <TabItem x:Name="TabMonsters">
+        <DockPanel Margin="4">
+          <TextBlock x:Name="TxtMonsterInfo" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <ListBox x:Name="LstMonsters" MinHeight="60"/>
+        </DockPanel>
+      </TabItem>
       <!-- Follow a party member: target, banner slot, pickup / revive (lost outside town: the strip's town portal key), players -->
       <TabItem x:Name="TabFollow">
         <DockPanel Margin="4">
@@ -124,9 +131,11 @@
       </TabItem>
       <TabItem x:Name="TabAdvanced">
         <StackPanel Margin="4">
+          <CheckBox x:Name="ChkDebugFull" Margin="0,0,0,6" Click="ChkDebugFull_Click"/>
           <WrapPanel Margin="0,0,0,6">
             <TextBox x:Name="TxtUiId" Width="200" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <Button x:Name="BtnClickUi" Style="{StaticResource SecondaryButtonStyle}" Click="BtnClickUi_Click"/>
+            <Button x:Name="BtnClickUi" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnClickUi_Click"/>
+            <Button x:Name="BtnScriptScope" Style="{StaticResource SubtleButtonStyle}" Click="BtnScriptScope_Click"/>
           </WrapPanel>
           <TextBlock x:Name="LblTests" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
           <WrapPanel Margin="0,0,0,6">

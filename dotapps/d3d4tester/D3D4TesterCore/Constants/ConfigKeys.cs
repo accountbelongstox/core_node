@@ -124,6 +124,9 @@ public static partial class ConfigKeys
     /// the plugin positions the hero for the fight and the combat macro casts. On: panel game operations always take control first.
     /// </summary>
     public const string BridgeAssist = "rosbot.bridge_assist";
+    /// <summary>Write ROSBOT's DebugLevel = Full (off: Normal) to its global settings ini before every ROSBOT start. Default on.</summary>
+    public const string RosbotDebugLevelFull = "rosbot.debug_level_full";
+    public const bool RosbotDebugLevelFullDefault = true;
     public const bool BridgeAssistDefault = false;
     public const string BridgeFollowTownPortalKeyDefault = "t";
     /// <summary>
