@@ -496,19 +496,18 @@ function Get-CnPendingCopyBytes {
     )
 
     $cnBytes = [long]0
+    $cnSourcePrefix = ''
     $cnDestination = ''
     $cnExisting = $null
 
     foreach ($cnEntry in $Entries) {
+        $cnSourcePrefix = (Split-Path $cnEntry.FullName -Parent).TrimEnd('\') + '\'
         $cnFiles = @($cnEntry)
         if ($cnEntry -is [System.IO.DirectoryInfo]) {
             $cnFiles = @(Get-ChildItem -LiteralPath $cnEntry.FullName -Recurse -Force -File -Attributes !ReparsePoint -ErrorAction SilentlyContinue)
         }
         foreach ($cnFile in $cnFiles) {
-            $cnDestination = Join-Path $TargetPath $cnFile.FullName.Substring($cnEntry.Parent.FullName.Length + 1)
-            if ($cnEntry -is [System.IO.FileInfo]) {
-                $cnDestination = Join-Path $TargetPath $cnFile.Name
-            }
+            $cnDestination = Join-Path $TargetPath $cnFile.FullName.Substring($cnSourcePrefix.Length)
             $cnExisting = Get-Item -LiteralPath $cnDestination -Force -ErrorAction SilentlyContinue
             if (-not $cnExisting -or $cnExisting.Length -ne $cnFile.Length) {
                 $cnBytes += $cnFile.Length
