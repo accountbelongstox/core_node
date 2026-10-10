@@ -38,7 +38,10 @@ import {
   Directory,
   capDeviceStorage,
   capFs,
+  pathAssetKey,
   requestPersistentStorage,
+  urlAssetKey,
+  type CapLegacyFolder,
   type CapStorageVolume,
 } from '../../platform/capabilities';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
@@ -52,8 +55,29 @@ const ROOT_JOURNAL_NAME = 'index.log';
 /** Journal records after which the snapshot is rewritten and the journal dropped. */
 const JOURNAL_COMPACT_RECORDS = 5_000;
 const PUBLIC_FOLDER = 'WordNew';
-/** Folder of the reader's audio cache (runtime-store/WfNewAudioCache) in app data; its sentence clips live in this store. */
-export const READER_AUDIO_DIR = 'wfnew-audio';
+/**
+ * Folder of the device's static file library (runtime-store/WfNewStaticCache) in app data: every static file that
+ * is not a clip (images, voice / accent variants, article audio) by its path key. A clip file found there (stored
+ * before its identity was known, or on the web) moves into this store.
+ */
+export const STATIC_FILE_DIR = 'wfnew-static';
+/** Folders the static library lived in before (the reader audio cache); their files move over, never fetched again. */
+export const LEGACY_STATIC_FOLDERS: readonly CapLegacyFolder[] = [
+  { dir: 'wfnew-audio', directory: Directory.Data },
+  { dir: 'wfnew-audio', directory: Directory.Cache },
+];
+
+/**
+ * Keys a clip's file may have in the static library, in order: its resource id (the clip key), then the path and
+ * whole-URL keys of the file its payload named (a file cached by URL before its identity was known).
+ */
+export function clipStaticKeys(identity: Pick<OrchClipIdentity, 'resourceId'>, url?: string | null): string[] {
+  const keys = [`${identity.resourceId}${ORCH_CLIP_EXTENSION}`];
+  return url ? [...keys, pathAssetKey(url), urlAssetKey(url)] : keys;
+}
+
+/** A clip to look up, with the file its payload named (if any): the static library may hold it under that file's keys. */
+export type OrchClipLookup = OrchClipIdentity & { laravelUrl?: string | null };
 const CLIP_MIME = 'audio/mpeg';
 const INDEX_SAVE_DELAY_MS = 1_500;
 const CHANGE_NOTIFY_MS = 400;
@@ -174,8 +198,9 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private activeRoot: OrchClipRoot | null = null;
   private blobs: CapBlobStore | null = null;
   private queue: Promise<unknown> = Promise.resolve();
-  /** The reader cache folders (app data, and the old app cache folder its files moved from). */
-  private readonly readerStores = [new CapBlobStore(READER_AUDIO_DIR, Directory.Data), new CapBlobStore(READER_AUDIO_DIR, Directory.Cache)];
+  /** The static library folder and the folders it moved from. */
+  private readonly staticStores = [{ dir: STATIC_FILE_DIR, directory: Directory.Data }, ...LEGACY_STATIC_FOLDERS]
+    .map(({ dir, directory }) => new CapBlobStore(dir, directory));
   /** Clip writes in flight, by key (one write per clip at a time). */
   private readonly writes = new Map<string, Promise<string | null>>();
 
@@ -446,12 +471,19 @@ class WordNewOrchClipStore implements OrchDurationMemory {
    * entries - one index read, one folder listing and one folder URI for all of
    * them (a whole book answers in one pass, without a call per clip). A clip
    * file the index lost (cut-off write, unreadable snapshot) is held all the
-   * same: it joins the index again instead of being fetched again.
+   * same: it joins the index again instead of being fetched again. Native: a
+   * clip the static library holds (under its resource id or the keys of the
+   * file its payload named) moves into this store first - one device cache for
+   * every page, never fetched twice.
    */
-  async lookup(clips: readonly OrchClipIdentity[]): Promise<Map<string, { url: string; entry: OrchClipIndexEntry }>> {
+  async lookup(clips: readonly OrchClipLookup[]): Promise<Map<string, { url: string; entry: OrchClipIndexEntry }>> {
     const entries = await this.load();
     const blobs = await this.store();
-    const present = await blobs.presentKeys(clips.map(({ resourceId }) => clipName(resourceId)));
+    let present = await blobs.presentKeys(clips.map(({ resourceId }) => clipName(resourceId)));
+    if (isNativeAppShell() && present.size < clips.length) {
+      const adopted = await this.adoptStaticFiles(clips.filter(({ resourceId }) => !present.has(clipName(resourceId))));
+      if (adopted > 0) present = await blobs.presentKeys(clips.map(({ resourceId }) => clipName(resourceId)));
+    }
     const files = clips.filter(({ resourceId }) => present.has(clipName(resourceId)));
     const orphans = files.filter(({ resourceId }) => !entries[resourceId]);
     if (orphans.length > 0) {
@@ -516,16 +548,33 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   }
 
   /**
-   * Native: a sentence clip the reader cache (wfnew-audio, app data or the old app cache folder) holds under
-   * one of `keys` moves into this store (copied when the move is impossible, e.g. an SD-card root): the clip is
-   * kept once and never fetched again. Its playable URL, or null when the reader cache holds none of the keys.
+   * Native: the clips of `clips` the static library holds (one folder listing per library folder, then a move
+   * only for the files found) join this store. Returns how many moved.
    */
-  adoptReaderFile(identity: OrchClipIdentity, keys: readonly string[]): Promise<string | null> {
+  private async adoptStaticFiles(clips: readonly OrchClipLookup[]): Promise<number> {
+    const keysOf = new Map(clips.map((clip) => [clip.resourceId, clipStaticKeys(clip, clip.laravelUrl)]));
+    const allKeys = [...new Set([...keysOf.values()].flat())];
+    const held = new Set<string>();
+    for (const source of this.staticStores) {
+      (await source.presentKeys(allKeys).catch(() => new Set<string>())).forEach((key) => held.add(key));
+    }
+    if (held.size === 0) return 0;
+    const found = clips.filter(({ resourceId }) => keysOf.get(resourceId)?.some((key) => held.has(key)));
+    const moved = await Promise.all(found.map((clip) => this.adoptStaticFile(clip, keysOf.get(clip.resourceId) ?? [])));
+    return moved.filter(Boolean).length;
+  }
+
+  /**
+   * Native: a clip the static library (wfnew-static, or the old reader audio folders) holds under one of `keys`
+   * moves into this store (copied when the move is impossible, e.g. an SD-card root): the clip is kept once and
+   * never fetched again. Its playable URL, or null when the library holds none of the keys.
+   */
+  adoptStaticFile(identity: OrchClipIdentity, keys: readonly string[]): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
       if (!isNativeAppShell() || await this.holds(identity)) return;
       const blobs = await this.store();
       const name = clipName(identity.resourceId);
-      for (const source of this.readerStores) {
+      for (const source of this.staticStores) {
         for (const key of keys) {
           if (!(await source.has(key).catch(() => false))) continue;
           if (!(await blobs.adoptFrom(source, key, name))) {

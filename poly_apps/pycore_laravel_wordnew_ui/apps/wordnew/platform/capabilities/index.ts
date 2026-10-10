@@ -436,6 +436,7 @@ export type {
   CapStorageEstimate,
   CapBlobPutOptions,
   CapBlobEntry,
+  CapLegacyFolder,
 } from './CapFilesystem';
 
 // --- Read-through resource packages ---------------------------------------

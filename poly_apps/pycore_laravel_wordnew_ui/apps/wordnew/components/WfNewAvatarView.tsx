@@ -1,4 +1,5 @@
 import React from 'react';
+import { WfNewCachedImage } from './WfNewCachedImage';
 
 /**
  * WfNewAvatarView — renders an avatar value that may be EITHER an emoji (text)
@@ -30,7 +31,7 @@ export const WfNewAvatarView: React.FC<WfNewAvatarViewProps> = ({
 }) => {
   if (isImageAvatar(value)) {
     return (
-      <img
+      <WfNewCachedImage
         src={value}
         alt=""
         className={`w-full h-full object-cover rounded-full ${className}`}

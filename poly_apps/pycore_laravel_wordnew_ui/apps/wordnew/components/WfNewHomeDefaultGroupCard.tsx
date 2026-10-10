@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import type { BentoGroup } from '../api';
 import type { ElementTheme } from '../WfNewThemes';
+import { useWfNewStaticUrl } from '../hooks/useWfNewStaticUrl';
 
 const BACKDROP_IMAGES: Record<string, string> = {
   'bento-cosmic-1': 'https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?auto=format&fit=crop&q=60&w=800',
@@ -90,6 +91,7 @@ interface WfNewHomeDefaultGroupCardProps {
 
 /** The full-width Default Vocabulary Group card of the home tab. */
 export const WfNewHomeDefaultGroupCard: React.FC<WfNewHomeDefaultGroupCardProps> = ({ group, index, dark, activeTheme, trans, onOpen, onEnroll }) => {
+  const backdrop = useWfNewStaticUrl(BACKDROP_IMAGES[group.id] ?? DEFAULT_BACKDROP_IMAGE);
   const decor = group.decorativeSvg ? DECOR_SVGS[group.decorativeSvg] : undefined;
   return (
     <motion.div
@@ -104,7 +106,7 @@ export const WfNewHomeDefaultGroupCard: React.FC<WfNewHomeDefaultGroupCardProps>
     >
       <div
         className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-[0.14] dark:opacity-[0.08] pointer-events-none transition-transform duration-700 group-hover:scale-105"
-        style={{ backgroundImage: `url("${BACKDROP_IMAGES[group.id] ?? DEFAULT_BACKDROP_IMAGE}")` }}
+        style={backdrop ? { backgroundImage: `url("${backdrop}")` } : undefined}
       />
 
       <div className="absolute inset-0 overflow-hidden opacity-[0.06] dark:opacity-[0.04] pointer-events-none select-none font-mono text-[8px] uppercase tracking-widest leading-none">

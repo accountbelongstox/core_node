@@ -9,7 +9,7 @@ import { ProgressBar } from '@/shared/ui/ProgressBar';
 import { TONE_TEXT } from '@/shared/ui/statusTone';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { capDeviceStorage, type CapStorageVolume } from '../../platform/capabilities/CapDeviceStorage';
-import { audioCacheStats } from '../../runtime-store/WfNewAudioCache';
+import { staticCacheStats } from '../../runtime-store/WfNewStaticCache';
 import { wordNewOrchClipStore, type OrchClipStats } from '../../services/orchestration/WordNewOrchClipStore';
 import { volumeUsage } from './storageUsage';
 
@@ -28,7 +28,7 @@ export const WfNewStorageBadge: React.FC<Props> = ({ trans, onOpen }) => {
       wordNewOrchClipStore.stats(),
       wordNewOrchClipStore.root(),
       capDeviceStorage.volumes().then((answer) => answer.volumes).catch(() => [] as CapStorageVolume[]),
-      audioCacheStats().catch(() => ({ bytes: 0 })),
+      staticCacheStats().catch(() => ({ bytes: 0 })),
     ]);
     setStats(clips);
     setAudioBytes(audio.bytes);

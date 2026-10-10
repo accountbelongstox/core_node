@@ -94,7 +94,11 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
   const [saving, setSaving] = useState(false);
   const [passageNotice, setPassageNotice] = useState('');
 
-  useEffect(() => { void wordNewOrchPresetStore.load().then(setPresets); }, []);
+  useEffect(() => {
+    const off = wordNewOrchPresetStore.subscribe(setPresets);
+    void wordNewOrchPresetStore.load().then(setPresets);
+    return off;
+  }, []);
 
   const bookKey = config.book?.sourceKey ?? '';
   useEffect(() => {

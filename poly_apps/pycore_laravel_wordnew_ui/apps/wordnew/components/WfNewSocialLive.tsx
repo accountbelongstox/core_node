@@ -18,6 +18,7 @@ import { WfNewActorAvatar } from './social/WfNewSocialAvatar';
 import { embedUrl } from './social/socialEmbed';
 import { SOCIAL_LIVE_BEAT_MS } from '../constants/uiTiming';
 import { StateMessage } from '@/shared/ui/StateMessage';
+import { WfNewCachedImage } from './WfNewCachedImage';
 
 interface WfNewSocialLiveProps {
   activeTheme: ElementTheme;
@@ -105,7 +106,7 @@ export const WfNewSocialLive: React.FC<WfNewSocialLiveProps> = ({
             >
               <div className="relative aspect-video bg-zinc-900 overflow-hidden">
                 {live.cover_url
-                  ? <img src={mediaUrl(live.cover_url)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  ? <WfNewCachedImage src={mediaUrl(live.cover_url)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                   : <div className="w-full h-full bg-gradient-to-br from-rose-950/40 to-indigo-950/40 flex items-center justify-center"><Radio className="w-10 h-10 text-rose-400/50" /></div>}
                 <span className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono uppercase">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> {trans('social.live.badge')}

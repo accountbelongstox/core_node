@@ -27,7 +27,7 @@ const ITEM_LABEL: Record<WfNewCacheItemId, string> = {
   wordGroups: 'cache.wordGroupsGroups',
   words: 'cache.totalWords',
   serverResources: 'cache.serverResources',
-  audio: 'cache.audio',
+  staticFiles: 'cache.staticFiles',
   orchInputs: 'cachePage.orchInputs',
   orchProgress: 'cachePage.orchProgress',
   orchClips: 'cachePage.orchClips',

@@ -230,7 +230,7 @@ export const enLocaleA: Record<string, string> = {
     'cache.wordGroupsGroups': 'Word groups cached',
     'cache.wordGroupsWithWords': 'Groups with cached words',
     'cache.totalWords': 'Total words cached',
-    'cache.audio': 'Cached audio clips',
+    'cache.staticFiles': 'Cached static files (audio, images)',
     'cache.refresh': 'Refresh',
     'cache.clearBtn': 'Clear cache',
     'cache.clearing': 'Clearing…',

@@ -54,22 +54,32 @@ const FALLBACK_DOCUMENT: OrchPresetDocument = {
 class WordNewOrchPresetStoreService {
   private readonly file = new CapJsonStore<OrchPresetDocument>(PRESETS_PATH, FALLBACK_DOCUMENT, Directory.Data);
 
-  private inflight: Promise<OrchPresetDocument> | null = null;
+  private readonly listeners = new Set<(document: OrchPresetDocument) => void>();
 
-  /** Device copy first; refreshed from pycore when a link is up. Concurrent callers share one load. */
-  load(): Promise<OrchPresetDocument> {
-    this.inflight ??= this.loadOnce().finally(() => { this.inflight = null; });
-    return this.inflight;
+  private refreshing: Promise<void> | null = null;
+
+  /**
+   * The device copy at once (the stage never waits on pycore); a refresh from
+   * pycore follows in the background and reaches `subscribe`. Concurrent callers share one refresh.
+   */
+  async load(): Promise<OrchPresetDocument> {
+    const cached = await this.file.load();
+    this.refreshing ??= this.refresh().catch(() => undefined).finally(() => { this.refreshing = null; });
+    return cached;
   }
 
-  private async loadOnce(): Promise<OrchPresetDocument> {
-    const cached = await this.file.load();
-    if (!(await wordNewPycoreLink.ensure()).selectedUrl) return cached;
+  subscribe = (listener: (document: OrchPresetDocument) => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  };
+
+  private async refresh(): Promise<void> {
+    if (!(await wordNewPycoreLink.ensure()).selectedUrl) return;
     const answer = await pycoreApi.orchVideoPresets().catch(() => null);
-    if (!answer?.success || !Array.isArray(answer.presets) || answer.presets.length === 0) return cached;
+    if (!answer?.success || !Array.isArray(answer.presets) || answer.presets.length === 0) return;
     const document = { active: answer.active, presets: answer.presets, fetchedAt: Date.now() };
     await this.file.save(document);
-    return document;
+    this.listeners.forEach((listener) => listener(document));
   }
 
   settingsFor(document: OrchPresetDocument, presetId: string): OrchVideoSettings {

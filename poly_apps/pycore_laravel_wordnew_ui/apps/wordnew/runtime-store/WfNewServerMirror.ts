@@ -1,14 +1,14 @@
 import { CapResourcePackage } from '@/apps/wordnew/platform/capabilities';
 import { stableHash } from '../platform/utils/stableHash';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
-import { preloadAudioFromPayload } from './WfNewAudioCache';
+import { preloadStaticFromPayload } from './WfNewStaticCache';
 
 const resourcePackage = new CapResourcePackage({
   dbName: 'wordnew_resources',
   collection: 'server_responses',
   namespace: 'wordnew',
   defaultTtlMs: 5 * 60 * 1000,
-  onValue: preloadAudioFromPayload,
+  onValue: preloadStaticFromPayload,
 });
 
 function stableSerialize(value: unknown): string {
@@ -99,7 +99,7 @@ export async function readMirroredResponse<T>(
 ): Promise<T | null> {
   const record = await resourcePackage.get<T>(resourceKey(path, variant), scopeFor(token));
   if (!record) return null;
-  preloadAudioFromPayload(record.payload);
+  preloadStaticFromPayload(record.payload);
   return record.payload;
 }
 

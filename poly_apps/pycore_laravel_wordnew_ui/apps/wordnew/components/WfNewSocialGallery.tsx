@@ -9,6 +9,7 @@ import { formatRelativeTime } from '../../../core/utils/formatters';
 import { WfNewActorAvatar } from './social/WfNewSocialAvatar';
 import { useSocialList } from './social/useSocialList';
 import { StateMessage } from '@/shared/ui/StateMessage';
+import { WfNewCachedImage } from './WfNewCachedImage';
 
 /** A flattened gallery tile: one image + its source post. */
 interface GalleryTile {
@@ -78,7 +79,7 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
               onClick={() => { if (!isLoggedIn) { requireAuth(); return; } setLightboxIdx(idx); }}
               className="relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-white/5 group cursor-pointer"
             >
-              <img src={tile.url} alt={tile.caption || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+              <WfNewCachedImage src={tile.url} alt={tile.caption || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                 <span className="text-[10px] text-white font-mono truncate">{tile.post.author.name}</span>
               </div>
@@ -120,7 +121,7 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
               animate={{ opacity: 1, scale: 1 }}
               className="relative max-w-4xl max-h-[85vh] flex flex-col items-center gap-3"
             >
-              <img src={current.url} alt={current.caption || ''} className="max-w-full max-h-[72vh] object-contain rounded-xl" />
+              <WfNewCachedImage src={current.url} alt={current.caption || ''} className="max-w-full max-h-[72vh] object-contain rounded-xl" />
               <div className="flex items-center gap-2.5 bg-white/5 rounded-full px-4 py-2 border border-white/10">
                 <WfNewActorAvatar actor={current.post.author} size="w-7 h-7" />
                 <div className="text-left">
