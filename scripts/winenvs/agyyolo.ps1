@@ -11,30 +11,11 @@ $coreNodePath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
+$aiCliProvisionScript = $null
 $serviceContractScript = $null
-$mcpChromePath = $null
-$mcpChromeNodeModulesPath = $null
-$mcpChromeSharedArtifactPath = $null
-$mcpChromeNativeArtifactPath = $null
-$mcpChromeExtensionManifestPath = $null
-$mcpChromeRegisterScriptPath = $null
-$mcpChromeEnsureWinBinScriptPath = $null
-$mcpChromeSupervisorScriptPath = $null
-$mcpChromeNeedsDependencies = $false
-$mcpChromeNeedsBuild = $false
-$mcpChromeInstalled = $false
-$mcpChromeJustInstalled = $false
 $mcpChromeHost = $null
 $mcpChromeUrl = $null
 $mcpChromePort = 0
-$mcpChromePortReady = $false
-$mcpChromePortWaitCount = 0
-$mcpChromePython = $null
-$mcpChromeSupervisorArgs = @()
-$existingMcpJsonText = ""
-$previousLocation = $null
-$pnpmCommand = $null
-$nodeCommand = $null
 $agyCommand = $null
 $agyCandidatePath = $null
 $localAppDataPath = $null
@@ -73,34 +54,16 @@ $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$aiCliProvisionScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 $serviceContractScript = Join-Path $winCommonDirPath "ServiceContract.ps1"
 . $windowsPathFunctionScript
 . $serviceContractScript
+. $aiCliProvisionScript
 Set-CoreNodePaths
-
-$mcpChromePath = Join-Path $coreNodePath "apps"
-$mcpChromePath = Join-Path $mcpChromePath "mcp-chrome"
-$mcpChromeNodeModulesPath = Join-Path $mcpChromePath "node_modules"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromePath "packages"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "shared"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "dist"
-$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "index.js"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromePath "app"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "native-server"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "dist"
-$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "index.js"
-$mcpChromeExtensionManifestPath = Join-Path $mcpChromePath ".output"
-$mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "build_extension"
-$mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "manifest.json"
-$mcpChromeRegisterScriptPath = Join-Path $mcpChromePath "scripts"
-$mcpChromeEnsureWinBinScriptPath = Join-Path $mcpChromeRegisterScriptPath "ensure_win_bin.ps1"
-$mcpChromeSupervisorScriptPath = Join-Path $mcpChromeRegisterScriptPath "service_supervisor.py"
-$mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 
 $mcpChromeHost = Get-ServiceContractHost -Name "loopback"
 $mcpChromePort = Get-ServiceContractPort -Name "mcp_chrome"
 $mcpChromeUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpChromeHost -Port $mcpChromePort -Path "mcp"
-$mcpChromePython = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -167,7 +130,7 @@ switch ($modelPick) {
 }
 Write-Host "[INFO] Model: $agyModelLabel ($agyModel)" -ForegroundColor White
 
-# Chrome MCP (apps/mcp-chrome) setup & auto-load
+# Chrome MCP service ensure and registration
 $userProfilePath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
 $geminiConfigDirPath = Join-Path $userProfilePath ".gemini"
 $geminiConfigDirPath = Join-Path $geminiConfigDirPath "config"
@@ -177,116 +140,46 @@ if (-not (Test-Path -LiteralPath $geminiConfigDirPath)) {
 $geminiMcpConfigPath = Join-Path $geminiConfigDirPath "mcp_config.json"
 $utf8Encoding = New-Object System.Text.UTF8Encoding($false)
 
-$mcpChromeNeedsDependencies = -not (Test-Path -LiteralPath $mcpChromeNodeModulesPath)
-$mcpChromeNeedsBuild = (-not (Test-Path -LiteralPath $mcpChromeSharedArtifactPath)) -or
-    (-not (Test-Path -LiteralPath $mcpChromeNativeArtifactPath)) -or
-    (-not (Test-Path -LiteralPath $mcpChromeExtensionManifestPath))
+Invoke-AiCliChromeServiceEnsure
 
-$mcpChromeInstalled = $false
-if ((Test-Path -LiteralPath $geminiMcpConfigPath) -and (-not $mcpChromeNeedsBuild)) {
-    $existingMcpJsonText = [System.IO.File]::ReadAllText($geminiMcpConfigPath)
-    if ($existingMcpJsonText -match '"chrome"') {
-        $mcpChromeInstalled = $true
-    }
-}
+# Register Chrome MCP in Antigravity
+& $agyCommand.Source mcp add chrome $mcpChromeUrl | Out-Null
 
-$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
-$pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-
-if ($mcpChromeInstalled) {
-    Write-Host "[INFO] Chrome MCP already installed and configured." -ForegroundColor Green
-} else {
-    $mcpChromeJustInstalled = $true
-    if ($mcpChromeNeedsDependencies -or $mcpChromeNeedsBuild) {
-        if ($null -eq $nodeCommand) {
-            throw "node is required to build Chrome MCP."
-        }
-        if ($null -eq $pnpmCommand) {
-            throw "pnpm is required to build Chrome MCP."
-        }
-        Write-Host "[INFO] Ensuring Chrome MCP dependencies and artifacts..." -ForegroundColor Cyan
-        $previousLocation = Get-Location
-        try {
-            Set-Location -LiteralPath $mcpChromePath
-            if ($mcpChromeNeedsDependencies) {
-                & $pnpmCommand.Source install
-            }
-            if ($mcpChromeNeedsBuild) {
-                & $mcpChromeEnsureWinBinScriptPath -WorkspaceRoot $mcpChromePath
-                & $pnpmCommand.Source run build:all
-            }
-            & $nodeCommand.Source $mcpChromeRegisterScriptPath
-        } finally {
-            Set-Location -LiteralPath $previousLocation
-        }
-    }
-
-    # Register Chrome MCP in Antigravity
-    & $agyCommand.Source mcp add chrome $mcpChromeUrl | Out-Null
-
-    if (Test-Path -LiteralPath $geminiMcpConfigPath) {
-        try {
-            $mcpConfig = Get-Content -Raw -LiteralPath $geminiMcpConfigPath | ConvertFrom-Json
-        } catch {
-            $mcpConfig = [PSCustomObject]@{}
-        }
-    } else {
+if (Test-Path -LiteralPath $geminiMcpConfigPath) {
+    try {
+        $mcpConfig = Get-Content -Raw -LiteralPath $geminiMcpConfigPath | ConvertFrom-Json
+    } catch {
         $mcpConfig = [PSCustomObject]@{}
     }
-    if ($null -eq $mcpConfig) {
-        $mcpConfig = [PSCustomObject]@{}
-    }
-    $mcpServersProperty = $mcpConfig.PSObject.Properties["mcpServers"]
-    if ($null -eq $mcpServersProperty) {
-        $mcpServers = [PSCustomObject]@{}
-        $mcpConfig | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value $mcpServers
-    } elseif ($null -eq $mcpServersProperty.Value) {
-        $mcpServers = [PSCustomObject]@{}
-        $mcpServersProperty.Value = $mcpServers
-    } else {
-        $mcpServers = $mcpServersProperty.Value
-    }
-    $chromeMcpConfig = [PSCustomObject]@{
-        disabled = $false
-        serverUrl = $mcpChromeUrl
-    }
-    $chromeMcpProperty = $mcpServers.PSObject.Properties["chrome"]
-    if ($null -eq $chromeMcpProperty) {
-        $mcpServers | Add-Member -MemberType NoteProperty -Name "chrome" -Value $chromeMcpConfig
-    } else {
-        $chromeMcpProperty.Value = $chromeMcpConfig
-    }
-    $mcpJson = $mcpConfig | ConvertTo-Json -Depth 20
-    [System.IO.File]::WriteAllText($geminiMcpConfigPath, $mcpJson, $utf8Encoding)
-    Write-Host "[INFO] Chrome MCP registered in Antigravity: $geminiMcpConfigPath" -ForegroundColor Green
-}
-
-# Ensure Chrome MCP supervisor is running
-$mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
-if (-not $mcpChromePortReady) {
-    $mcpChromeSupervisorArgs = @(
-        $mcpChromeSupervisorScriptPath,
-        "--project-root", $mcpChromePath,
-        "--watch-mode", "dev"
-    )
-    if ($mcpChromeNeedsBuild) {
-        $mcpChromeSupervisorArgs += @("--recover-on-start")
-    }
-    Write-Host "[INFO] Starting Chrome MCP development service..." -ForegroundColor Cyan
-    Start-Process -FilePath $mcpChromePython -ArgumentList $mcpChromeSupervisorArgs -WindowStyle Hidden
-    if ($mcpChromeJustInstalled) {
-        while (-not $mcpChromePortReady -and $mcpChromePortWaitCount -lt 20) {
-            Start-Sleep -Milliseconds 500
-            $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
-            $mcpChromePortWaitCount = $mcpChromePortWaitCount + 1
-        }
-    }
-}
-if ($mcpChromePortReady) {
-    Write-Host ("[INFO] Chrome MCP is listening on {0}:{1}." -f $mcpChromeHost, $mcpChromePort) -ForegroundColor Green
 } else {
-    Write-Host "[INFO] Chrome MCP service initialized ($mcpChromeUrl)." -ForegroundColor DarkGray
+    $mcpConfig = [PSCustomObject]@{}
 }
+if ($null -eq $mcpConfig) {
+    $mcpConfig = [PSCustomObject]@{}
+}
+$mcpServersProperty = $mcpConfig.PSObject.Properties["mcpServers"]
+if ($null -eq $mcpServersProperty) {
+    $mcpServers = [PSCustomObject]@{}
+    $mcpConfig | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value $mcpServers
+} elseif ($null -eq $mcpServersProperty.Value) {
+    $mcpServers = [PSCustomObject]@{}
+    $mcpServersProperty.Value = $mcpServers
+} else {
+    $mcpServers = $mcpServersProperty.Value
+}
+$chromeMcpConfig = [PSCustomObject]@{
+    disabled = $false
+    serverUrl = $mcpChromeUrl
+}
+$chromeMcpProperty = $mcpServers.PSObject.Properties["chrome"]
+if ($null -eq $chromeMcpProperty) {
+    $mcpServers | Add-Member -MemberType NoteProperty -Name "chrome" -Value $chromeMcpConfig
+} else {
+    $chromeMcpProperty.Value = $chromeMcpConfig
+}
+$mcpJson = $mcpConfig | ConvertTo-Json -Depth 20
+[System.IO.File]::WriteAllText($geminiMcpConfigPath, $mcpJson, $utf8Encoding)
+Write-Host "[INFO] Chrome MCP registered in Antigravity: $geminiMcpConfigPath" -ForegroundColor Green
 
 # Auto-configure workspace trust in settings.json
 $geminiCliDirPath = Join-Path $userProfilePath ".gemini"

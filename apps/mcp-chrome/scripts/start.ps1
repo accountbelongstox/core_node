@@ -6,7 +6,8 @@ param(
     [switch]$Service,
     [switch]$NoService,
     [switch]$UninstallService,
-    [switch]$ServiceRun
+    [switch]$ServiceRun,
+    [switch]$Ensure
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,6 +75,8 @@ $DevWatchArguments = @()
 $DevWatchProcess = $null
 $NodeExe = $null
 $ServiceRestartSeconds = 5
+$SourceStampState = ""
+$SourcesCurrent = $false
 
 function Get-LocalizedMessage {
     param(
@@ -217,6 +220,25 @@ if ($UninstallService) {
     return
 }
 
+# -Ensure (AI launchers, unattended): an installed logon task owns the build and hot
+# reload, so it is only started when stopped; without one this run installs it like
+# -Service and compiles only when the sources changed since the last build.
+if ($Ensure) {
+    if (Test-UserLogonTask -TaskName $ServiceTaskName) {
+        if (Start-UserLogonTask -TaskName $ServiceTaskName) {
+            Write-Host (Get-LocalizedMessage -Key "startServiceStartedNow" -Arguments @($ServiceTaskName)) -ForegroundColor Green
+        } else {
+            Write-Host (Get-LocalizedMessage -Key "startServiceEnsured" -Arguments @($ServiceTaskName)) -ForegroundColor Green
+        }
+        Set-Location $InitialDir
+        return
+    }
+    $Service = [switch]$true
+}
+
+$SourceStampState = (& $PythonExe $PythonScript --source-stamp status | Out-String).Trim()
+$SourcesCurrent = ($SourceStampState -eq "current")
+
 Write-Host ""
 Write-Host "========================================"
 Write-Host (Get-LocalizedMessage -Key "startBannerTitle")
@@ -229,8 +251,10 @@ Write-Host ""
 if (Test-UserLogonTask -TaskName $ServiceTaskName) {
     $ServiceMode = "converge"
     Write-Host (Get-LocalizedMessage -Key "startServiceInstalled" -Arguments @($ServiceTaskName)) -ForegroundColor Green
-    Stop-UserLogonTask -TaskName $ServiceTaskName
-    Start-Sleep -Seconds $ServiceRestartSeconds
+    if (-not $SourcesCurrent) {
+        Stop-UserLogonTask -TaskName $ServiceTaskName
+        Start-Sleep -Seconds $ServiceRestartSeconds
+    }
 } else {
     if ($Service) {
         $ServiceChoice = "yes"
@@ -320,27 +344,33 @@ if ($bunVersion) {
     throw (Get-LocalizedMessage -Key "startBunMissing")
 }
 
-# Step 2: Install dependencies
-Write-Host ""
-$step2 = Get-LocalizedMessage -Key "startInstallingDependencies"
-Write-Host "[2/6] $step2"
-
-Write-Host (Get-LocalizedMessage -Key "startInstallingDependenciesLive") -ForegroundColor Cyan
-& bun install
-Write-Host (Get-LocalizedMessage -Key "startDependencyInstallFinished") -ForegroundColor Green
-
-# Ensure Windows .cmd shims exist (bun previously run via bash/WSL loses them).
 $EnsureWinBinScript = Join-Path $PSScriptRoot "ensure_win_bin.ps1"
 $RegisterScript = Join-Path $PSScriptRoot "register-local-dev.cjs"
-Write-Host (Get-LocalizedMessage -Key "startCheckingCmdShims") -ForegroundColor Cyan
-& $EnsureWinBinScript -WorkspaceRoot $ProjectRoot
 
-# Quick compile+install: each package build aligns its own output incrementally.
-$extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
-$manifestJson = Join-Path $extensionPath "manifest.json"
-Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
+# Steps 2-5 only run when the build inputs changed since the last successful build.
+if ($SourcesCurrent) {
+    Write-Host ""
+    Write-Host (Get-LocalizedMessage -Key "startSourcesUnchanged") -ForegroundColor Green
+} else {
+    # Step 2: Install dependencies
+    Write-Host ""
+    $step2 = Get-LocalizedMessage -Key "startInstallingDependencies"
+    Write-Host "[2/6] $step2"
 
-# Step 3: Build Shared package
+    Write-Host (Get-LocalizedMessage -Key "startInstallingDependenciesLive") -ForegroundColor Cyan
+    & bun install
+    Write-Host (Get-LocalizedMessage -Key "startDependencyInstallFinished") -ForegroundColor Green
+
+    # Ensure Windows .cmd shims exist (bun previously run via bash/WSL loses them).
+    Write-Host (Get-LocalizedMessage -Key "startCheckingCmdShims") -ForegroundColor Cyan
+    & $EnsureWinBinScript -WorkspaceRoot $ProjectRoot
+
+    # Quick compile+install: each package build aligns its own output incrementally.
+    $extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
+    $manifestJson = Join-Path $extensionPath "manifest.json"
+    Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
+
+    # Step 3: Build Shared package
     Write-Host ""
     $step3 = Get-LocalizedMessage -Key "startBuildingShared"
     Write-Host "[3/6] $step3"
@@ -379,6 +409,8 @@ Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
     Write-Host "[5/6] $step5"
 
     & bun run build:extension
+    [void](& $PythonExe $PythonScript --source-stamp write)
+}
 
 $nativePath = Get-Var -Key ([VarKeys]::NATIVE_PATH)
 if (-not $extensionPath) {

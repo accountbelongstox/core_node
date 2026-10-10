@@ -70,6 +70,21 @@ public static class MaxrollD3PlannerClient
         return m.Success && long.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long id) ? id : null;
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (JsonNode? Data, JsonNode? Zh)> CachedGameData = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every rune of a class skill (letter, English, Chinese) from the cached game data; empty when unknown.</summary>
+    public static IReadOnlyList<(string Letter, string En, string Zh)> RuneNames(string cacheDir, string cls, string skill)
+    {
+        var (data, zh) = CachedGameData.GetOrAdd(cacheDir, dir =>
+        {
+            JsonNode? Read(string path) => File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
+            return (Read(DataPath(dir)), Read(LocaleZhPath(dir))?["patch"]);
+        });
+        var zhRunes = zh?["skills"]?[cls]?[skill]?["runes"];
+        return (data?["skills"]?[cls]?[skill]?["runes"]?.AsObject() ?? new JsonObject())
+            .Select(kv => (kv.Key, Text(kv.Value), Text(zhRunes?[kv.Key]))).ToList();
+    }
+
     /// <summary>Raw planner API answer of a build in the cache dir.</summary>
     public static string ProfilePath(string cacheDir, long id) =>
         Path.Combine(cacheDir, ProfilesDirName, id.ToString(CultureInfo.InvariantCulture) + ProfileFileExtension);
