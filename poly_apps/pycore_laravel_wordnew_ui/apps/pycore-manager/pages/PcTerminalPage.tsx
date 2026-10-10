@@ -2537,24 +2537,26 @@ const PcTerminalNodeView: React.FC<{
               : 'border-slate-500/40 bg-white/80 dark:bg-slate-900/80'
         } ${windowInfo.online ? '' : 'border-dashed'}`}
       >
-        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-slate-500/20 bg-slate-900 px-3 py-2 text-white">
+        <div className="flex shrink-0 flex-col gap-1 border-b border-slate-500/20 bg-slate-900 px-2.5 py-1.5 text-white">
           <button
             type="button"
             onClick={() => selectTerminal(windowInfo.terminal_number)}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left focus:outline-none"
+            className="flex min-w-0 items-start gap-1.5 text-left focus:outline-none"
             aria-label={t('terminal.selectWindow', {
               number: windowInfo.terminal_number,
             })}
           >
-            <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 px-1.5 font-mono text-xs font-bold text-indigo-200">
+            <span className="mt-0.5 inline-flex h-4 shrink-0 items-center justify-center rounded bg-indigo-500/25 px-1 font-mono text-[10px] font-bold text-indigo-200">
               #{windowInfo.terminal_number}
             </span>
-            <span className="truncate text-sm font-semibold">
+            <span className="min-w-0 break-words text-sm font-semibold leading-5">
               {terminalName(windowInfo, t('terminal.untitled'))}
             </span>
+          </button>
+          <div className="flex min-w-0 items-center gap-1.5">
             <PcTerminalStatusMarks windowInfo={windowInfo} hasDraft={hasLocalDraft(windowInfo.terminal_number)} />
             {windowInfo.online && windowInfo.control && !compactLayout && (
-              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+              <span className={`shrink-0 rounded px-1 py-px text-[9px] font-semibold ${
                 windowInfo.controllable === false
                   ? 'bg-amber-500/25 text-amber-200'
                   : 'bg-white/10 text-slate-300'
@@ -2562,50 +2564,50 @@ const PcTerminalNodeView: React.FC<{
                 {t(`terminal.desktop.control.${windowInfo.control}`)}
               </span>
             )}
-            <span className={`h-2 w-2 shrink-0 rounded-full ${
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
               windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
             }`} />
-          </button>
-          {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-4 w-4', 'h-8 w-8')}
-          {windowInfo.online && !windowInfo.virtual && (
-            <button
-              type="button"
-              onClick={() => {
-                selectTerminal(windowInfo.terminal_number);
-                void activate(windowInfo.id);
-              }}
-              disabled={busy || !snapshot?.supported || windowInfo.controllable === false}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-              aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
-            >
-              {busy
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <MousePointer2 className="h-4 w-4" />}
-              {!compactLayout && <span>{t('terminal.activate')}</span>}
-            </button>
-          )}
-          {!windowInfo.online && (
-            <button
-              type="button"
-              onClick={() => void removeOfflineTerminals([windowInfo.terminal_number])}
-              disabled={removingTerminals}
-              title={t('terminal.remove.one')}
-              aria-label={`${t('terminal.remove.one')}: #${windowInfo.terminal_number}`}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-          {windowInfo.online && !windowInfo.virtual && (
-            <div className="basis-full">
-              <PcTerminalCardCommands
-                shellOs={windowInfo.shell_os}
-                disabled={!snapshot?.supported || windowInfo.controllable === false}
-                busy={busy || quickRun.activeTerminalNumber === windowInfo.terminal_number}
-                onRun={(choice) => askQuickCommand(windowInfo, choice)}
-              />
+            <div className="min-w-0 flex-1">
+              {windowInfo.online && !windowInfo.virtual && (
+                <PcTerminalCardCommands
+                  shellOs={windowInfo.shell_os}
+                  disabled={!snapshot?.supported || windowInfo.controllable === false}
+                  busy={busy || quickRun.activeTerminalNumber === windowInfo.terminal_number}
+                  onRun={(choice) => askQuickCommand(windowInfo, choice)}
+                />
+              )}
             </div>
-          )}
+            {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-3.5 w-3.5', 'h-6 w-6')}
+            {windowInfo.online && !windowInfo.virtual && (
+              <button
+                type="button"
+                onClick={() => {
+                  selectTerminal(windowInfo.terminal_number);
+                  void activate(windowInfo.id);
+                }}
+                disabled={busy || !snapshot?.supported || windowInfo.controllable === false}
+                className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
+              >
+                {busy
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <MousePointer2 className="h-3.5 w-3.5" />}
+                {!compactLayout && <span>{t('terminal.activate')}</span>}
+              </button>
+            )}
+            {!windowInfo.online && (
+              <button
+                type="button"
+                onClick={() => void removeOfflineTerminals([windowInfo.terminal_number])}
+                disabled={removingTerminals}
+                title={t('terminal.remove.one')}
+                aria-label={`${t('terminal.remove.one')}: #${windowInfo.terminal_number}`}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
         <button
           type="button"
