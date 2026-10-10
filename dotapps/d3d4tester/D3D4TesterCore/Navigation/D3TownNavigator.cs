@@ -15,8 +15,39 @@ public static class D3TownTargets
     public const string KanaiCube = "kanai_cube";
     public const string Stash = "stash";
     public const string Waypoint = "waypoint";
-    public static readonly string[] All = { Blacksmith, KanaiCube, Stash, Waypoint };
+    public const string Jeweler = "jeweler";
+    public const string Mystic = "mystic";
+    public const string Kadala = "kadala";
+    public const string Obelisk = "obelisk";
+    public const string Armory = "armory";
+    public const string CainBook = "cain_book";
+    public static readonly string[] All = { Blacksmith, KanaiCube, Stash, Waypoint, Jeweler, Mystic, Kadala, Obelisk, Armory, CainBook };
 }
+
+/// <summary>NPC interface classes of the town model: open panels, their tabs and buttons, and the enchant affix text area (read by OCR).</summary>
+public static class D3TownUi
+{
+    public const string BlacksmithRepair = "bs_repair";
+    public const string BlacksmithSalvage = "bs_salvage";
+    public const string BlacksmithTabRepair = "bs_tab_repair";
+    public const string BlacksmithTabSalvage = "bs_tab_salvage";
+    public const string BlacksmithRepairAll = "bs_repair_all";
+    public const string BlacksmithSalvageItem = "bs_salvage_item";
+    public const string BlacksmithSalvageAll = "bs_salvage_all";
+    public const string MysticEnchant = "mystic_enchant";
+    public const string MysticTabEnchant = "mystic_tab_enchant";
+    public const string MysticEnchantButton = "mystic_enchant_button";
+    public const string EnchantText = "enchant_text";
+    public static readonly string[] Panels = { BlacksmithRepair, BlacksmithSalvage, MysticEnchant };
+    public static readonly string[] All =
+    {
+        BlacksmithRepair, BlacksmithSalvage, BlacksmithTabRepair, BlacksmithTabSalvage, BlacksmithRepairAll, BlacksmithSalvageItem, BlacksmithSalvageAll,
+        MysticEnchant, MysticTabEnchant, MysticEnchantButton, EnchantText,
+    };
+}
+
+/// <summary>One frame read: the open NPC panel (null = none), every detection, and the OCR lines of the enchant affix area.</summary>
+public sealed record D3PanelReading(string? Panel, IReadOnlyList<YoloDetection> Detections, IReadOnlyList<D3TextLine> EnchantLines);
 
 /// <summary>Navigation settings: model path (empty = the registry's current "navigation" model), confidence, steps.</summary>
 public sealed record D3NavigationOptions(string? ModelPath, float Confidence, int MaxSteps, bool SaveDebugImages);
@@ -63,8 +94,38 @@ public sealed class D3TownNavigator
             var detections = model.Detector.Detect(frame, model.Profile);
             Log(detections);
             if (options.SaveDebugImages) SaveDebug(frame, detections);
+            LogPanel(Read(frame, detections));
             return detections;
         }
+    }
+
+    /// <summary>Detect the open NPC panel (repair / salvage / enchant), its buttons and the enchant affix text of the current D3 frame.</summary>
+    public D3PanelReading? ReadPanel(D3NavigationOptions options)
+    {
+        using var model = AcquireModel(options);
+        if (model == null) return null;
+        using var frame = Capture(out _);
+        if (frame == null) return null;
+        var reading = Read(frame, model.Detector.Detect(frame, model.Profile));
+        LogPanel(reading);
+        return reading;
+    }
+
+    private static D3PanelReading Read(Mat frame, IReadOnlyList<YoloDetection> detections)
+    {
+        var panel = detections.Where(d => D3TownUi.Panels.Contains(d.ClassName)).OrderByDescending(d => d.Confidence).FirstOrDefault()?.ClassName;
+        var text = detections.Where(d => d.ClassName == D3TownUi.EnchantText).OrderByDescending(d => d.Confidence).FirstOrDefault();
+        var lines = text == null ? Array.Empty<D3TextLine>() : D3EnchantTextReader.Read(frame, text.Box);
+        return new D3PanelReading(panel, detections, lines);
+    }
+
+    private static void LogPanel(D3PanelReading reading)
+    {
+        if (reading.Panel != null) ColorPrinter.Blue($"{LogTag} Open panel: {reading.Panel}");
+        foreach (var d in reading.Detections.Where(d => D3TownUi.All.Contains(d.ClassName) && !D3TownUi.Panels.Contains(d.ClassName)))
+            ColorPrinter.Blue($"{LogTag}   {d.ClassName} at ({d.Center.X},{d.Center.Y}) conf {d.Confidence:0.00}");
+        foreach (var line in reading.EnchantLines)
+            ColorPrinter.Green($"{LogTag}   enchant: {line.Text} @({line.Center.X},{line.Center.Y})");
     }
 
     /// <summary>Walk to the target; shouldStop is polled every step.</summary>

@@ -23,6 +23,8 @@ export interface FlavorConfig {
   /** Project-root-relative React entry. Presence is validated by native scripts. */
   entry?: string;
   platforms?: Array<'web' | 'android' | 'ios'>;
+  /** 'shell' mounts the full multi-app shell (every end, shell controls) landing on `rootRoute`. */
+  mount?: 'standalone' | 'shell';
   standalone?: {
     switcher?: {
       enabled?: boolean;
@@ -165,4 +167,4 @@ export const FLAVOR: FlavorConfig =
   FLAVOR_REGISTRY[selectedId] || FLAVOR_REGISTRY['shell'] || DEFAULT_SHELL;
 
 /** True when a single sub-app is mounted as the homepage (not the full shell). */
-export const IS_STANDALONE = FLAVOR.id !== 'shell';
+export const IS_STANDALONE = FLAVOR.id !== 'shell' && FLAVOR.mount !== 'shell';

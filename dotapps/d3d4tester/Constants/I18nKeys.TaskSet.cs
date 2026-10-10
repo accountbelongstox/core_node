@@ -213,7 +213,6 @@ public static partial class I18nKeys
     public const string YoloTaskSetPlacement = Ts + "placement";
     public const string YoloTaskSetPlacementAnywhere = Ts + "placement_anywhere";
     public const string YoloTaskSetPlacementSource = Ts + "placement_source";
-    public const string YoloTaskSetPlacementJitter = Ts + "placement_jitter";
     public const string YoloTaskSetRelativeSizingRange = Ts + "relative_sizing_range";
     public const string YoloTaskSetRelativeSizingSource = Ts + "relative_sizing_source";
     public const string YoloTaskSetResultReal = Ts + "result_real";

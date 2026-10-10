@@ -18,6 +18,10 @@ import { LaravelLoginHost } from '../shared/auth/LaravelLoginHost';
 import { ShellLayout } from './ShellLayout';
 import { ShellHome } from './ShellHome';
 import { ShellRouteFallback, ShellRuntime } from './ShellRuntime';
+import { FLAVOR } from './flavor';
+
+/** A shell-mounted flavor lands on its own route; the plain shell defaults to the pycore end. */
+const SHELL_HOME_ROUTE = FLAVOR.mount === 'shell' ? FLAVOR.rootRoute : '/pycore-manager';
 
 const LmApp = lazy(() => import('../apps/laravel-manager/LmApp'));
 const PcApp = lazy(() => import('../apps/pycore-manager/PcApp'));
@@ -42,7 +46,7 @@ export const ShellApp: React.FC = () => {
       <Routes>
         <Route element={<ShellLayout />}>
           {/* Default to the pycore end. ShellHome stays reachable at /home. */}
-          <Route path="/" element={<Navigate to="/pycore-manager" replace />} />
+          <Route path="/" element={<Navigate to={SHELL_HOME_ROUTE} replace />} />
           <Route path="/home" element={<ShellHome />} />
           <Route path="/laravel-manager/*" element={<Suspense fallback={<ShellRouteFallback />}><LmApp /></Suspense>} />
           <Route path="/pycore-manager/*" element={<Suspense fallback={<ShellRouteFallback />}><PcApp /></Suspense>} />

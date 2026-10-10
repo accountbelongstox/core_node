@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Pycore Manager</title>
+  <defs>
+    <linearGradient id="background" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#0b1120"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#background)"/>
+  <rect x="104" y="128" width="304" height="256" rx="36" fill="none" stroke="#38bdf8" stroke-width="28"/>
+  <path d="m168 216 56 40-56 40" fill="none" stroke="#e0f2fe" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 304h88" fill="none" stroke="#22d3ee" stroke-width="28" stroke-linecap="round"/>
+</svg>

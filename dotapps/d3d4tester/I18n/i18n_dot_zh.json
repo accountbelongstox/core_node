@@ -504,7 +504,9 @@
         "contamination_check": "检查背景中是否含未标注目标",
         "contamination_threshold": "匹配阈值",
         "contamination_video_frames": "每个视频检查的帧数",
-        "holdout_split": "真实标注图片用于"
+        "holdout_split": "真实标注图片用于",
+        "relative_sizing": "相对模式下的目标尺寸",
+        "segment_block_frames": "录制段每个划分块的帧数"
       },
       "issue": {
         "no_targets": "任务集中还没有目标。",
@@ -523,7 +525,9 @@
         "unknown_box_label": "框的标签不是目标名称，已作遮罩处理：{subject}",
         "holdout_unreadable": "真实验证文件夹不存在或没有已标注图片：{subject}",
         "invalid_region": "放置区域超出图片范围：{subject}",
-        "variant_without_alpha": "不透明的变体会连同背景方块一起粘贴：{subject}"
+        "variant_without_alpha": "不透明的变体会连同背景方块一起粘贴：{subject}",
+        "segment_unreadable": "录制段不存在或没有已标注的帧：{subject}",
+        "placement_source_unknown": "“{subject}”设为原始位置放置，但没有已知来源位置和尺寸的变体，将随机放置。"
       },
       "extract": {
         "open_button": "从大图/视频提取…",
@@ -732,7 +736,33 @@
       "holdout_folder_title": "选择已标注截图所在的文件夹",
       "holdout_counting": "正在统计已标注图片…",
       "holdout_count": "{images} 张图片中 {annotated} 张已标注",
-      "holdout_empty": "没有找到已标注图片（见校验）"
+      "holdout_empty": "没有找到已标注图片（见校验）",
+      "segment_link": "共享到任务集（原地使用，不复制）…",
+      "segment_link_prompt": "该录制段的帧和标注将被任务集直接读取：已标注的帧作为带真实标注的背景，并作为真实训练图片写入数据集。",
+      "segment_linked": "任务集“{set}”：已共享 {added} 个录制段。",
+      "segments": {
+        "section": "录制段",
+        "hint": "共享的录制段（不复制，生成时直接读取帧和标注）。已标注的帧可作为背景（其中的真实目标保留标注，困难/不确定框被遮罩），也可作为真实训练图片写入数据集；两种用途按帧块划分训练/验证集，同一块不会同时进入两者。",
+        "add": "添加录制段…",
+        "folder_title": "选择录制段文件夹（选择项目文件夹则添加其全部录制段）",
+        "none_found": "所选文件夹中没有新的录制段（需要包含 frames 文件夹或已标注的图片）。",
+        "backgrounds": "作为背景",
+        "real_images": "作为真实图片",
+        "frame_step": "帧间隔",
+        "counting": "正在统计标注…",
+        "count": "{annotated} / {images} 帧已标注 · {boxes} 个框 · {labels}",
+        "empty": "没有已标注的帧",
+        "extract": "从标注提取变体（去重）",
+        "extract_confirm": "将所有共享录制段中已标注的框裁剪为同名目标的变体（目标不存在时自动创建）：每 {step} 帧取一帧，dHash 距离小于 {distance} 的近似重复跳过，每个标签最多 {max} 个。是否继续？",
+        "extract_done": "已从 {segments} 个录制段添加 {added} 个变体，跳过 {duplicates} 个近似重复；新建目标：{targets}",
+        "status_extracting": "提取变体 {done}/{total}"
+      },
+      "placement": "放置位置",
+      "placement_anywhere": "随机位置",
+      "placement_source": "原始位置（固定界面）",
+      "relative_sizing_range": "按相对尺寸范围",
+      "relative_sizing_source": "保持来源帧中的比例",
+      "result_real": "其中真实录制帧：{count} 张"
     },
     "yolo_training_service": {
       "task_set_invalid": "任务集存在错误：{issues}",
@@ -1059,7 +1089,7 @@
       "build_skill_switch_image_desc": "用缓存的技能图标在屏幕上识别技能并逐个设置，符文用 OCR 识别；无法检查人物等级。",
       "build_skill_switch_reuse_cache": "复用定位缓存（更快）",
       "build_skill_switch_reuse_cache_desc": "使用已校准的按钮位置、符文和技能图标位置（按窗口比例换算），首次使用时自动校准；不勾选则按原方式每次完整识别。",
-      "build_skill_switch_requirements":"需要人物 {0} 级，并在 D3 选项 > 游戏性 中开启\"选择模式\"。D3 需在游戏中且窗口可见，完成前不要操作鼠标键盘。正在挂机的 ROSBOT 会先暂停，结束后恢复。",
+      "build_skill_switch_requirements": "需要人物 {0} 级，并在 D3 选项 > 游戏性 中开启\"选择模式\"。D3 需在游戏中且窗口可见，完成前不要操作鼠标键盘。正在挂机的 ROSBOT 会先暂停，结束后恢复。",
       "build_skill_switch_start": "开始",
       "build_skill_switch_running": "正在切换技能…",
       "build_skill_switch_busy": "已有切换在进行，或未选择配装方案。",

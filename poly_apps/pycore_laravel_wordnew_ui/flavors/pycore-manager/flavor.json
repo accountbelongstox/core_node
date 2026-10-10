@@ -1,0 +1,33 @@
+{
+  "id": "pycore-manager",
+  "name": "Pycore Manager",
+  "shortName": "Pycore",
+  "appId": "com.corenode.pycoremanager",
+  "version": "1.0.0",
+  "rootRoute": "/pycore-manager",
+  "entry": "apps/pycore-manager/PcApp.tsx",
+  "mount": "shell",
+  "platforms": [
+    "web",
+    "android"
+  ],
+  "themeColor": "#0f172a",
+  "backgroundColor": "#0f172a",
+  "description": "Pycore Manager - the single app entry to every UI (pycore, Laravel manager, WordNew, CodeMart, Vortex).",
+  "names": {
+    "en": "Pycore Manager",
+    "zh": "Pycore 管理器"
+  },
+  "brand": {
+    "icon": "flavors/pycore-manager/icon.svg"
+  },
+  "launch": {
+    "native": {
+      "background": "#0f172a",
+      "backgroundDark": "#020617"
+    },
+    "web": {
+      "mode": "none"
+    }
+  }
+}
