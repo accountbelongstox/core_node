@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using Rcdw32.Ws.Models;
 using Rcdw32.Ws.Plugins;
@@ -12,16 +13,26 @@ namespace CoreNodeBridge;
 /// <summary>
 /// ROSBOT's own cast entry: LocalPlayer wraps ROSBOT's IPlayer, which has CanCast / Cast / CastEx / GetSkillDef but is not exposed to
 /// plugins. Its IContext lives in a public static field of an internal holder type; it is found once by reflection (any static field
-/// whose type implements IContext) and then called typed. Rotation (one cast per Interval): the ready skills of the bar (CombatProbe
-/// readiness and ROSBOT's CanCast) in slot order Pos1-Pos4 (cooldowns / buffs), Right (spender), Left (generator); the potion slot and
-/// unset powers are never cast. A target with an ACD gets CastEx (ROSBOT's targeted use), else Cast at its position; channelled powers
-/// are cast as channels and released with RealseCast when the fight ends.
+/// whose type implements IContext) and then called typed. Rotation (one cast per Interval): below PotionHealth a health potion first
+/// (PotionLockoutMs); then the ready skills of the bar (CombatProbe readiness and ROSBOT's CanCast) in slot order Pos1-Pos4 (cooldowns /
+/// buffs, each locked out SlotLockoutMs after a cast so the others get turns), Right (spender), Left (generator); the potion slot and
+/// unset powers are never cast as skills. A failed cast backs that power off FailBackoffMs and the next candidate is tried in the
+/// same step. A target with an ACD gets CastEx (ROSBOT's targeted use); when CastEx reports false, Cast at the target's position is
+/// sent instead (its result is not reported); channelled powers are cast as channels and released with RealseCast when the fight ends.
 /// </summary>
 internal static class RosCaster
 {
     private const BindingFlags StaticFields = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
     private const int IntervalMs = 250;
     private const int SearchRetryMs = 10000;
+    private const int SlotLockoutMs = 1000;
+    private const int FailBackoffMs = 1500;
+    private const int PotionLockoutMs = 30000;
+    private const double PotionHealth = 0.35;
+    private const string PotionPowerName = "DrinkHealthPotion";
+    private const string SlotLeft = "Left";
+    private const string SlotRight = "Right";
+    private static readonly Dictionary<int, DateTime> LockedUntil = new();
     private static readonly string[] SlotOrder = { "Pos1", "Pos2", "Pos3", "Pos4", "Right", "Left" };
     private static readonly object Lock = new();
     private static readonly Stopwatch SinceCast = new();
@@ -54,30 +65,67 @@ internal static class RosCaster
     /// <summary>Hotbar slot name of a power (ROSBOT's SkillPosition), "" when unknown.</summary>
     public static string Slot(int power) => Me is { } me ? WorldScanner.Safe(() => me.GetSkillDef(power).ToString(), "") : "";
 
-    /// <summary>One rotation step at the target: the first castable ready skill by slot order; true when a cast was issued.</summary>
+    /// <summary>One rotation step at the target: potion when low, else the first castable ready skill by slot order (failed ones are skipped); true when a cast was issued.</summary>
     public static bool Step(IActor target, IReadOnlyList<SkillInfo> skills)
     {
         if (target == null || Me is not { } me) return false;
         if (SinceCast.IsRunning && SinceCast.ElapsedMilliseconds < IntervalMs) return false;
-        var skill = skills.Where(s => s.Ready && SlotRank(s.Slot) >= 0 && WorldScanner.Safe(() => me.CanCast(s.Power), false))
-            .OrderBy(s => SlotRank(s.Slot))
-            .FirstOrDefault();
-        if (skill == null) return false;
         SinceCast.Restart();
+        var now = DateTime.UtcNow;
+        if (TryPotion(me, now)) return true;
         var position = WorldScanner.Safe(() => target.Position, LocalPlayer.Position);
         int acd = WorldScanner.Safe(() => target.AcdId, 0);
-        bool ok;
+        var candidates = skills.Where(s => s.Ready && SlotRank(s.Slot) >= 0 && !Locked(s.Power, now)).OrderBy(s => SlotRank(s.Slot));
+        foreach (var skill in candidates)
+        {
+            if (!WorldScanner.Safe(() => me.CanCast(skill.Power), false)) continue;
+            string how = CastAt(me, skill, position, acd);
+            if (how == null)
+            {
+                Lock(skill.Power, now, FailBackoffMs);
+                LastCast = $"{skill.Name} ({skill.Slot}) failed";
+                continue;
+            }
+            if (skill.Slot != SlotLeft && skill.Slot != SlotRight) Lock(skill.Power, now, SlotLockoutMs);
+            LastCast = $"{skill.Name} ({skill.Slot}) {how}";
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Cast one skill at the target; the way it was sent, null when ROSBOT refused or threw.</summary>
+    private static string CastAt(IPlayer me, SkillInfo skill, Vector3 position, int acd)
+    {
         if (skill.Channel)
         {
-            ok = WorldScanner.Safe(() => { me.Cast(skill.Power, position, true, false); return true; }, false);
-            _channelling |= ok;
+            bool sent = WorldScanner.Safe(() => { me.Cast(skill.Power, position, true, false); return true; }, false);
+            _channelling |= sent;
+            return sent ? "channel" : null;
         }
-        else if (acd != 0)
-            ok = WorldScanner.Safe(() => me.CastEx(skill.Power, position, LocalPlayer.MeWorldId, acd), false);
-        else
-            ok = WorldScanner.Safe(() => { me.Cast(skill.Power, position, false, true); return true; }, false);
-        LastCast = $"{skill.Name} ({skill.Slot}) {(ok ? "ok" : "failed")}";
-        return ok;
+        if (acd != 0 && WorldScanner.Safe(() => me.CastEx(skill.Power, position, LocalPlayer.MeWorldId, acd), false)) return "CastEx";
+        return WorldScanner.Safe(() => { me.Cast(skill.Power, position, false, true); return true; }, false) ? "Cast" : null;
+    }
+
+    /// <summary>Health below PotionHealth: drink a health potion (ROSBOT's DrinkHealthPotion power) at most once per PotionLockoutMs.</summary>
+    private static bool TryPotion(IPlayer me, DateTime now)
+    {
+        if (WorldScanner.Safe(() => LocalPlayer.CurrentHealthPct, 1d) >= PotionHealth) return false;
+        int potion = WorldScanner.Safe(() => (int)Enum.Parse(typeof(PowerId), PotionPowerName), 0);
+        if (potion == 0 || Locked(potion, now) || !WorldScanner.Safe(() => me.CanCast(potion), false)) return false;
+        bool sent = WorldScanner.Safe(() => { me.Cast(potion, LocalPlayer.Position, false, true); return true; }, false);
+        Lock(potion, now, PotionLockoutMs);
+        LastCast = $"{PotionPowerName} {(sent ? "Cast" : "failed")}";
+        return sent;
+    }
+
+    private static bool Locked(int power, DateTime now)
+    {
+        lock (LockedUntil) return LockedUntil.TryGetValue(power, out var until) && until > now;
+    }
+
+    private static void Lock(int power, DateTime now, int ms)
+    {
+        lock (LockedUntil) LockedUntil[power] = now.AddMilliseconds(ms);
     }
 
     /// <summary>Fight over: release a channelled cast.</summary>

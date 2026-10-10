@@ -51,10 +51,11 @@ function writeText(path, text) {
     }
 }
 
-function writeReport(path, modulePath, methods, failures) {
+function writeReport(path, modulePath, methods, failures, unidentifiedMethods) {
     writeText(path, JSON.stringify({
         ModulesInfo: [{ ModuleName: modulePath, MethodsInfo: methods }],
-        Failures: failures
+        Failures: failures,
+        UnidentifiedMethods: unidentifiedMethods
     }, null, 2));
 }
 
@@ -64,6 +65,7 @@ function invokeScript() {
     const calls = host.currentSession.TTD.Calls("clrjit!CILJit::compileMethod");
     const methods = [];
     const failures = [];
+    const unidentifiedMethods = [];
     const callCount = Number(calls.Count());
     let targetModuleKey = null;
     let targetModulePath = targetName;
@@ -109,6 +111,19 @@ function invokeScript() {
                     methodLines = DebuggerApi.execute(`!dumpmd ${methodHandle.toString(16)}`);
                     tokenText = field(methodLines, "mdToken:");
                     methodName = field(methodLines, "Method Name:");
+                } catch (metadataError) {
+                    unidentifiedMethods.push({
+                        CallIndex: index,
+                        ModuleName: targetModulePath,
+                        ModuleHandle: moduleKey,
+                        MethodHandle: methodHandle.toString(16),
+                        ILBytes: ilBytes,
+                        ILSize: ilSize,
+                        MaxStack: maxStack,
+                        ExceptionHandlerCount: exceptionHandlerCount,
+                        MetadataError: metadataError.message
+                    });
+                    throw metadataError;
                 } finally {
                     calls[index].TimeStart.SeekTo();
                 }
@@ -134,6 +149,6 @@ function invokeScript() {
         }
     }
 
-    writeReport(outputPath, targetModulePath, methods, failures);
+    writeReport(outputPath, targetModulePath, methods, failures, unidentifiedMethods);
     DebuggerApi.log(`Finished: ${methods.length} target methods, ${failures.length} failures -> ${outputPath}`);
 }

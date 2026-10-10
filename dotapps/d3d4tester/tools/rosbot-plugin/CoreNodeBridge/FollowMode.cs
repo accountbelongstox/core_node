@@ -15,9 +15,8 @@ namespace CoreNodeBridge;
 /// Every tick it walks towards the target when farther than FollowDistance; with pickup on it first picks up matching items near the
 /// target. Lost (target not in this world for LostMs): in town it first waits for the app's town work (TownHold, state town_tasks), then
 /// walks to the target's banner and uses it: the banner whose owner (Banner_ACDID) is the target's last seen ACD, else the target's party
-/// slot, else 1-4 in turn; outside town it reports needs_town so the app presses the town portal key. With revive on, a dead hero accepts a teammate's resurrection at once
-/// (death menu "accept resurrection", shown while Waiting_To_Accept_Resurrection is set); otherwise after ReviveWaitMs it presses
-/// revive at corpse, else at checkpoint, else in town (every ReviveRetryMs). The plugin never attacks.
+/// slot, else 1-4 in turn; outside town it reports needs_town so the app presses the town portal key. With revive on, a dead hero
+/// revives through ReviveHelper (a teammate's resurrection at once, else the death menu's revive buttons).
 /// With combat assist on (follow only and fight): the plugin keeps ROSBOT held (PulseHold, requested by the plugin), so ROSBOT runs no
 /// task (no town run, no own route) and the plugin is the only mover; no town work is taken (TownHold); monsters around the target come
 /// first (CombatAssist steps to them while the target is within its leash), pickup waits for the fight to end.
@@ -50,16 +49,12 @@ internal sealed class FollowMode
     private const int BannerWalkMs = 15000;
     private const float PickupRange = 30f;
     private const float PickupLeaderRange = 25f;
-    private const int ReviveWaitMs = 8000;
-    private const int ReviveRetryMs = 2000;
-    private const string AttrWaitingToAccept = "Waiting_To_Accept_Resurrection";
 
     private readonly Action<string> _log;
     private readonly Stopwatch _sinceSeen = Stopwatch.StartNew();
     private readonly Stopwatch _sinceBanner = new();
     private readonly Dictionary<int, int> _slotByAcd = new();
-    private readonly Stopwatch _deadFor = new();
-    private readonly Stopwatch _sinceRevive = new();
+    private readonly ReviveHelper _revive;
     private string _mode = ModeNearest;
     private uint _selectedId;
     private int _selectedAcd;
@@ -71,7 +66,11 @@ internal sealed class FollowMode
     private int _bannerUsedSlot;
     private readonly Stopwatch _bannerWalk = new();
 
-    public FollowMode(Action<string> log) => _log = log;
+    public FollowMode(Action<string> log)
+    {
+        _log = log;
+        _revive = new ReviveHelper(log, "follow");
+    }
 
     /// <summary>Set by the plugin: a bridge command is moving the hero; follow waits instead of walking at the same time.</summary>
     public Func<bool> CommandBusy { get; set; }
@@ -152,10 +151,10 @@ internal sealed class FollowMode
         {
             State = StateDead;
             Assist?.Clear();
-            TryRevive();
+            if (Revive) _revive.Tick();
             return;
         }
-        _deadFor.Reset();
+        _revive.Reset();
         if (CommandBusy?.Invoke() == true) return;
         var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>());
         LearnBanners(actors);
@@ -212,26 +211,6 @@ internal sealed class FollowMode
         if (_sinceBanner.IsRunning && _sinceBanner.ElapsedMilliseconds < BannerRetryMs) return;
         _sinceBanner.Restart();
         UseBanner(actors);
-    }
-
-    /// <summary>Dead: after ReviveWaitMs press the first revive button the death menu shows (corpse, checkpoint, town).</summary>
-    private void TryRevive()
-    {
-        if (!Revive) return;
-        if (!_deadFor.IsRunning) _deadFor.Restart();
-        ulong accept = UiIds.Of(UiIds.AcceptResurrection);
-        if (WorldScanner.Safe(() => Context.HasUIElement(accept), false))
-        {
-            bool waiting = WorldScanner.Safe(() => LocalPlayer.GetAttribute<int>(WorldScanner.AttributeId(AttrWaitingToAccept)), 0) != 0;
-            if (_sinceRevive.IsRunning && _sinceRevive.ElapsedMilliseconds < ReviveRetryMs) return;
-            _sinceRevive.Restart();
-            Context.ClickUIElement(accept);
-            _log($"follow: accepted resurrection (waiting attribute {waiting})");
-            return;
-        }
-        if (_deadFor.ElapsedMilliseconds < ReviveWaitMs || (_sinceRevive.IsRunning && _sinceRevive.ElapsedMilliseconds < ReviveRetryMs)) return;
-        _sinceRevive.Restart();
-        if (UiIds.ClickFirstShown(UiIds.ReviveButtons) is { } clicked) _log("follow: revive " + UiIds.ShortName(clicked));
     }
 
     /// <summary>The player to follow in this world, null when not here.</summary>

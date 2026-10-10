@@ -58,11 +58,12 @@ public sealed record AnnotationImportResult(int Images, int Boxes, int Added, IR
 /// <summary>
 /// Annotated boxes to variants: every FrameStep-th image; a crop closer than MinHashDistance dHash bits to a kept crop of the same label
 /// is skipped (0 = keep all); at most MaxPerLabel crops per label, sampled evenly (0 = no cap); boxes with a side below MinSide are skipped.
-/// GroupLabels (with GroupRegion, source pixels): instead of one crop per box, a frame showing any group label gives one compound crop of
-/// GroupRegion carrying every group box inside it as labeled parts, stored under the first group label (list order) present.
+/// GroupLabels: instead of one crop per box, a frame showing any group label gives one compound crop carrying every group box inside it as
+/// labeled parts, stored under the first group label (list order) present. The crop is GroupRegion (source pixels) or, without it, the
+/// union of that frame's group boxes plus GroupPadding (frame-size independent: segments of different window sizes share one setting).
 /// </summary>
 public sealed record AnnotationVariantOptions(int FrameStep = 1, int MinHashDistance = 0, int MaxPerLabel = 0, int MinSide = 0,
-    IReadOnlyList<string>? GroupLabels = null, PixelRect? GroupRegion = null)
+    IReadOnlyList<string>? GroupLabels = null, PixelRect? GroupRegion = null, int GroupPadding = 2)
 {
     /// <summary>Share of a part that must lie inside the group region to be carried.</summary>
     public const double GroupInsideFraction = 0.8;
@@ -228,7 +229,7 @@ public sealed partial class TaskSetStore
         var createdTargets = new List<string>();
         var crops = new Dictionary<string, List<(string Image, VariantRegion Region, byte[] Png, ulong? Hash, (int, int) Size, List<ResourceBox>? Parts)>>(
             StringComparer.OrdinalIgnoreCase);
-        var group = o.GroupLabels is { Count: > 0 } g && o.GroupRegion is { IsEmpty: false } ? g.Select(l => l.Trim()).ToList() : null;
+        var group = o.GroupLabels is { Count: > 0 } g ? g.Select(l => l.Trim()).ToList() : null;
         int boxes = 0, done = 0;
         foreach (var image in images)
         {
@@ -246,7 +247,8 @@ public sealed partial class TaskSetStore
             }
             var cuts = group == null
                 ? wanted.Select(b => (Label: b.Label.Trim(), Rect: b.RoundToPixels(), Parts: (List<ResourceBox>?)null)).ToList()
-                : GroupCut(wanted, group, o.GroupRegion!, frame.Width, frame.Height) is { } gc ? new() { gc } : new();
+                : GroupCut(wanted, group, o.GroupRegion is { IsEmpty: false } fixedRegion ? fixedRegion : UnionRegion(wanted, o.GroupPadding),
+                    frame.Width, frame.Height) is { } gc ? new() { gc } : new();
             boxes += group == null ? cuts.Count : wanted.Count;
             foreach (var (label, rect, parts) in cuts)
             {
@@ -293,6 +295,13 @@ public sealed partial class TaskSetStore
     /// Compound crop of the group region (clamped to the frame): the group boxes mostly inside it become its parts (variant pixels);
     /// stored under the first group label present. Null when no part remains.
     /// </summary>
+    private static PixelRect UnionRegion(IReadOnlyList<AnnotationBox> boxes, int padding)
+    {
+        int x0 = (int)Math.Floor(boxes.Min(b => b.XMin)) - padding, y0 = (int)Math.Floor(boxes.Min(b => b.YMin)) - padding;
+        int x1 = (int)Math.Ceiling(boxes.Max(b => b.XMax)) + padding, y1 = (int)Math.Ceiling(boxes.Max(b => b.YMax)) + padding;
+        return new PixelRect { X = x0, Y = y0, Width = x1 - x0, Height = y1 - y0 };
+    }
+
     private static (string Label, AnnotationBox Rect, List<ResourceBox>? Parts)? GroupCut(IReadOnlyList<AnnotationBox> boxes, IReadOnlyList<string> group,
         PixelRect region, int width, int height)
     {
