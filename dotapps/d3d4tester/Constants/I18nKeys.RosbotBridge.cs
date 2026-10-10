@@ -61,8 +61,13 @@ public static partial class I18nKeys
     public const string RosbotBridgeTabPickups = "ui.rosbot_bridge.tab_pickups";
     public const string RosbotBridgeTabAdvanced = "ui.rosbot_bridge.tab_advanced";
     // taking control from monitoring for panel commands
-    public const string RosbotBridgeHoldPause = "ui.rosbot_bridge.hold_pause";
-    public const string RosbotBridgeHoldResume = "ui.rosbot_bridge.hold_resume";
+    // one-click town standby; states are StandbyStatePrefix + plugin state
+    public const string RosbotBridgeStandbyStart = "ui.rosbot_bridge.standby_start";
+    public const string RosbotBridgeStandbyEnd = "ui.rosbot_bridge.standby_end";
+    public const string RosbotBridgeStandbyTip = "ui.rosbot_bridge.standby_tip";
+    public const string RosbotBridgeStandbySince = "ui.rosbot_bridge.standby_since";
+    public const string RosbotBridgeStandbyStatePrefix = "ui.rosbot_bridge.standby_state.";
+    public const string RosbotBridgeMonstersNearby = "ui.rosbot_bridge.monsters_nearby";
     public const string RosbotBridgeHoldTip = "ui.rosbot_bridge.hold_tip";
     public const string RosbotBridgeHoldTaken = "ui.rosbot_bridge.hold_taken";
     public const string RosbotBridgeTakeControl = "ui.rosbot_bridge.take_control";
@@ -178,6 +183,7 @@ public static partial class I18nKeys
     public const string RosbotBridgeCommandFailed = "ui.rosbot_bridge.command_failed";
     public const string RosbotBridgeCommandSent = "ui.rosbot_bridge.command_sent";
     public const string RosbotBridgeCommandNotSent = "ui.rosbot_bridge.command_not_sent";
+    public const string RosbotBridgeCommandBusy = "ui.rosbot_bridge.command_busy";
     public const string RosbotBridgeSelectTarget = "ui.rosbot_bridge.select_target";
     public const string RosbotBridgeDistance = "ui.rosbot_bridge.distance";
     public const string RosbotBridgeInteractDistance = "ui.rosbot_bridge.interact_distance";

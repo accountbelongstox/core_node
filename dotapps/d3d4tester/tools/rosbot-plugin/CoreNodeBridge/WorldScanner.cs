@@ -59,6 +59,7 @@ internal static class WorldScanner
     private const string ActorTypeItem = "Item";
     private const string InventorySlotEnumName = "InventorySlot";
     public const string SlotBackpack = "Backpack";
+    public const string SlotStash = "Stash";
     private const string SlotUnknown = "Unknown";
     private const string SlotMerchant = "Merchant";
 
@@ -223,28 +224,27 @@ internal static class WorldScanner
         info.DurabilityCur = Attribute(acd, "Durability_Cur", 0);
         info.DurabilityMax = Attribute(acd, "Durability_Max", 0);
         info.Gbid = Safe(() => acd.Gball, 0);
-        if (info.Slot.Length > 0) info.Equipped |= info.Slot != SlotBackpack && info.Slot != "Stash";
+        if (info.Slot.Length > 0) info.Equipped |= info.Slot != SlotBackpack && info.Slot != SlotStash;
         if (Watch != null && Watch.IsWatched(info.Gbid, info.InternalName)) info.Attrs = Watch.Read(acd);
     }
 
     /// <summary>ROSBOT AttributeId value for an attribute name, int.MinValue when unknown (cached).</summary>
     public static int AttributeId(string name)
     {
-        if (!AttributeIds.TryGetValue(name, out int id))
+        lock (AttributeIds)
         {
-            id = Safe(() => (int)Enum.Parse(typeof(AttributeId), name), int.MinValue);
-            AttributeIds[name] = id;
+            if (!AttributeIds.TryGetValue(name, out int id))
+            {
+                id = Safe(() => (int)Enum.Parse(typeof(AttributeId), name), int.MinValue);
+                AttributeIds[name] = id;
+            }
+            return id;
         }
-        return id;
     }
 
     public static int Attribute(IAcd acd, string name, int fallback)
     {
-        if (!AttributeIds.TryGetValue(name, out int id))
-        {
-            id = Safe(() => (int)Enum.Parse(typeof(AttributeId), name), int.MinValue);
-            AttributeIds[name] = id;
-        }
+        int id = AttributeId(name);
         return id == int.MinValue ? fallback : Safe(() => acd.GetAttribute<int>(id), fallback);
     }
 

@@ -12,7 +12,9 @@ namespace DotApps.d3d4tester.Services.Monitor;
 
 /// <summary>
 /// Executes one trigger action (RBAssist DOACTION) on the trigger worker. "%LOG%" / "%HISTORY%" in arguments become the last logs.txt /
-/// history.txt line. Start / stop monitoring map to the ROSBOT flow start / stop; restarts go through <see cref="MonitorService.RequestRestart"/>.
+/// history.txt line. Start / stop / pause / resume monitoring map to the ROSBOT flow and run even while control is taken (they hand
+/// control over themselves, under their own lease); restarts go through <see cref="MonitorService.RequestRestart"/>; town portal uses the
+/// shared town portal key (BridgeTownPortal); town standby is the bridge panel's one-click return to town and stand by.
 /// </summary>
 public static class TriggerActionRunner
 {
@@ -21,10 +23,14 @@ public static class TriggerActionRunner
     private const int LeaseWaitMs = 10000;
     private const string LeasePrefix = "trigger ";
 
-    /// <summary>Actions that never touch the game or ROSBOT: they run even while the user has taken control.</summary>
+    /// <summary>
+    /// Actions that never touch the game themselves (or take / give back control with their own lease): they run even while the user
+    /// has taken control. Resume monitoring must, else a trigger could never end a pause.
+    /// </summary>
     private static readonly HashSet<string> PassiveActions = new(StringComparer.Ordinal)
     {
         MonitorActions.WriteLog, MonitorActions.TakeScreenshot, MonitorActions.Notify, MonitorActions.StopMonitoring, MonitorActions.ExecuteCommand,
+        MonitorActions.StartMonitoring, MonitorActions.PauseMonitoring, MonitorActions.ResumeMonitoring, MonitorActions.TownStandby,
     };
 
     /// <summary>Run one trigger action: game / ROSBOT actions are dropped while the user has control and run under the GameControl lease.</summary>
@@ -85,6 +91,9 @@ public static class TriggerActionRunner
                 break;
             case MonitorActions.TownPortal:
                 monitor.ScheduleTownPortal(MonitorSettings.ParseArg(a1));
+                break;
+            case MonitorActions.TownStandby:
+                _ = RosbotBridgePluginService.EnterTownStandbyAsync();
                 break;
             case MonitorActions.QuickQuit:
                 ExternalGameTools.QuickQuit(a1);

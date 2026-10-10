@@ -23,8 +23,9 @@ internal sealed class CommandResult
 }
 
 /// <summary>
-/// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id), written
-/// atomically by the app, consumed (deleted) on the next pulse and executed on a worker thread, one at a time, so the plugin keeps
+/// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id, value), written
+/// atomically by the app (never over a command not taken yet), taken (moved away, then read) on the plugin's own timer once the
+/// worker is free and executed on a worker thread, one at a time, so the plugin keeps
 /// scanning and writing state.json while a command waits for the game (e.g. movement while ROSBOT is paused). A command still running
 /// after CommandTimeoutMs is reported as timed out and abandoned (its late result is dropped); the next command may then run.
 /// Actions: move_to / interact / pickup (target = actor id, else a name or internal-name fragment, nearest first),
@@ -43,6 +44,8 @@ internal sealed class BridgeCommands
 {
     public const string CommandFileName = "command.txt";
     public const string FilterFileName = "pickup_filter.txt";
+    /// <summary>command.txt is renamed to this before it is read, so a command the app writes meanwhile lands in a new command.txt.</summary>
+    private const string TakenSuffix = ".taken";
     public const string ActionMoveTo = "move_to";
     public const string ActionInteract = "interact";
     public const string ActionPickup = "pickup";
@@ -137,13 +140,16 @@ internal sealed class BridgeCommands
         }
         string path = Path.Combine(_dir, CommandFileName);
         if (!File.Exists(path)) return;
+        string taken = path + TakenSuffix;
         Dictionary<string, string> cmd;
         try
         {
-            cmd = ReadKeyValues(File.ReadAllLines(path, Encoding.UTF8));
-            File.Delete(path);
+            if (File.Exists(taken)) File.Delete(taken);
+            File.Move(path, taken);
+            cmd = ReadKeyValues(File.ReadAllLines(taken, Encoding.UTF8));
+            File.Delete(taken);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return;
         }

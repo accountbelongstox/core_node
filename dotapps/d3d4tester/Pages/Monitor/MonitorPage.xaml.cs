@@ -322,7 +322,7 @@ public partial class MonitorPage : UserControl
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
         var st = MonitorService.Instance.GetStatus(snapshot);
         bool flow = snapshot.RosbotFlowMasterEnabled;
-        bool paused = flow && snapshot.RosbotFlowPaused;
+        bool paused = snapshot.RosbotFlowPaused;
         var (monitoringText, monitoringBrush) = D3StatusBarDisplayBuilder.MonitoringStatus(snapshot, D3D4TesterI18n.Provider);
         TxtMonitoring.Text = monitoringText;
         ChipMonitoring.SetResourceReference(StyleProperty, D3StatusBarDisplayBuilder.ChipStyleKeyForBrush(monitoringBrush));
@@ -344,7 +344,8 @@ public partial class MonitorPage : UserControl
         ChipLogsWarning.Visibility = st.LogsDisabled ? Visibility.Visible : Visibility.Collapsed;
         BtnToggleMonitoring.Content = T(flow ? I18nKeys.MonitorStopMonitoring : I18nKeys.MonitorStartMonitoring);
         BtnToggleMonitoring.SetResourceReference(StyleProperty, flow ? StyleDangerButton : StyleSuccessButton);
-        BtnPauseMonitoring.Visibility = flow ? Visibility.Visible : Visibility.Collapsed;
+        BtnPauseMonitoring.Visibility = flow || paused || st.RosbotOnline ? Visibility.Visible : Visibility.Collapsed;
+        BtnPauseMonitoring.ToolTip = T(I18nKeys.RosbotBridgeHoldTip);
         BtnPauseMonitoring.Content = T(paused ? I18nKeys.MonitorResumeMonitoring : I18nKeys.MonitorPauseMonitoring);
         BtnPauseMonitoring.SetResourceReference(StyleProperty, paused ? StyleSuccessButton : StyleWarningButton);
     }

@@ -81,6 +81,12 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("follow_mode")] public string FollowMode { get; init; } = "";
     [JsonPropertyName("follow_leader")] public string FollowLeader { get; init; } = "";
     [JsonPropertyName("follow_distance")] public double FollowDistance { get; init; } = -1;
+    [JsonPropertyName("follow_revive")] public bool FollowRevive { get; init; }
+    /// <summary>Town standby (app "return to town and stand by"): on, state (reviving / needs_town / in_town) and since when.</summary>
+    [JsonPropertyName("standby_enabled")] public bool StandbyEnabled { get; init; }
+    [JsonPropertyName("standby_state")] public string StandbyState { get; init; } = "";
+    [JsonPropertyName("standby_since_utc")] public DateTime StandbySinceUtc { get; init; }
+    [JsonPropertyName("last_event_utc")] public DateTime LastEventUtc { get; init; }
     [JsonPropertyName("players")] public IReadOnlyList<RosbotBridgeEntity> Players { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("ui_vendor_open")] public bool UiVendorOpen { get; init; }
     [JsonPropertyName("ui_salvage_open")] public bool UiSalvageOpen { get; init; }

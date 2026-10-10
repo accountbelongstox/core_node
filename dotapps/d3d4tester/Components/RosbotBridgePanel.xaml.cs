@@ -21,9 +21,10 @@ namespace DotApps.d3d4tester.Components;
 /// <summary>
 /// CoreNodeBridge ROSBOT plugin panel: installed vs bundled plugin, auto-install switch, install / open folder, and the live
 /// game state the plugin publishes (current map with a user-given name, location kind, paragon, health, sequence, recent maps),
-/// polled once per second while visible. Commands that act in the game take control first: while monitoring runs it is paused
-/// (flow halted, a botting ROSBOT paused with its pause key, not stopped), so the bot task and the app flow do not fight the
-/// command; control stays with the panel until "Resume monitoring".
+/// polled once per second while visible. Commands that act in the game take control first (RosbotBridgePluginService.TakeControlAsync:
+/// flow halted, a botting ROSBOT paused with its pause key, not stopped), so the bot task and the app flow do not fight the command;
+/// control stays with the panel until "Resume monitoring". One-click town standby takes control the same way and lets the plugin
+/// bring the hero to town and keep it there for the panel's commands; the strip's button then resumes monitoring.
 /// </summary>
 public partial class RosbotBridgePanel : UserControl
 {
@@ -34,13 +35,12 @@ public partial class RosbotBridgePanel : UserControl
     private const string LogTag = "[RosbotBridge]";
     private const string StyleSecondaryButton = "SecondaryButtonStyle";
     private const string StyleWarningButton = "WarningButtonStyle";
-    /// <summary>Time for ROSBOT to stop its current action after the pause key before the command is written.</summary>
-    private const int TakeControlSettleMs = 1500;
+    private const string StylePrimaryButton = "PrimaryButtonStyle";
     private static readonly HashSet<string> GameActions = new(StringComparer.Ordinal)
     {
         RosbotPluginConstants.BridgeActionMoveTo, RosbotPluginConstants.BridgeActionInteract, RosbotPluginConstants.BridgeActionPickup,
         RosbotPluginConstants.BridgeActionPickupFilter, RosbotPluginConstants.BridgeActionClickUi, RosbotPluginConstants.BridgeActionGoNpc,
-        RosbotPluginConstants.BridgeActionSalvageAll, RosbotPluginConstants.BridgeActionFollow,
+        RosbotPluginConstants.BridgeActionSalvageAll, RosbotPluginConstants.BridgeActionFollow, RosbotPluginConstants.BridgeActionUiSequence,
     };
     private DateTime _lastLoggedPickupUtc = DateTime.UtcNow;
     private long _lastLoggedCommandId;
@@ -75,7 +75,7 @@ public partial class RosbotBridgePanel : UserControl
                 _bound = true;
                 ConfigBinding.BindCheckBox(ChkAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
                 ConfigBinding.BindCheckBox(ChkTakeControl, ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault);
-                ConfigBinding.BindTextBox(TxtFollowTownPortalKey, ConfigKeys.BridgeFollowTownPortalKey, ConfigKeys.BridgeFollowTownPortalKeyDefault);
+                ConfigBinding.BindTextBox(TxtTownPortalKey, ConfigKeys.BridgeFollowTownPortalKey, ConfigKeys.BridgeFollowTownPortalKeyDefault);
                 var (auto, patterns) = RosbotBridgePluginService.LoadPickupFilter();
                 ChkFilterAuto.IsChecked = auto;
                 TxtFilter.Text = string.Join(Environment.NewLine, patterns);
@@ -98,8 +98,9 @@ public partial class RosbotBridgePanel : UserControl
         TabGround.Header = p.GetUiText(I18nKeys.RosbotBridgeTabGround);
         TabNpc.Header = p.GetUiText(I18nKeys.RosbotBridgeTabNpc);
         TabFollow.Header = p.GetUiText(I18nKeys.RosbotBridgeTabFollow);
-        LblFollowTownPortalKey.Text = p.GetUiText(I18nKeys.RosbotBridgeFollowTownPortalKey);
-        TxtFollowTownPortalKey.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowTownPortalKeyTip);
+        LblTownPortalKey.Text = p.GetUiText(I18nKeys.RosbotBridgeFollowTownPortalKey);
+        TxtTownPortalKey.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowTownPortalKeyTip);
+        BtnStandby.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeStandbyTip);
         TabCarried.Header = p.GetUiText(I18nKeys.RosbotBridgeTabCarried);
         TabPickups.Header = p.GetUiText(I18nKeys.RosbotBridgeTabPickups);
         TabAdvanced.Header = p.GetUiText(I18nKeys.RosbotBridgeTabAdvanced);
@@ -126,7 +127,7 @@ public partial class RosbotBridgePanel : UserControl
             button.Content = p.GetUiText(labelKey);
             button.ToolTip = string.Format(p.GetUiText(I18nKeys.RosbotBridgeNpcGoTip), button.Content);
         }
-        RefreshHold();
+        RefreshStandby(_state);
         LblFollowBanner.Text = p.GetUiText(I18nKeys.RosbotBridgeFollowBanner);
         BtnFollow.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowTip);
         int bannerIndex = CmbFollowBanner.SelectedIndex;
@@ -196,7 +197,7 @@ public partial class RosbotBridgePanel : UserControl
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
         var s = snapshot.RosbotBridge;
         _state = s;
-        RefreshHold();
+        RefreshStandby(s);
         var now = DateTime.UtcNow;
         TxtLiveStatus.Text = p.GetUiText(RosbotBridgeText.LiveStatusKey(s, snapshot.RosbotBridgeFresh));
         string[] values = s == null ? RowKeys.Select(_ => Empty).ToArray() : new[]
@@ -207,9 +208,11 @@ public partial class RosbotBridgePanel : UserControl
             s.SceneSno.ToString(),
             $"{s.WorldId}{Separator}{s.GlobalWorldId}",
             s.Paragon.ToString(),
-            s.Dead ? p.GetUiText(I18nKeys.RosbotBridgeDead) : $"{s.HealthPct * 100:0}%" + (s.InCombat ? Separator + p.GetUiText(I18nKeys.RosbotBridgeInCombat) : ""),
+            (s.Dead ? p.GetUiText(I18nKeys.RosbotBridgeDead) : $"{s.HealthPct * 100:0}%" + (s.InCombat ? Separator + p.GetUiText(I18nKeys.RosbotBridgeInCombat) : ""))
+                + (s.MonstersNearby > 0 ? Separator + string.Format(p.GetUiText(I18nKeys.RosbotBridgeMonstersNearby), s.MonstersNearby, s.ElitesNearby) : ""),
             string.Format(p.GetUiText(I18nKeys.RosbotBridgeResourcesFormat), RosbotBridgeText.BloodShardsText(s, p), s.RiftKeys)
-                + (s.InventoryFull ? Separator + p.GetUiText(I18nKeys.RosbotBridgeInventoryFull) : ""),
+                + (s.InventoryFull ? Separator + p.GetUiText(I18nKeys.RosbotBridgeInventoryFull) : "")
+                + (s.RepairNeeded ? Separator + p.GetUiText(I18nKeys.RosbotBridgeRepairNeeded) : ""),
             string.IsNullOrEmpty(s.Sequence) ? Empty : s.Sequence,
             string.IsNullOrEmpty(s.LastEvent) ? Empty : s.LastEvent,
             s.UpdatedUtc.ToLocalTime().ToString(TimeFormat),
@@ -377,22 +380,45 @@ public partial class RosbotBridgePanel : UserControl
 
     private static RosbotBridgeEntity? Selected(ListBox list) => (list.SelectedItem as ListBoxItem)?.Tag as RosbotBridgeEntity;
 
-    /// <summary>Take control / give back button: shown while monitoring is on, ROSBOT is online or control is held; warning style while held.</summary>
-    private void RefreshHold()
+    /// <summary>
+    /// Standby button: "return to town and stand by" while the plugin is not standing by; during standby "end standby" (= Resume
+    /// monitoring, which also ends the standby). State line: standby state and since when, else nothing.
+    /// </summary>
+    private void RefreshStandby(RosbotBridgeState? s)
     {
         var p = D3D4TesterI18n.Provider;
-        bool on = RosbotFlowState.Instance.FlowMasterEnabled, paused = RosbotFlowState.Instance.Paused;
-        bool rosbotOnline = RosbotDetection.IsOnline(GameInterfaceData.Instance.GetStateSnapshot().RosbotExtendedStatus);
-        BtnHold.Visibility = on || paused || rosbotOnline ? Visibility.Visible : Visibility.Collapsed;
-        BtnHold.Content = p.GetUiText(paused ? I18nKeys.RosbotBridgeHoldResume : I18nKeys.RosbotBridgeHoldPause);
-        BtnHold.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeHoldTip);
-        BtnHold.SetResourceReference(StyleProperty, paused ? StyleWarningButton : StyleSecondaryButton);
+        bool on = s?.StandbyEnabled == true;
+        BtnStandby.Content = p.GetUiText(on ? I18nKeys.RosbotBridgeStandbyEnd : I18nKeys.RosbotBridgeStandbyStart);
+        BtnStandby.SetResourceReference(StyleProperty, on ? StyleWarningButton : StylePrimaryButton);
+        TxtStandbyState.Text = !on ? "" : Join(p.GetUiText(I18nKeys.RosbotBridgeStandbyStatePrefix + s!.StandbyState, s.StandbyState),
+            s.StandbySinceUtc == default ? "" : string.Format(p.GetUiText(I18nKeys.RosbotBridgeStandbySince), s.StandbySinceUtc.ToLocalTime().ToString(TimeFormat)));
     }
 
-    private void BtnHold_Click(object sender, RoutedEventArgs e)
+    private async void BtnStandby_Click(object sender, RoutedEventArgs e)
     {
-        RosbotTaskProcessor.Instance.TogglePause();
-        RefreshHold();
+        var p = D3D4TesterI18n.Provider;
+        if (_state?.StandbyEnabled == true)
+        {
+            RosbotTaskProcessor.Instance.RequestResumeFlow();
+            return;
+        }
+        if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
+        {
+            TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
+            return;
+        }
+        BtnStandby.IsEnabled = false;
+        TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
+        try
+        {
+            long? id = await RosbotBridgePluginService.EnterTownStandbyAsync();
+            TxtCommandResult.Text = id == null ? p.GetUiText(I18nKeys.RosbotBridgeCommandBusy)
+                : string.Format(p.GetUiText(I18nKeys.RosbotBridgeCommandSent), RosbotPluginConstants.BridgeActionStandby);
+        }
+        finally
+        {
+            BtnStandby.IsEnabled = true;
+        }
     }
 
     /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state). Game actions take control first.</summary>
@@ -408,16 +434,18 @@ public partial class RosbotBridgePanel : UserControl
             && !RosbotFlowState.Instance.Paused)
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
-            var pausing = RosbotTaskProcessor.Instance.RequestPauseFlow();
-            RefreshHold();
-            await pausing;
-            await Task.Delay(TakeControlSettleMs);
+            await RosbotBridgePluginService.TakeControlAsync();
         }
         if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll
                 or RosbotPluginConstants.BridgeActionFollow)
             && string.IsNullOrWhiteSpace(target))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);
+            return;
+        }
+        if (RosbotBridgePluginService.CommandPending)
+        {
+            TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeCommandBusy);
             return;
         }
         long? id = RosbotBridgePluginService.SendCommand(action, target, mode, click, uiId, value);
