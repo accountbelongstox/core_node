@@ -279,7 +279,7 @@
       },
       "rosbot_key": {
         "tab": "ROSBOT 钥匙",
-        "write_before_start": "把使用中的钥匙交给 ROSBOT（启动前写入 RoS-BoT.ini，ROSBOT 要求输入时自动填入钥匙窗口）",
+        "write_before_start": "把使用中的钥匙交给 ROSBOT（启动前写入 文档\\RoS-BoT\\RosBotGlobalSettings.ini，ROSBOT 要求输入时自动填入钥匙窗口）",
         "keys": "钥匙列表",
         "new_key": "新钥匙",
         "add": "添加",
@@ -288,16 +288,19 @@
         "apply_now": "立即写入 ini",
         "active_item": "{0}（使用中）",
         "ini_path": "ini：{0}",
-        "no_ros_dir": "未设置 ROSBOT 目录",
+        "current": "正在使用（我的文档）：{0}",
+        "current_none": "无",
+        "open_ini": "打开配置文件",
+        "open_dir": "打开配置目录",
         "add_failed": "钥匙为空或已在列表中。",
         "restart_ask": "ROSBOT 正在使用另一个钥匙运行。现在退出 ROSBOT 并用当前钥匙重新启动吗？（D3 不重启）",
-        "hint": "钥匙加密保存。ROSBOT 弹出 \"Please, enter a key\" 时，会直接填入使用中的钥匙并按确定（不经过键盘），ROSBOT 随后自己保存到 RoS-BoT.ini。每次启动前，若 RoS-BoT.ini 已存在，会把 Key= 改为使用中的钥匙。",
+        "hint": "钥匙加密保存。ROSBOT 弹出 \"Please, enter a key\" 时，会直接填入使用中的钥匙并按确定（不经过键盘），ROSBOT 随后自己保存到 文档\\RoS-BoT\\RosBotGlobalSettings.ini。每次启动前会把该文件的 Key= 改为使用中的钥匙。",
         "last_apply": "上次写入 {0}：{1}",
         "result_unchanged": "已是最新",
         "result_replaced": "钥匙已更新",
         "result_inserted": "钥匙已添加",
-        "result_file_missing": "RoS-BoT.ini 尚未生成（ROSBOT 接受钥匙后会自己保存）",
-        "result_no_anchor": "RoS-BoT.ini 中未找到 ROSBOT 设置段",
+        "result_file_missing": "RosBotGlobalSettings.ini 尚未生成（ROSBOT 接受钥匙后会自己保存）",
+        "result_no_anchor": "RosBotGlobalSettings.ini 中未找到 ROSBOT 设置段",
         "result_not_written": "未写入（见监控日志）"
       }
     }

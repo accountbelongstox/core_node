@@ -15,4 +15,10 @@ public static class RosbotLogConstants
     public const int SmartEchoTimerIntervalMs = 3000;
     public const string PickingEndSentinel = "Picking end";
     public const string EchoingFuryExplorationMarker = "Running: Echoing Fury Exploration";
+    /// <summary>Level of a ROSBOT line it handled itself (caught exception, its own server check); never a restart reason.</summary>
+    public const string WarnLevelMarker = " WARN - ";
+    public const string DisconnectedMarker = "Disconnected";
+    public const string SessionTimeoutMarker = "Session Time out";
+    public const string SessionTimeoutMinMarker = "min";
+    public const string SessionTimeoutWordMarker = "timeout";
 }

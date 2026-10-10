@@ -10,4 +10,11 @@ public static class SecretMask
         var s = text ?? "";
         return s.Length <= visibleChars * 2 ? Fill : s[..visibleChars] + Fill + s[^visibleChars..];
     }
+
+    /// <summary>Only the first prefixChars kept, the rest replaced.</summary>
+    public static string Prefix(string? text, int prefixChars)
+    {
+        var s = text ?? "";
+        return s.Length <= prefixChars ? Fill : s[..prefixChars] + Fill;
+    }
 }

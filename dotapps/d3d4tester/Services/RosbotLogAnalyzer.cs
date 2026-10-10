@@ -13,6 +13,9 @@ namespace DotApps.d3d4tester.Services;
 
 /// <summary>
 /// Analyzes ROSBOT logs.txt lines; state + order match Python d3utils.log_analyzer.LogAnalyzer.
+/// Fixes Python bug: ROSBOT's "WARN - Disconnected" (an exception in its own server check, followed by its stack trace; ROSBOT keeps
+/// botting) was taken as a game disconnect and restarted ROSBOT mid-run, which made ROSBOT leave the game ("Abnormal situation, exit
+/// game") and reconnect in a loop. WARN lines and the stack traces under them are only logged; only a session timeout counts.
 /// </summary>
 public static class RosbotLogAnalyzer
 {
@@ -34,12 +37,16 @@ internal sealed class RosbotLogAnalyzerEngine
     private static readonly Regex StageBackTown = new(@"back.*town|return.*town", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex StageInGr = new(@"in.*greater.*rift", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex StageInRift = new(@"in.*rift", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    /// <summary>ROSBOT log line header ("yyyy-MM-dd HH:mm:ss,fff LEVEL - "); stack trace lines have none.</summary>
+    private static readonly Regex LogHeader = new(@"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} ", RegexOptions.Compiled);
 
     private readonly List<string> _recentLines = new();
     private readonly List<string> _lineBuffer = new();
     private readonly List<string> _atErrorBuffer = new();
     private int _firstbornObjectiveCount;
     private int _linesSinceSystemKill = 999;
+    /// <summary>The newest header line was a WARN: the stack trace below it is an exception ROSBOT caught and handled.</summary>
+    private bool _underWarn;
 
     public bool AnalyzeLine(string line)
     {
@@ -60,13 +67,19 @@ internal sealed class RosbotLogAnalyzerEngine
             updated = true;
         }
 
-        if ((line.Contains("WARN", StringComparison.Ordinal) && line.Contains("Disconnected", StringComparison.Ordinal))
-            || (line.Contains("Session Time out", StringComparison.Ordinal) && (line.Contains("min", StringComparison.OrdinalIgnoreCase) || line.Contains("timeout", StringComparison.OrdinalIgnoreCase))))
+        if (LogHeader.IsMatch(line))
+            _underWarn = line.Contains(RosbotLogConstants.WarnLevelMarker, StringComparison.Ordinal);
+
+        if (line.Contains(RosbotLogConstants.SessionTimeoutMarker, StringComparison.Ordinal)
+            && (line.Contains(RosbotLogConstants.SessionTimeoutMinMarker, StringComparison.OrdinalIgnoreCase)
+                || line.Contains(RosbotLogConstants.SessionTimeoutWordMarker, StringComparison.OrdinalIgnoreCase)))
         {
             game.SetRosbotDisconnectedFromLog(true);
-            ColorPrinter.Yellow("[LogAnalyzer] ROSBOT disconnection detected from log: " + line[..Math.Min(80, line.Length)]);
+            ColorPrinter.Yellow("[LogAnalyzer] ROSBOT session timeout detected from log: " + line[..Math.Min(80, line.Length)]);
             updated = true;
         }
+        else if (_underWarn && line.Contains(RosbotLogConstants.DisconnectedMarker, StringComparison.Ordinal))
+            ColorPrinter.Gray("[LogAnalyzer] ROSBOT internal WARN (handled by ROSBOT, no restart): " + line[..Math.Min(80, line.Length)]);
 
         bool firstbornReuse = ConfigOptionsProvider.GetOptions<RosbotOptions>().FirstbornBlueGateReuse;
         if (line.Contains("Objective RunLogic: Temple of the Firstbor", StringComparison.Ordinal))
@@ -195,7 +208,7 @@ internal sealed class RosbotLogAnalyzerEngine
         }
         if (line.Contains("at System", StringComparison.Ordinal))
         {
-            if (recent10Lines.Any(ln => ln.Contains("Plugins", StringComparison.Ordinal)))
+            if (_underWarn || recent10Lines.Any(ln => ln.Contains("Plugins", StringComparison.Ordinal)))
             {
                 _atErrorBuffer.Clear();
                 return;
@@ -214,7 +227,7 @@ internal sealed class RosbotLogAnalyzerEngine
     }
 
     /// <summary>
-    /// ROSBOT stack traces (e.g. its server unreachable) are ROSBOT's problem: while D3 runs normally only ROSBOT is restarted (monitoring
+    /// Unhandled ROSBOT stack traces (WARN ones are skipped above) are ROSBOT's problem: while D3 runs normally only ROSBOT is restarted (monitoring
     /// on: the flow's ROSBOT-only restart; off: ROSBOT ended). Only with D3 gone or disconnected: the full F4 restart (counted, notified)
     /// or, monitoring off, end D3 and ROSBOT.
     /// </summary>

@@ -57,7 +57,19 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService
     /// Call this from your window's WndProc when message == WM_HOTKEY (0x0312). wParam is the hotkey id.
     /// </summary>
     /// <summary>Called on a pool thread for each function-key press: (virtual key, scan code, injected).</summary>
-    public Action<uint, uint, bool>? FunctionKeyObserver { get; set; }
+    /// <summary>Setting an observer keeps the pass-through hook installed even with no registered hotkeys.</summary>
+    public Action<uint, uint, bool>? FunctionKeyObserver
+    {
+        get => _functionKeyObserver;
+        set
+        {
+            _functionKeyObserver = value;
+            if (value != null) EnsureHookThread();
+            else StopHookThread();
+        }
+    }
+
+    private volatile Action<uint, uint, bool>? _functionKeyObserver;
 
     public void OnWmHotkey(int wParam)
     {
@@ -126,7 +138,7 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService
     {
         lock (_hookLock)
         {
-            if (_hookThread == null || !_byId.IsEmpty) return;
+            if (_hookThread == null || !_byId.IsEmpty || _functionKeyObserver != null) return;
             PostThreadMessage(_hookThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
             _hookThread = null;
             _hookInstalled = false;

@@ -9,11 +9,11 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester.Services.Monitor;
 
 /// <summary>
-/// ROSBOT license keys added on the Monitor tab (stored encrypted, one active). Before every ROSBOT start (RosbotManager before-start
-/// hook) the active key is written to an existing RoS-BoT.ini next to the exe as the ROSBOT settings field "Key": an existing Key
-/// line is replaced in place, otherwise it is added to the section holding ROSBOT's other global fields. Without RoS-BoT.ini ROSBOT
-/// shows its KEY dialog ("Please, enter a key"; it saves the ini only after a key is accepted): whenever the state center reports
-/// that dialog, RosbotUiAutomation.TryFillKeyDialog types the active key (key provider) and presses OK.
+/// ROSBOT license keys added on the Monitor tab (stored encrypted, one active). ROSBOT keeps its key in
+/// Documents/RoS-BoT/RosBotGlobalSettings.ini ([BotParameters] "Key"). Before every ROSBOT start (RosbotManager before-start hook)
+/// the active key is written there: an existing Key line is replaced in place, otherwise it is added to the section holding ROSBOT's
+/// other global fields. Without that ini ROSBOT shows its KEY dialog ("Please, enter a key"; it saves the ini only after a key is
+/// accepted): whenever the state center reports that dialog, RosbotUiAutomation.TryFillKeyDialog types the active key and presses OK.
 /// Switching the active key while ROSBOT runs with another key offers one ROSBOT-only restart (D3 kept): the running flow restarts
 /// ROSBOT through its E block, otherwise ROSBOT is closed and started again here; both write the new key in the before-start hook.
 /// </summary>
@@ -22,7 +22,7 @@ public static class RosbotKeyService
     private const string LogTag = "[RosbotKey]";
     private const string IniKeyName = "Key";
     private const char KeySeparator = '\n';
-    private const int MaskVisibleChars = 4;
+    private const int MaskVisibleChars = 8;
     /// <summary>ROSBOT [SettingsField] names without a Category, declared next to "Key" (same ini section).</summary>
     private static readonly string[] IniAnchorKeys = { "KeyEx", "TosAccepted", "LastScriptUsed", "LastLaunchWasLocal", "SceneVersion", "Seasons", "Exts", "LocalPickit", "LocalSkill", "DontPickit", "SeasonItems" };
 
@@ -95,7 +95,7 @@ public static class RosbotKeyService
     /// <summary>True when a running ROSBOT uses another key than the active one and no key restart is running (ask once per change).</summary>
     public static bool RestartNeeded =>
         WriteBeforeStart && ActiveKey is { } key && Volatile.Read(ref _restartRunning) == 0
-        && !string.Equals(key, _startedKey, StringComparison.Ordinal) && RosbotManager.Instance.FindRosbotProcesses().Count > 0;
+        && !string.Equals(key, _startedKey ?? CurrentKey, StringComparison.Ordinal) && RosbotManager.Instance.FindRosbotProcesses().Count > 0;
 
     /// <summary>
     /// Restart ROSBOT only, with the active key: the running flow (not paused) restarts it in its E block; otherwise ROSBOT is closed
@@ -153,25 +153,43 @@ public static class RosbotKeyService
         MonitorLog.Info($"{LogTag} key {Mask(removed)} removed ({keys.Count} left)");
     }
 
-    /// <summary>First and last characters only, e.g. ABCD****WXYZ.</summary>
-    public static string Mask(string key) => SecretMask.Mask(key, MaskVisibleChars);
+    /// <summary>First characters only, e.g. 30f1a2b3****.</summary>
+    public static string Mask(string key) => SecretMask.Prefix(key, MaskVisibleChars);
 
-    /// <summary>RoS-BoT.ini of the configured ROSBOT folder, or null when the folder is not set.</summary>
-    public static string? IniPath =>
-        RosbotManager.Instance.GetRosDirectory() is { Length: > 0 } dir ? Path.Combine(dir, ShellConstants.RosbotIniFileName) : null;
+    /// <summary>ROSBOT global settings ini that holds the key (Documents/RoS-BoT/RosBotGlobalSettings.ini).</summary>
+    public static string IniPath => RosbotLogPaths.GetGlobalSettingsPath();
 
-    /// <summary>Write the active key to RoS-BoT.ini now (Apply now button); null when there is no key or no ROSBOT folder.</summary>
-    public static IniSetResult? ApplyNow() => IniPath is { } path ? Apply(path) : null;
+    public static string IniDirectory => RosbotLogPaths.GetRosbotDocumentsDirectory();
+
+    /// <summary>Key ROSBOT currently has in its global settings ini; null when the file or the Key line is missing or empty.</summary>
+    public static string? CurrentKey
+    {
+        get
+        {
+            try
+            {
+                return IniFileEditor.GetValue(IniPath, IniKeyName) is { Length: > 0 } key ? key : null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+    }
+
+    /// <summary>Write the active key to the global settings ini now (Apply now button); null when there is no key.</summary>
+    public static IniSetResult? ApplyNow() => Apply();
 
     private static void OnBeforeStart(string exePath)
     {
-        if (!WriteBeforeStart || ActiveKey == null || Path.GetDirectoryName(exePath) is not { Length: > 0 } dir) return;
+        if (!WriteBeforeStart || ActiveKey == null) return;
         _startedKey = ActiveKey;
-        Apply(Path.Combine(dir, ShellConstants.RosbotIniFileName));
+        Apply();
     }
 
-    private static IniSetResult? Apply(string iniPath)
+    private static IniSetResult? Apply()
     {
+        string iniPath = IniPath;
         if (ActiveKey is not { } key) return null;
         IniSetResult result;
         try

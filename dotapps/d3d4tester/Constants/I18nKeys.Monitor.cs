@@ -152,7 +152,10 @@ public static partial class I18nKeys
     public const string MonitorRosbotKeyApplyNow = "ui.monitor.rosbot_key.apply_now";
     public const string MonitorRosbotKeyActiveItem = "ui.monitor.rosbot_key.active_item";
     public const string MonitorRosbotKeyIniPath = "ui.monitor.rosbot_key.ini_path";
-    public const string MonitorRosbotKeyNoRosDir = "ui.monitor.rosbot_key.no_ros_dir";
+    public const string MonitorRosbotKeyCurrent = "ui.monitor.rosbot_key.current";
+    public const string MonitorRosbotKeyCurrentNone = "ui.monitor.rosbot_key.current_none";
+    public const string MonitorRosbotKeyOpenIni = "ui.monitor.rosbot_key.open_ini";
+    public const string MonitorRosbotKeyOpenDir = "ui.monitor.rosbot_key.open_dir";
     public const string MonitorRosbotKeyAddFailed = "ui.monitor.rosbot_key.add_failed";
     public const string MonitorRosbotKeyHint = "ui.monitor.rosbot_key.hint";
     public const string MonitorRosbotKeyRestartAsk = "ui.monitor.rosbot_key.restart_ask";

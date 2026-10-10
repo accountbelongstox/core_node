@@ -180,6 +180,8 @@ public static class RosbotFlowRunner
     private static void RunCycle(FlowContext ctx)
     {
         Refresh();
+        if (!State.D3Running && D3Manager.Instance.IsProcessRunning())
+            WaitForD3Window(ctx);
         if (!State.D3Running)
         {
             CloseRosbotWithoutD3();
@@ -243,6 +245,18 @@ public static class RosbotFlowRunner
     }
 
     /// <summary>[F1] ROSBOT runs but D3 does not: close ROSBOT, so it is started again after the new D3 ([E]).</summary>
+    /// <summary>[F1] D3 process up but no visible window yet (loading, minimized): wait for the window instead of launching D3 again.</summary>
+    private static void WaitForD3Window(FlowContext ctx)
+    {
+        ColorPrinter.Blue($"{LogTag} [F1] D3 process running without window -> wait for it (no D3 launch)");
+        var deadline = DateTime.UtcNow.AddSeconds(FlowTimings.D3WindowWaitSec);
+        while (!State.D3Running && DateTime.UtcNow < deadline && D3Manager.Instance.IsProcessRunning())
+        {
+            ctx.Wait(FlowTimings.D3WindowPollSec);
+            Refresh();
+        }
+    }
+
     private static void CloseRosbotWithoutD3()
     {
         var rosbot = RosbotManager.Instance;
