@@ -42,14 +42,23 @@ public static class KanaiUpgradeHunter
     public static KanaiBagScan Scan(IReadOnlyList<KanaiUpgradeTarget> targets, string cacheDir)
     {
         if (Refresh() is not { } view) return KanaiBagScan.Empty;
-        using (view)
-        {
-            var catalog = D3ItemCatalog.For(cacheDir);
-            var wanted = Wanted(targets, catalog);
-            var (rares, skipped) = ClassifyRares(view, catalog, wanted);
-            var legendaries = view.Items.Where(i => i.IsLegendary).Select(i => IdentifyByIcon(view, i, catalog, wanted, Array.Empty<string>())).ToList();
-            return new KanaiBagScan(DateTime.UtcNow, view.KanaiOpen, rares, legendaries, skipped);
-        }
+        using (view) return Scan(view, targets, cacheDir);
+    }
+
+    /// <summary>The same overview of a saved capture (window image BGR, its bag coordinates and layout): offline checks of the recognition.</summary>
+    public static KanaiBagScan ScanImage(Mat window, BagCoordinates bag, BagLayout layout, bool kanaiOpen, IReadOnlyList<KanaiUpgradeTarget> targets, string cacheDir)
+    {
+        using var view = new BagView(window.Clone(), bag, KanaiBagRecognizer.Items(layout, bag), kanaiOpen);
+        return Scan(view, targets, cacheDir);
+    }
+
+    private static KanaiBagScan Scan(BagView view, IReadOnlyList<KanaiUpgradeTarget> targets, string cacheDir)
+    {
+        var catalog = D3ItemCatalog.For(cacheDir);
+        var wanted = Wanted(targets, catalog);
+        var (rares, skipped) = ClassifyRares(view, catalog, wanted);
+        var legendaries = view.Items.Where(i => i.IsLegendary).Select(i => IdentifyByIcon(view, i, catalog, wanted, Array.Empty<string>())).ToList();
+        return new KanaiBagScan(DateTime.UtcNow, view.KanaiOpen, rares, legendaries, skipped);
     }
 
     public static KanaiUpgradeRun Run(KanaiUpgradeSettings settings, string build, string profile, Func<bool> shouldStop, Action<KanaiUpgradeEvent>? progress)
@@ -220,28 +229,44 @@ public static class KanaiUpgradeHunter
                 string detail = string.Join(" ", required.Select(s => $"{s.Stat.Code}={Fmt(s.Actual)}{(s.Ok == true ? "✓" : "✗")}"));
                 return new KanaiUpgradeProduct(now, cell.Row, cell.Col, want.Target.Item.NameEn, want.Target.Item.NameZh, SourcePlugin, 1, want.Target.Key, ok, entity.AncientRank, detail);
             }
-            return VerifyByTooltip(cell, want, SourcePlugin, 1, now, assumeName: true);
+            return VerifyByTooltip(cell, new[] { want }, SourcePlugin, 1, now, assumeName: true);
         }
         var guess = IdentifyByIcon(view, cell, catalog, wanted, groups);
-        if (guess.TargetKey is not { } key || wanted.FirstOrDefault(w => w.Target.Key == key) is not { } hit)
-            return new KanaiUpgradeProduct(now, cell.Row, cell.Col, guess.Item?.NameEn ?? "?", guess.Item?.NameZh ?? "", SourceIcon, guess.Score, null, false, -1, "");
-        bool needsTooltip = settings.VerifyByOcr || hit.Target.MinAncientRank > 0 || hit.Target.RequiredStats.Count > 0;
-        if (!needsTooltip)
-            return new KanaiUpgradeProduct(now, cell.Row, cell.Col, hit.Target.Item.NameEn, hit.Target.Item.NameZh, SourceIcon, guess.Score, key, true, -1, "icon only");
-        return VerifyByTooltip(cell, hit, SourceIcon, guess.Score, now, assumeName: false);
+        string guessEn = guess.Item?.NameEn ?? "?", guessZh = guess.Item?.NameZh ?? "";
+        if (guess.TargetKey is { } key && wanted.FirstOrDefault(w => w.Target.Key == key) is { } hit)
+        {
+            bool needsTooltip = settings.VerifyByOcr || hit.Target.MinAncientRank > 0 || hit.Target.RequiredStats.Count > 0;
+            if (!needsTooltip)
+                return new KanaiUpgradeProduct(now, cell.Row, cell.Col, hit.Target.Item.NameEn, hit.Target.Item.NameZh, SourceIcon, guess.Score, key, true, -1, "icon only");
+            return VerifyByTooltip(cell, new[] { hit }, SourceIcon, guess.Score, now, assumeName: false);
+        }
+        // The icon cannot rule out a target of the product's type when it is inconclusive or the target has no icon: OCR decides.
+        var unseen = wanted.Where(w => (groups.Count == 0 || groups.Contains(w.Group)) && (guess.Item == null || w.Item?.RecognitionIcon == null)).ToList();
+        if (settings.VerifyByOcr && unseen.Count > 0)
+            return VerifyByTooltip(cell, unseen, SourceIcon, guess.Score, now, assumeName: false, guessEn, guessZh);
+        return new KanaiUpgradeProduct(now, cell.Row, cell.Col, guessEn, guessZh, SourceIcon, guess.Score, null, false, -1, "");
     }
 
-    /// <summary>Hover + OCR: the name must match (unless the plugin named it), the tier line gives the rank, required affixes their values.</summary>
-    private static KanaiUpgradeProduct VerifyByTooltip(KanaiBagItem cell, Want want, string source, double score, DateTime now, bool assumeName)
+    /// <summary>
+    /// Hover + OCR once: the name picks the target among the candidates (the plugin's name is trusted), the tier line gives the rank,
+    /// required affixes their values. No candidate named: a non-target product under the icon guess (or the first tooltip line).
+    /// </summary>
+    private static KanaiUpgradeProduct VerifyByTooltip(KanaiBagItem cell, IReadOnlyList<Want> candidates, string source, double score, DateTime now,
+        bool assumeName, string guessEn = "?", string guessZh = "")
     {
-        var item = want.Target.Item;
         var tooltip = KanaiTooltipReader.Read(GameInterfaceData.Instance, cell.Row, cell.Col);
         if (tooltip == null)
-            return new KanaiUpgradeProduct(now, cell.Row, cell.Col, item.NameEn, item.NameZh, source, score, want.Target.Key, false, -1, "tooltip not captured");
-        double nameScore = assumeName ? 1 : tooltip.NameScore(item.NameZh, item.NameEn);
+            return new KanaiUpgradeProduct(now, cell.Row, cell.Col, candidates[0].Target.Item.NameEn, candidates[0].Target.Item.NameZh, source, score,
+                candidates.Count == 1 ? candidates[0].Target.Key : null, false, -1, "tooltip not captured");
+        var (want, nameScore) = candidates.Select(c => (Want: c, Score: assumeName ? 1 : tooltip.NameScore(c.Target.Item.NameZh, c.Target.Item.NameEn)))
+            .OrderByDescending(c => c.Score).First();
+        var item = want.Target.Item;
         if (nameScore < OcrNameMin)
-            return new KanaiUpgradeProduct(now, cell.Row, cell.Col, item.NameEn, item.NameZh, SourceIcon, score, null, false, tooltip.AncientRank,
-                $"ocr name {nameScore:F2}: {tooltip.Lines.FirstOrDefault()}");
+        {
+            string line = tooltip.Lines.FirstOrDefault() ?? "";
+            return new KanaiUpgradeProduct(now, cell.Row, cell.Col, guessEn == "?" && line.Length > 0 ? line : guessEn, guessZh, SourceOcr, score, null, false,
+                tooltip.AncientRank, $"ocr name {nameScore:F2} ({item.NameEn}): {line}");
+        }
         var checks = want.Target.Required.Select(s => (Stat: s, Value: tooltip.StatValue(s))).ToList();
         bool statsOk = checks.All(c => c.Value is { } v && v >= c.Stat.Value * D3PlannerMatcher.StatTolerance);
         bool ok = tooltip.AncientRank >= want.Target.MinAncientRank && statsOk;

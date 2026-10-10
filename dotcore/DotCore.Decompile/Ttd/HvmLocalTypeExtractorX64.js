@@ -32,6 +32,15 @@ function pointerText(value) {
     return `0x${value.toString(16)}`;
 }
 
+function signatureBytes(address) {
+    try {
+        return Array.from(host.memory.readMemoryValues(address, 0x70, 1),
+            value => Number(value).toString(16).padStart(2, "0")).join("");
+    } catch (_) {
+        return "";
+    }
+}
+
 function parsePosition(value) {
     if (value === "Min Position") return [0, 0];
     if (value === "Max Position") return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
@@ -74,7 +83,8 @@ function invokeScript() {
         Index: range.Index,
         Start: parsePosition(range.StartPosition),
         End: parsePosition(range.EndPosition),
-        LocalsSignatureInfo: ""
+        LocalsSignatureInfo: "",
+        SignatureBytes: ""
     }));
     const jitCalls = host.currentSession.TTD.Calls("clrjit!CILJit::compileMethod");
     const argTypeCalls = host.currentSession.TTD.Calls(getArgTypeAddress);
@@ -82,11 +92,13 @@ function invokeScript() {
     const records = [];
     const classes = [];
     const failures = [];
+    const signatures = [];
 
     for (const range of ranges) {
         try {
             jitCalls[range.Index].TimeStart.SeekTo();
             range.LocalsSignatureInfo = pointerText(host.currentThread.Registers.User.r8.add(0x98));
+            range.SignatureBytes = signatureBytes(host.currentThread.Registers.User.r8.add(0x98));
         } catch (error) {
             failures.push({ JitCallIndex: range.Index, Message: error.message });
         }
@@ -102,7 +114,12 @@ function invokeScript() {
             argTypeCalls[index].TimeStart.SeekTo();
             const registers = host.currentThread.Registers.User;
             const signatureInfo = pointerText(registers.rdx);
-            if (signatureInfo !== range.LocalsSignatureInfo) continue;
+            if (signatureInfo !== range.LocalsSignatureInfo) {
+                const observed = signatureBytes(registers.rdx);
+                signatures.push({ Kind: "Type", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
+                    Expected: range.SignatureBytes, Observed: observed });
+                if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
+            }
             const argumentPointer = registers.r8;
             const typeHandlePointer = registers.r9;
             argTypeCalls[index].TimeEnd.SeekTo();
@@ -138,7 +155,12 @@ function invokeScript() {
             argClassCalls[index].TimeStart.SeekTo();
             const registers = host.currentThread.Registers.User;
             const signatureInfo = pointerText(registers.rdx);
-            if (signatureInfo !== range.LocalsSignatureInfo) continue;
+            if (signatureInfo !== range.LocalsSignatureInfo) {
+                const observed = signatureBytes(registers.rdx);
+                signatures.push({ Kind: "Class", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
+                    Expected: range.SignatureBytes, Observed: observed });
+                if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
+            }
             const argumentPointer = registers.r8;
             argClassCalls[index].TimeEnd.SeekTo();
             const typeHandle = host.currentThread.Registers.User.rax;
@@ -162,6 +184,7 @@ function invokeScript() {
         }
     }
 
-    writeText(outputPath, JSON.stringify({ Locals: records, Classes: classes, Failures: failures }, null, 2));
+    writeText(outputPath, JSON.stringify({ Locals: records, Classes: classes, Failures: failures,
+        Signatures: signatures }, null, 2));
     host.diagnostics.debugLog(`Finished HVM local extraction: ${records.length} types, ${classes.length} classes, ${failures.length} failures.\n`);
 }

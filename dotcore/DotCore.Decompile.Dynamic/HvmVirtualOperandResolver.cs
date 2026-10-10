@@ -302,6 +302,23 @@ public sealed class HvmVirtualOperandResolver
             var resolver = new MappedCilOperandResolver(method.Module!, candidateBody, mappedMembers);
             var disassembler = new CilDisassembler(in reader, resolver);
             candidateBody.Instructions.AddRange(disassembler.ReadInstructions());
+            foreach (CilInstruction instruction in candidateBody.Instructions)
+            {
+                int localIndex = instruction.OpCode.Code switch
+                {
+                    CilCode.Ldloc_0 or CilCode.Stloc_0 => 0,
+                    CilCode.Ldloc_1 or CilCode.Stloc_1 => 1,
+                    CilCode.Ldloc_2 or CilCode.Stloc_2 => 2,
+                    CilCode.Ldloc_3 or CilCode.Stloc_3 => 3,
+                    CilCode.Ldloc or CilCode.Ldloc_S or CilCode.Stloc or CilCode.Stloc_S
+                        or CilCode.Ldloca or CilCode.Ldloca_S => instruction.Operand is CilLocalVariable local
+                            && candidateBody.LocalVariables.Contains(local)
+                            ? candidateBody.LocalVariables.IndexOf(local) : int.MaxValue,
+                    _ => -1
+                };
+                if (localIndex >= candidateBody.LocalVariables.Count)
+                    throw new InvalidOperationException($"Local index {localIndex} exceeds the captured signature at IL_{instruction.Offset:X4}.");
+            }
             candidateBody.VerifyLabels();
             candidateBody.MaxStack = candidateBody.ComputeMaxStack();
             method.CilMethodBody = candidateBody;
