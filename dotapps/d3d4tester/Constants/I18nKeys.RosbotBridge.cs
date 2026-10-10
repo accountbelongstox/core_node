@@ -135,6 +135,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeBuildLoading = "ui.rosbot_bridge.build_loading";
     public const string RosbotBridgeBuildLoadFailed = "ui.rosbot_bridge.build_load_failed";
     public const string RosbotBridgeBuildLoaded = "ui.rosbot_bridge.build_loaded";
+    public const string RosbotBridgeBuildDuplicate = "ui.rosbot_bridge.build_duplicate";
+    public const string RosbotBridgeBuildDuplicatesSkipped = "ui.rosbot_bridge.build_duplicates_skipped";
     public const string RosbotBridgeBuildNone = "ui.rosbot_bridge.build_none";
     public const string RosbotBridgeBuildProfile = "ui.rosbot_bridge.build_profile";
     public const string RosbotBridgeBuildNotify = "ui.rosbot_bridge.build_notify";

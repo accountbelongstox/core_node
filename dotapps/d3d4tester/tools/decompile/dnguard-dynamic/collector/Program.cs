@@ -22,6 +22,8 @@ internal static class Program
         TimeSpan compilationDelay = TimeSpan.Zero;
         IReadOnlyCollection<int>? selectedTokens = null;
         bool delayedInvocation;
+        bool eventInvocation;
+        string initializationEvent = string.Empty;
         int tokenOffset;
         DynamicMethodAcquisitionReport report;
         DynamicMethodAcquisitionOptions options;
@@ -52,11 +54,15 @@ internal static class Program
                 return 0;
             }
             if (args.Length >= 4 && (args[0] == "--invoke-static-many"
-                || args[0] == "--invoke-static-many-delayed"))
+                || args[0] == "--invoke-static-many-delayed"
+                || args[0] == "--invoke-static-many-event"))
             {
                 targetPath = Path.GetFullPath(args[1]);
                 delayedInvocation = args[0] == "--invoke-static-many-delayed";
-                tokenOffset = delayedInvocation ? 3 : 2;
+                eventInvocation = args[0] == "--invoke-static-many-event";
+                tokenOffset = delayedInvocation || eventInvocation ? 3 : 2;
+                if (eventInvocation)
+                    initializationEvent = args[2];
                 if (delayedInvocation)
                 {
                     compilationDelay = TimeSpan.FromSeconds(double.Parse(args[2], CultureInfo.InvariantCulture));
@@ -66,9 +72,14 @@ internal static class Program
                 methodTokens = args.Skip(tokenOffset).Select(value => int.Parse(value.Replace("0x", string.Empty),
                     NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToArray();
                 invocationReports = new DynamicMethodInvoker().InvokeStatics(targetPath, methodTokens,
+                    methodTimeout: eventInvocation ? TimeSpan.FromMinutes(1) : null,
                     initialized: () =>
                     {
+                        using var gate = eventInvocation ? new System.Threading.EventWaitHandle(false,
+                            System.Threading.EventResetMode.AutoReset, initializationEvent) : null;
                         Console.WriteLine($"Invocation ready: process={System.Diagnostics.Process.GetCurrentProcess().Id}, selected={methodTokens.Count}.");
+                        if (gate != null && !gate.WaitOne(TimeSpan.FromMinutes(1)))
+                            throw new TimeoutException("The recorder initialization event was not signaled.");
                         if (compilationDelay > TimeSpan.Zero)
                             System.Threading.Thread.Sleep(compilationDelay);
                     });
