@@ -223,7 +223,7 @@ const CmAdminPolicyCard: React.FC<{ policy: CmAdminPolicy }> = ({ policy }) => {
     <section className="cm-admin-section" aria-labelledby="cm-admin-policy">
       <div className="cm-admin-section__head">
         <h2 id="cm-admin-policy">{t('admin.policy.title')}</h2>
-        <p>{t('admin.policy.readOnly')}</p>
+        <p>{t('admin.policy.editable')} <Link className="cm-workspace-link" to={CM_ADMIN_ROUTE.policy}>{t('admin.policy.editLink')}</Link></p>
       </div>
       <div className="cm-admin-panel-grid">
         <article className="cm-admin-panel">

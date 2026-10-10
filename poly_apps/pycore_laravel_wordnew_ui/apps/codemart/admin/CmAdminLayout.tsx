@@ -12,10 +12,12 @@ import {
   LayoutDashboard,
   LockKeyhole,
   LogOut,
+  ListChecks,
   Menu,
   MessageSquareQuote,
   RotateCcw,
   ShieldCheck,
+  SlidersHorizontal,
   Users,
   WalletCards,
   X,
@@ -38,10 +40,12 @@ const ADMIN_NAV = [
   { id: 'withdrawals', path: CM_ADMIN_ROUTE.withdrawals, labelKey: 'admin.nav.withdrawals', Icon: Banknote, end: false },
   { id: 'payments', path: CM_ADMIN_ROUTE.payments, labelKey: 'admin.nav.payments', Icon: CreditCard, end: false },
   { id: 'projects', path: CM_ADMIN_ROUTE.projects, labelKey: 'admin.nav.projects', Icon: BriefcaseBusiness, end: false },
+  { id: 'tasks', path: CM_ADMIN_ROUTE.tasks, labelKey: 'admin.nav.tasks', Icon: ListChecks, end: false },
   { id: 'testimonials', path: CM_ADMIN_ROUTE.testimonials, labelKey: 'admin.nav.testimonials', Icon: MessageSquareQuote, end: false },
   { id: 'reviewers', path: CM_ADMIN_ROUTE.reviewerApplications, labelKey: 'admin.nav.reviewers', Icon: BadgeCheck, end: false },
   { id: 'contact', path: CM_ADMIN_ROUTE.contactMessages, labelKey: 'admin.nav.contact', Icon: Inbox, end: false },
   { id: 'activity', path: CM_ADMIN_ROUTE.activity, labelKey: 'admin.nav.activity', Icon: History, end: false },
+  { id: 'policy', path: CM_ADMIN_ROUTE.policy, labelKey: 'admin.nav.policy', Icon: SlidersHorizontal, end: false },
 ] as const;
 
 /**

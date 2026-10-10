@@ -33,6 +33,8 @@ const CmAdminUsersPage = lazy(() => import('./admin/CmAdminPages').then((module)
 const CmAdminKycPage = lazy(() => import('./admin/CmAdminPages').then((module) => ({ default: module.CmAdminKycPage })));
 const CmAdminDepositsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminDepositsPage })));
 const CmAdminRefundsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminRefundsPage })));
+const CmAdminTasksPage = lazy(() => import('./admin/CmAdminTasksPage'));
+const CmAdminPolicyPage = lazy(() => import('./admin/CmAdminPolicyPage'));
 const CmAdminProjectsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminProjectsPage })));
 const CmAdminUserDetailPage = lazy(() => import('./admin/CmAdminUserDetailPage'));
 const CmAdminWithdrawalsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminWithdrawalsPage })));
@@ -89,6 +91,8 @@ const CmApp: React.FC = () => (
         <Route path="admin/deposits" element={wrapPage(<CmAdminDepositsPage />)} />
         <Route path="admin/refunds" element={wrapPage(<CmAdminRefundsPage />)} />
         <Route path="admin/projects" element={wrapPage(<CmAdminProjectsPage />)} />
+        <Route path="admin/tasks" element={wrapPage(<CmAdminTasksPage />)} />
+        <Route path="admin/policy" element={wrapPage(<CmAdminPolicyPage />)} />
         <Route path="admin/users/:userId" element={wrapPage(<CmAdminUserDetailPage />)} />
         <Route path="admin/withdrawals" element={wrapPage(<CmAdminWithdrawalsPage />)} />
         <Route path="admin/payments" element={wrapPage(<CmAdminPaymentsPage />)} />
