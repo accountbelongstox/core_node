@@ -1,0 +1,202 @@
+{
+ "version": 1,
+ "source": {
+  "file": "source/codemart-logo-source.jpg",
+  "width": 619,
+  "height": 162
+ },
+ "default": "a-vtracer-r1",
+ "candidates": [
+  {
+   "id": "a-potrace-r1",
+   "method": "A",
+   "round": 1,
+   "tool": "potrace",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:11:35Z",
+   "note": "potrace on an 8x bicubic upscale, default smoothing",
+   "score": {
+    "iou": 0.9367,
+    "ssim": 0.9442,
+    "score": 0.9405
+   },
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "a-potrace-r2",
+   "method": "A",
+   "round": 2,
+   "tool": "potrace",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:11:37Z",
+   "note": "potrace, stronger blur and curve smoothing",
+   "score": {
+    "iou": 0.9365,
+    "ssim": 0.9436,
+    "score": 0.94
+   },
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "a-vtracer-r1",
+   "method": "A",
+   "round": 1,
+   "tool": "vtracer",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:11:37Z",
+   "note": "vtracer spline mode on the same upscaled binary regions",
+   "score": {
+    "iou": 0.9412,
+    "ssim": 0.9444,
+    "score": 0.9428
+   },
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "b-hand-r1",
+   "method": "B",
+   "round": 1,
+   "tool": "geometry-fit",
+   "kind": "vector",
+   "status": "ok",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "rounded rects, fillets, mirrored Bezier head and stroked letters fitted to the source by pixel diff",
+   "score": {
+    "iou": 0.9327,
+    "ssim": 0.9422,
+    "score": 0.9374
+   },
+   "files": {
+    "mark": {
+     "svg": "mark.svg",
+     "png": "mark.png",
+     "white": "mark-white.svg",
+     "current": "mark-current.svg"
+    },
+    "lockup": {
+     "svg": "lockup.svg",
+     "png": "lockup.png",
+     "white": "lockup-white.svg",
+     "current": "lockup-current.svg"
+    },
+    "text": {
+     "svg": "text.svg",
+     "png": "text.png",
+     "white": "text-white.svg",
+     "current": "text-current.svg"
+    }
+   }
+  },
+  {
+   "id": "c-gateway-r1",
+   "method": "C",
+   "round": 1,
+   "tool": "pycore ai_gateway (cloudflare sdxl, text prompt only)",
+   "kind": "raster",
+   "status": "ok",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "text-to-image only; the gateway accepts no reference image, so the result is an unfaithful monkey and has no text",
+   "score": {
+    "iou": 0.1523,
+    "ssim": 0.6534,
+    "score": 0.4028
+   },
+   "files": {
+    "mark": {
+     "png": "mark.png"
+    }
+   }
+  },
+  {
+   "id": "c-chatgpt-r1",
+   "method": "C",
+   "round": 1,
+   "tool": "ChatGPT via mcp-chrome",
+   "kind": "raster",
+   "status": "unavailable",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "mcp-chrome endpoint 127.0.0.1:12306 was not listening, so the signed-in Chrome could not be driven",
+   "score": null,
+   "files": {}
+  },
+  {
+   "id": "c-gemini-r1",
+   "method": "C",
+   "round": 1,
+   "tool": "Gemini via mcp-chrome",
+   "kind": "raster",
+   "status": "unavailable",
+   "created_at": "2026-10-10T16:11:38Z",
+   "note": "mcp-chrome endpoint 127.0.0.1:12306 was not listening, so the signed-in Chrome could not be driven",
+   "score": null,
+   "files": {}
+  }
+ ],
+ "ranking": [
+  "a-vtracer-r1",
+  "a-potrace-r1",
+  "a-potrace-r2",
+  "b-hand-r1",
+  "c-gateway-r1"
+ ]
+}

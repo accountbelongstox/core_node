@@ -2,14 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { CmPublicIllustration } from './CmPublicBlocks';
-import type { CmImageName } from '../../assets/cmImageRegistry';
+import { CM_HOME_HERO_SLIDES } from '../../shared/cmInfoContent';
 
 const HERO_ROTATION_MS = 7000;
-const HERO_SLIDES: ReadonlyArray<{ titleKey: string; subtitleKey: string; variant: string; image: CmImageName }> = [
-  { titleKey: 'publicHome.hero.slide1Title', subtitleKey: 'publicHome.hero.slide1Subtitle', variant: 'delivery', image: 'hero-delivery' },
-  { titleKey: 'publicHome.hero.slide2Title', subtitleKey: 'publicHome.hero.slide2Subtitle', variant: 'milestones', image: 'hero-marketplace' },
-  { titleKey: 'publicHome.hero.slide3Title', subtitleKey: 'publicHome.hero.slide3Subtitle', variant: 'specialists', image: 'hero-escrow' },
-];
 
 export interface CmHeroProps {
   onPrimaryAction: () => void;
@@ -27,18 +22,18 @@ export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryActi
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedMotion || !rotationEnabled || hovered) return undefined;
     const timer = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % HERO_SLIDES.length);
+      setActiveIndex((current) => (current + 1) % CM_HOME_HERO_SLIDES.length);
     }, HERO_ROTATION_MS);
     return () => window.clearInterval(timer);
   }, [hovered, rotationEnabled]);
 
   const showPrevious = (): void => {
-    setActiveIndex((current) => (current - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+    setActiveIndex((current) => (current - 1 + CM_HOME_HERO_SLIDES.length) % CM_HOME_HERO_SLIDES.length);
   };
   const showNext = (): void => {
-    setActiveIndex((current) => (current + 1) % HERO_SLIDES.length);
+    setActiveIndex((current) => (current + 1) % CM_HOME_HERO_SLIDES.length);
   };
-  const activeSlide = HERO_SLIDES[activeIndex];
+  const activeSlide = CM_HOME_HERO_SLIDES[activeIndex];
 
   return (
     <section
@@ -69,7 +64,7 @@ export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryActi
         className="cm-public-container cm-hero__content"
         role="group"
         aria-roledescription="slide"
-        aria-label={t('common.slidePosition', { number: activeIndex + 1, total: HERO_SLIDES.length })}
+        aria-label={t('common.slidePosition', { number: activeIndex + 1, total: CM_HOME_HERO_SLIDES.length })}
         aria-live={rotationEnabled && !hovered ? 'off' : 'polite'}
       >
         <div className="cm-hero__copy">
@@ -98,7 +93,7 @@ export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryActi
         <ChevronRight aria-hidden="true" />
       </button>
       <div className="cm-hero__pagination">
-        {HERO_SLIDES.map((slide, index) => (
+        {CM_HOME_HERO_SLIDES.map((slide, index) => (
           <button
             type="button"
             key={slide.variant}

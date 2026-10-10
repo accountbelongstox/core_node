@@ -9,6 +9,7 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmHumanize } from '../components/workspace/cmWorkspaceFormat';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
+import { useCmAdminActionBuilders } from './useCmAdminActions';
 import {
   CmAdminActivityTable,
   CmAdminDate,
@@ -22,11 +23,7 @@ import {
   useCmAdminList,
   useCmAdminParam,
 } from './CmAdminShared';
-import {
-  type CmAdminContactMessageRow,
-  type CmAdminReviewerApplicationRow,
-  type CmAdminTestimonialRow,
-} from './CmAdminTypes';
+import { type CmAdminTestimonialRow } from './CmAdminTypes';
 
 const SCORE_FRACTION_DIGITS = 1;
 
@@ -45,14 +42,8 @@ export const CmAdminTestimonialsPage: React.FC = () => {
   const authorOf = (item: CmAdminTestimonialRow): string => item.author_label || item.user?.username || t('admin.testimonials.anonymous');
   const roleOf = (item: CmAdminTestimonialRow): string | null => item.role_labels?.[format.language] ?? item.role_label;
 
-  const moderate = (item: CmAdminTestimonialRow, approve: boolean): void => action.ask({
-    title: t(approve ? 'admin.testimonials.approveTitle' : 'admin.testimonials.hideTitle', { author: authorOf(item) }),
-    body: t(approve ? 'admin.testimonials.approveBody' : 'admin.testimonials.hideBody'),
-    confirmLabel: t(approve ? 'admin.testimonials.publish' : 'admin.testimonials.hide'),
-    tone: approve ? 'primary' : 'danger',
-    successKey: approve ? 'admin.testimonials.approved' : 'admin.testimonials.hidden',
-    run: () => (approve ? cmAdminApi.approveTestimonial(item.id) : cmAdminApi.hideTestimonial(item.id)),
-  });
+  const { moderateTestimonial } = useCmAdminActionBuilders(action.ask);
+  const moderate = (item: CmAdminTestimonialRow, approve: boolean): void => moderateTestimonial(item, approve, authorOf(item));
 
   const saveOrder = async (item: CmAdminTestimonialRow): Promise<void> => {
     const draft = sortDrafts[item.id];
@@ -167,16 +158,7 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.reviewerApplications(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const revoke = (item: CmAdminReviewerApplicationRow): void => action.ask({
-    title: t('admin.reviewers.revokeTitle', { user: item.user?.username ?? t('admin.userNumber', { id: item.user_id }) }),
-    body: t('admin.reviewers.revokeBody'),
-    confirmLabel: t('admin.reviewers.revoke'),
-    tone: 'danger',
-    reason: 'required',
-    reasonLabel: t('admin.dialog.reasonForUser'),
-    successKey: 'admin.reviewers.revoked',
-    run: (reason) => cmAdminApi.revokeReviewer(item.id, reason),
-  });
+  const { revokeReviewer: revoke } = useCmAdminActionBuilders(action.ask);
 
   const score = (value: string | null): string => {
     const parsed = value === null ? Number.NaN : Number(value);
@@ -252,13 +234,7 @@ export const CmAdminContactMessagesPage: React.FC = () => {
   const list = useCmAdminList((query) => cmAdminApi.contactMessages(query), filters);
   const action = useCmAdminAction(list.reload);
 
-  const handle = (item: CmAdminContactMessageRow): void => action.ask({
-    title: t('admin.contact.handleTitle', { name: item.name }),
-    body: t('admin.contact.handleBody', { email: item.email }),
-    confirmLabel: t('admin.contact.handle'),
-    successKey: 'admin.contact.handled',
-    run: () => cmAdminApi.handleContactMessage(item.id),
-  });
+  const { handleContact: handle } = useCmAdminActionBuilders(action.ask);
 
   return (
     <main className="cm-workspace-page">
