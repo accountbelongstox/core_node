@@ -38,6 +38,18 @@ $script:DISK_DISKMGMT_MSC = Join-Path $script:DISK_SYSTEM32_DIR "diskmgmt.msc"
 $script:DISK_LINUX_CACHE_DIRS = @(".pnpm-store", ".pnpm-store.shrink-rewrite", ".cache", ".npm", "~\.cache", "~\.npm", "~\.pnpm-store")
 $script:DISK_VSSADMIN_EXE = Join-Path $script:DISK_SYSTEM32_DIR "vssadmin.exe"
 $script:DISK_SHRINK_REWRITE_SUFFIX = ".shrink-rewrite"
+$script:DISK_EXTENT_MIN_BYTES = 1GB
+$script:DISK_ALIGN_BYTES = 1MB
+$script:DISK_GPT_TAIL_BYTES = 1MB
+$script:DISK_MERGE_SPACE_FACTOR = 1.05
+$script:DISK_STEP_CONFIRM_TIMEOUT_SECONDS = 10
+$script:DISK_CONSOLE_DEFAULT_WIDTH = 119
+$script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "robocopy.exe"
+$script:DISK_ROBOCOPY_FAILURE_CODE = 8
+$script:DISK_ROBOCOPY_ARGUMENTS = @("/MIR", "/B", "/COPY:DATSO", "/DCOPY:DAT", "/SL", "/SJ", "/R:1", "/W:1", "/MT:16", "/NP", "/BYTES", "/XD", '$RECYCLE.BIN', "System Volume Information")
+$script:DISK_ROBOCOPY_LOG_FILE = "core_node_program_drive_merge.log"
+$script:DISK_ROBOCOPY_POLL_MS = 2000
+$script:DISK_ROBOCOPY_SUMMARY_LINES = 14
 $script:DISK_NTFS_SECURITY_TYPE = "CoreNode.NtfsLegacySecurity"
 $script:DISK_NTFS_SECURITY_SOURCE = @'
 using System;
@@ -737,6 +749,363 @@ function Get-ProgramDriveCreateSizeMB {
     return [math]::Min($ShrinkableMB, $Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB)
 }
 
+function Get-ProgramDriveMaxBytes {
+    return ([long]$Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB * 1MB)
+}
+
+function Get-AlignedOffset {
+    param(
+        [Parameter(Mandatory = $true)] [long]$Offset
+    )
+
+    return ([long][math]::Ceiling($Offset / $script:DISK_ALIGN_BYTES) * $script:DISK_ALIGN_BYTES)
+}
+
+function Get-DiskFreeExtents {
+    param(
+        [Parameter(Mandatory = $true)] [int]$DiskNumber
+    )
+    $disk = Get-Disk -Number $DiskNumber
+    $partitions = @(Get-Partition -DiskNumber $DiskNumber | Sort-Object Offset)
+    $cursor = [long]$script:DISK_ALIGN_BYTES
+    $start = 0
+    $end = 0
+
+    if ($partitions.Count -gt 0) {
+        $cursor = [long]$partitions[0].Offset
+    }
+    foreach ($partition in ($partitions + @($null))) {
+        $start = Get-AlignedOffset -Offset $cursor
+        if ($null -eq $partition) {
+            $end = [long]$disk.Size - $script:DISK_GPT_TAIL_BYTES
+        } else {
+            $end = [long]$partition.Offset
+        }
+        $end = [long][math]::Floor($end / $script:DISK_ALIGN_BYTES) * $script:DISK_ALIGN_BYTES
+        if (($end - $start) -ge $script:DISK_EXTENT_MIN_BYTES) {
+            [PSCustomObject]@{ Offset = $start; Size = ($end - $start) }
+        }
+        if ($null -ne $partition) {
+            $cursor = [math]::Max($cursor, ([long]$partition.Offset + [long]$partition.Size))
+        }
+    }
+}
+
+function Get-PartitionLabel {
+    param(
+        [Parameter(Mandatory = $true)] [object]$Partition
+    )
+
+    $volume = Get-Volume -Partition $Partition -ErrorAction SilentlyContinue
+    if ($null -eq $volume) {
+        return ""
+    }
+    return [string]$volume.FileSystemLabel
+}
+
+function Get-LabeledPartitions {
+    param(
+        [Parameter(Mandatory = $true)] [int]$DiskNumber,
+        [Parameter(Mandatory = $true)] [string]$Label
+    )
+
+    @(Get-Partition -DiskNumber $DiskNumber | Where-Object { (Get-PartitionLabel -Partition $_) -eq $Label })
+}
+
+function Get-ConsoleLineWidth {
+    try {
+        return [math]::Max(20, $Host.UI.RawUI.WindowSize.Width - 1)
+    } catch {
+        return $script:DISK_CONSOLE_DEFAULT_WIDTH
+    }
+}
+
+function Update-ProgramDriveMarker {
+    param(
+        [Parameter(Mandatory = $true)] [string]$TargetLetter
+    )
+    $driveRoot = '{0}:\' -f $TargetLetter
+
+    if (-not (Get-Command Register-CnProgramDriveAdoption -ErrorAction SilentlyContinue)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $driveRoot $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME) -PathType Leaf)) {
+        return
+    }
+    Register-CnProgramDriveAdoption -DriveRoot $driveRoot -DriveLetter $TargetLetter | Out-Null
+    Write-ColorMessage -Message ("{0}: marker updated to the new partition GUID" -f $TargetLetter) -Type "Info"
+}
+
+function Complete-ProgramDriveMerge {
+    param(
+        [Parameter(Mandatory = $true)] [int]$DiskNumber,
+        [Parameter(Mandatory = $true)] [string]$TargetLetter
+    )
+    $mergePartition = Get-LabeledPartitions -DiskNumber $DiskNumber -Label $Global:CN_PROGRAM_DRIVE_MERGE_LABEL | Select-Object -First 1
+    $retiredPartitions = @(Get-LabeledPartitions -DiskNumber $DiskNumber -Label $Global:CN_PROGRAM_DRIVE_RETIRED_LABEL | Where-Object { -not $_.DriveLetter })
+    $promoted = $false
+
+    if (($null -ne $mergePartition) -and ($retiredPartitions.Count -gt 0) -and (-not (Get-Partition -DriveLetter $TargetLetter -ErrorAction SilentlyContinue))) {
+        if ($mergePartition.DriveLetter) {
+            Remove-PartitionAccessPath -DiskNumber $DiskNumber -PartitionNumber $mergePartition.PartitionNumber -AccessPath ('{0}:\' -f $mergePartition.DriveLetter) -ErrorAction Stop | Out-Null
+        }
+        Set-Partition -DiskNumber $DiskNumber -PartitionNumber $mergePartition.PartitionNumber -NewDriveLetter $TargetLetter -ErrorAction Stop | Out-Null
+        Set-Volume -DriveLetter $TargetLetter -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_CREATE_LABEL -ErrorAction Stop | Out-Null
+        Update-ProgramDriveMarker -TargetLetter $TargetLetter
+        Write-ColorMessage -Message ("The merged copy is now {0}:" -f $TargetLetter) -Type "Success"
+        $promoted = $true
+    }
+    if (-not (Get-Partition -DriveLetter $TargetLetter -ErrorAction SilentlyContinue)) {
+        return $promoted
+    }
+    $retiredPartitions = @(Get-LabeledPartitions -DiskNumber $DiskNumber -Label $Global:CN_PROGRAM_DRIVE_RETIRED_LABEL | Where-Object { -not $_.DriveLetter })
+    foreach ($retiredPartition in $retiredPartitions) {
+        Remove-Partition -DiskNumber $DiskNumber -PartitionNumber $retiredPartition.PartitionNumber -Confirm:$false -ErrorAction Stop | Out-Null
+        Write-ColorMessage -Message ("Removed the old program partition ({0} GB) after the merge" -f [math]::Round($retiredPartition.Size / 1GB, 1)) -Type "Info"
+    }
+    if ($retiredPartitions.Count -gt 0) {
+        Update-HostStorageCache | Out-Null
+    }
+    return $promoted
+}
+
+function Invoke-ProgramDriveCopy {
+    param(
+        [Parameter(Mandatory = $true)] [string]$SourceRoot,
+        [Parameter(Mandatory = $true)] [string]$TargetRoot
+    )
+    $logPath = Join-Path (Join-Path $env:SystemRoot "Temp") $script:DISK_ROBOCOPY_LOG_FILE
+    $arguments = @($SourceRoot, $TargetRoot) + $script:DISK_ROBOCOPY_ARGUMENTS + @(("/UNILOG:{0}" -f $logPath))
+    $argumentLine = ($arguments | ForEach-Object { if ($_ -match '\s') { '"{0}"' -f $_ } else { $_ } }) -join " "
+    $sourceDrive = New-Object System.IO.DriveInfo($SourceRoot)
+    $targetDrive = New-Object System.IO.DriveInfo($TargetRoot)
+    $sourceBytes = [math]::Max([long]1, $sourceDrive.TotalSize - $sourceDrive.TotalFreeSpace)
+    $startBytes = $targetDrive.TotalSize - $targetDrive.TotalFreeSpace
+    $lineWidth = Get-ConsoleLineWidth
+    $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $process = $null
+    $copiedBytes = 0
+    $speed = 0
+    $etaText = ""
+    $currentFile = ""
+    $status = ""
+
+    Write-ColorMessage -Message ("robocopy {0}" -f $argumentLine) -Type "Info"
+    Write-ColorMessage -Message ("Full log: {0}" -f $logPath) -Type "Info"
+    $process = Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList $argumentLine -WindowStyle Hidden -PassThru
+    $null = $process.Handle
+    while (-not $process.WaitForExit($script:DISK_ROBOCOPY_POLL_MS)) {
+        $targetDrive = New-Object System.IO.DriveInfo($TargetRoot)
+        $copiedBytes = ($targetDrive.TotalSize - $targetDrive.TotalFreeSpace) - $startBytes
+        $speed = [math]::Max([double]0, $copiedBytes) / [math]::Max([double]1, $stopWatch.Elapsed.TotalSeconds)
+        $etaText = if ($speed -gt 0) { [TimeSpan]::FromSeconds([math]::Max([double]0, ($sourceBytes - $startBytes - $copiedBytes) / $speed)).ToString('hh\:mm\:ss') } else { "--:--:--" }
+        try {
+            $currentFile = [string](Get-Content -LiteralPath $logPath -Tail 1 -Encoding Unicode -ErrorAction Stop)
+        } catch {
+            $currentFile = ""
+        }
+        $status = "{0,5:N1}%  {1:N1}/{2:N1} GB  {3:N1} MB/s  ETA {4}  {5}" -f ([math]::Min([double]100, 100 * ($startBytes + $copiedBytes) / $sourceBytes)), (($startBytes + $copiedBytes) / 1GB), ($sourceBytes / 1GB), ($speed / 1MB), $etaText, $currentFile.Split("`t")[-1].Trim()
+        $status = $status.Substring(0, [math]::Min($status.Length, $lineWidth))
+        Write-Host ("`r{0}" -f $status.PadRight($lineWidth)) -NoNewline
+    }
+    Write-Host ""
+    Get-Content -LiteralPath $logPath -Tail $script:DISK_ROBOCOPY_SUMMARY_LINES -Encoding Unicode | Out-Host
+    Write-ColorMessage -Message ("robocopy exit code {0} after {1}" -f $process.ExitCode, $stopWatch.Elapsed.ToString('hh\:mm\:ss')) -Type "Info"
+    return ($process.ExitCode -lt $script:DISK_ROBOCOPY_FAILURE_CODE)
+}
+
+function Get-DataDriveShrinkableMB {
+    param(
+        [Parameter(Mandatory = $true)] [string]$SourceLetter,
+        [Parameter(Mandatory = $true)] [long]$WantedMB
+    )
+    $shrinkableMB = Get-ShrinkableMB -Drive ('{0}:' -f $SourceLetter)
+
+    if ($shrinkableMB -lt $WantedMB) {
+        Write-ColorMessage -Message ("defrag {0}: {1}" -f $SourceLetter, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
+        Invoke-ShrinkDefrag -Drive ('{0}:' -f $SourceLetter)
+        $shrinkableMB = Get-ShrinkableMB -Drive ('{0}:' -f $SourceLetter)
+    }
+    return [long]$shrinkableMB
+}
+
+function Invoke-DataDriveShrink {
+    param(
+        [Parameter(Mandatory = $true)] [string]$SourceLetter,
+        [Parameter(Mandatory = $true)] [long]$DesiredMB,
+        [Parameter(Mandatory = $true)] [long]$MinimumMB
+    )
+    $scriptPath = Join-Path $env:TEMP $script:DISK_DISKPART_QUERY_FILE
+    $sizeBefore = [long](Get-Partition -DriveLetter $SourceLetter).Size
+
+    Write-ColorMessage -Message ("Shrinking {0}: by {1} MB (minimum {2} MB)..." -f $SourceLetter, $DesiredMB, $MinimumMB) -Type "Info"
+    Set-Content -LiteralPath $scriptPath -Value @(("select volume {0}" -f $SourceLetter), ("shrink desired={0} minimum={1}" -f $DesiredMB, $MinimumMB)) -Encoding Ascii
+    & $script:DISK_DISKPART_EXE /s $scriptPath | Out-Host
+    Remove-Item -LiteralPath $scriptPath -Force
+    Update-HostStorageCache | Out-Null
+    if ([long](Get-Partition -DriveLetter $SourceLetter).Size -ge $sizeBefore) {
+        Write-ColorMessage -Message ("{0}: could not be shrunk; run NTFS repair after Linux for {0}: and then this step again" -f $SourceLetter) -Type "Warning"
+        return $false
+    }
+    return $true
+}
+
+function Get-LeadingFreeExtent {
+    param(
+        [Parameter(Mandatory = $true)] [object]$Partition
+    )
+
+    Get-DiskFreeExtents -DiskNumber $Partition.DiskNumber | Where-Object { [math]::Abs(($_.Offset + $_.Size) - [long]$Partition.Offset) -lt $script:DISK_EXTENT_MIN_BYTES } | Select-Object -First 1
+}
+
+function Merge-ProgramDriveLeadingSpace {
+    param(
+        [Parameter(Mandatory = $true)] [object]$Partition,
+        [Parameter(Mandatory = $true)] [string]$TargetLetter,
+        [Parameter(Mandatory = $true)] [string]$SourceLetter
+    )
+    $diskNumber = $Partition.DiskNumber
+    $volume = Get-Volume -DriveLetter $TargetLetter
+    $usedBytes = [long]($volume.Size - $volume.SizeRemaining)
+    $requiredBytes = [long]($usedBytes * $script:DISK_MERGE_SPACE_FACTOR + $script:DISK_EXTENT_MIN_BYTES)
+    $desiredBytes = [long][math]::Max($requiredBytes, (Get-ProgramDriveMaxBytes) - [long]$Partition.Size)
+    $lowFree = ([long]$volume.SizeRemaining -lt ([long]$Global:CN_PROGRAM_DRIVE_GROW_FREE_BELOW_MB * 1MB))
+    $mergePartition = Get-LabeledPartitions -DiskNumber $diskNumber -Label $Global:CN_PROGRAM_DRIVE_MERGE_LABEL | Select-Object -First 1
+    $sourcePartition = Get-Partition -DriveLetter $SourceLetter -ErrorAction SilentlyContinue
+    $leadingExtent = $null
+    $gapBytes = 0
+    $gapStart = [long]$Partition.Offset
+    $growFromSource = $false
+    $shrinkableMB = 0
+    $shrinkMB = 0
+    $tempRoot = $null
+    $targetRoot = '{0}:\' -f $TargetLetter
+
+    if ($null -eq $mergePartition) {
+        $leadingExtent = Get-LeadingFreeExtent -Partition $Partition
+        if ($null -ne $leadingExtent) {
+            $gapBytes = [long]$leadingExtent.Size
+            $gapStart = [long]$leadingExtent.Offset
+        }
+        $growFromSource = ($null -ne $sourcePartition) -and ($sourcePartition.DiskNumber -eq $diskNumber) -and ([math]::Abs(([long]$sourcePartition.Offset + [long]$sourcePartition.Size) - $gapStart) -lt $script:DISK_EXTENT_MIN_BYTES) -and ($gapBytes -lt $desiredBytes)
+        if (($null -eq $leadingExtent) -and -not ($lowFree -and $growFromSource)) {
+            return $false
+        }
+    } else {
+        $gapBytes = [long]$mergePartition.Size
+    }
+
+    Write-ColorMessage -Message ("{0}: is {1} GB ({2} GB used); {3} GB of unallocated space lies directly before it." -f $TargetLetter, [math]::Round($Partition.Size / 1GB, 1), [math]::Round($usedBytes / 1GB, 1), [math]::Round($gapBytes / 1GB, 1)) -Type "Info"
+    if ($growFromSource) {
+        Write-ColorMessage -Message ("{0}: lies directly before that space and can give up to {1} GB more." -f $SourceLetter, [math]::Round(($desiredBytes - $gapBytes) / 1GB, 1)) -Type "Info"
+    }
+    if (($gapBytes -lt $requiredBytes) -and -not $growFromSource) {
+        Write-ColorMessage -Message ("Windows cannot grow {0}: at its start, and the space before it is too small to hold a copy of its data; free space on {0}: and run this step again." -f $TargetLetter) -Type "Warning"
+        return $false
+    }
+    if (@(Get-DrivePageFileSettings -Drive ('{0}:' -f $TargetLetter)).Count -gt 0) {
+        Write-ColorMessage -Message ("{0}: holds a page file; move it to another drive before merging." -f $TargetLetter) -Type "Warning"
+        return $false
+    }
+    Write-ColorMessage -Message ("Windows cannot grow {0}: at its start. The merge copies {0}: into a new partition in that space, gives it the letter {0}:, removes the old partition and extends the new one over it." -f $TargetLetter) -Type "Info"
+    Write-ColorMessage -Message ("Close programs and stop services running from {0}: first; a failed copy leaves {0}: unchanged and the next run resumes." -f $TargetLetter) -Type "Warning"
+    if ((Invoke-TimeoutPrompt -Message ("Merge the unallocated space into {0}: now? [Y/n]" -f $TargetLetter) -DefaultValue "Y" -TimeoutSeconds $script:DISK_STEP_CONFIRM_TIMEOUT_SECONDS) -match '^[Nn]') {
+        return $false
+    }
+
+    if ($growFromSource) {
+        $shrinkMB = [long][math]::Ceiling(($desiredBytes - $gapBytes) / 1MB)
+        $shrinkableMB = Get-DataDriveShrinkableMB -SourceLetter $SourceLetter -WantedMB $shrinkMB
+        $shrinkMB = [math]::Min($shrinkMB, $shrinkableMB)
+        if (($gapBytes + $shrinkMB * 1MB) -lt $requiredBytes) {
+            Write-ColorMessage -Message ("{0}: can shrink by only {1} MB, too little to hold a copy of {2}:" -f $SourceLetter, $shrinkableMB, $TargetLetter) -Type "Warning"
+            return $false
+        }
+        if (Invoke-DataDriveShrink -SourceLetter $SourceLetter -DesiredMB $shrinkMB -MinimumMB ([long][math]::Max(1, [math]::Ceiling(($requiredBytes - $gapBytes) / 1MB)))) {
+            $leadingExtent = Get-LeadingFreeExtent -Partition $Partition
+        }
+        if (($null -eq $leadingExtent) -or ([long]$leadingExtent.Size -lt $requiredBytes)) {
+            Write-ColorMessage -Message ("Not enough space before {0}: after shrinking {1}:" -f $TargetLetter, $SourceLetter) -Type "Warning"
+            return $false
+        }
+        $gapBytes = [long]$leadingExtent.Size
+    }
+
+    if ($null -eq $mergePartition) {
+        $mergePartition = New-Partition -DiskNumber $diskNumber -Offset $leadingExtent.Offset -Size ([long][math]::Min($gapBytes, (Get-ProgramDriveMaxBytes))) -AssignDriveLetter:$false -ErrorAction Stop
+        Format-Volume -Partition $mergePartition -FileSystem NTFS -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_MERGE_LABEL -Confirm:$false -ErrorAction Stop | Out-Null
+    }
+    if (-not $mergePartition.DriveLetter) {
+        Add-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $mergePartition.PartitionNumber -AssignDriveLetter -ErrorAction Stop | Out-Null
+        $mergePartition = Get-Partition -DiskNumber $diskNumber -PartitionNumber $mergePartition.PartitionNumber
+    }
+    $tempRoot = '{0}:\' -f $mergePartition.DriveLetter
+
+    if (-not (Invoke-ProgramDriveCopy -SourceRoot $targetRoot -TargetRoot $tempRoot)) {
+        Write-ColorMessage -Message ("Copying {0} failed; {0} is unchanged. Close the programs using it and run this step again." -f $targetRoot) -Type "Error"
+        return $false
+    }
+    if (-not (Invoke-ProgramDriveCopy -SourceRoot $targetRoot -TargetRoot $tempRoot)) {
+        Write-ColorMessage -Message ("Final sync of {0} failed; {0} is unchanged. Run this step again." -f $targetRoot) -Type "Error"
+        return $false
+    }
+
+    Set-Volume -DriveLetter $TargetLetter -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_RETIRED_LABEL -ErrorAction Stop | Out-Null
+    try {
+        Remove-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $Partition.PartitionNumber -AccessPath $targetRoot -ErrorAction Stop | Out-Null
+    } catch {
+        Set-Volume -DriveLetter $TargetLetter -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_CREATE_LABEL | Out-Null
+        Write-ColorMessage -Message ("Could not release {0}: {1}; {0} is unchanged." -f $targetRoot, $_.Exception.Message) -Type "Error"
+        return $false
+    }
+    return [bool](Complete-ProgramDriveMerge -DiskNumber $diskNumber -TargetLetter $TargetLetter)
+}
+
+function Resize-ProgramDriveTail {
+    param(
+        [Parameter(Mandatory = $true)] [string]$TargetLetter
+    )
+    $partition = Get-Partition -DriveLetter $TargetLetter
+    $supported = Get-PartitionSupportedSize -DiskNumber $partition.DiskNumber -PartitionNumber $partition.PartitionNumber
+    $newSize = [long][math]::Min([long]$supported.SizeMax, (Get-ProgramDriveMaxBytes))
+
+    if (($newSize - [long]$partition.Size) -lt $script:DISK_EXTENT_MIN_BYTES) {
+        return
+    }
+    Write-ColorMessage -Message ("Extending {0}: from {1} GB to {2} GB" -f $TargetLetter, [math]::Round($partition.Size / 1GB, 1), [math]::Round($newSize / 1GB, 1)) -Type "Info"
+    Resize-Partition -DiskNumber $partition.DiskNumber -PartitionNumber $partition.PartitionNumber -Size $newSize -ErrorAction Stop | Out-Null
+    Write-ColorMessage -Message ("{0}: extended to {1} GB" -f $TargetLetter, [math]::Round($newSize / 1GB, 1)) -Type "Success"
+}
+
+function Test-ProgramDriveAtMax {
+    param(
+        [Parameter(Mandatory = $true)] [string]$TargetLetter
+    )
+
+    return ([long](Get-Partition -DriveLetter $TargetLetter).Size -ge ((Get-ProgramDriveMaxBytes) - $script:DISK_EXTENT_MIN_BYTES))
+}
+
+function Expand-ProgramDrivePartition {
+    param(
+        [Parameter(Mandatory = $true)] [string]$TargetLetter,
+        [Parameter(Mandatory = $true)] [string]$SourceLetter
+    )
+    $merged = $false
+
+    if (Test-ProgramDriveAtMax -TargetLetter $TargetLetter) {
+        return $false
+    }
+    Resize-ProgramDriveTail -TargetLetter $TargetLetter
+    if (Test-ProgramDriveAtMax -TargetLetter $TargetLetter) {
+        return $false
+    }
+    $merged = [bool](Merge-ProgramDriveLeadingSpace -Partition (Get-Partition -DriveLetter $TargetLetter) -TargetLetter $TargetLetter -SourceLetter $SourceLetter)
+    if ($merged) {
+        Resize-ProgramDriveTail -TargetLetter $TargetLetter
+    }
+    return $merged
+}
+
 function New-ProgramDrivePartition {
     param(
         [Parameter(Mandatory = $true)] [string]$SourceDrive,
@@ -744,42 +1113,50 @@ function New-ProgramDrivePartition {
     )
     $sourceLetter = $SourceDrive.TrimEnd(':', '\')
     $targetLetter = $TargetDrive.TrimEnd(':', '\')
-    $scriptPath = Join-Path $env:TEMP $script:DISK_DISKPART_QUERY_FILE
     $shrinkableMB = 0
     $sizeMB = 0
     $diskNumber = $null
     $partition = $null
     $sourcePartition = $null
-    $minimumMB = 0
+    $sourceEnd = 0
+    $extent = $null
+    $promoted = $false
 
+    $sourcePartition = Get-Partition -DriveLetter $sourceLetter
+    $diskNumber = $sourcePartition.DiskNumber
+    $promoted = [bool](Complete-ProgramDriveMerge -DiskNumber $diskNumber -TargetLetter $targetLetter)
+    if (Get-Partition -DriveLetter $targetLetter -ErrorAction SilentlyContinue) {
+        return ([bool](Expand-ProgramDrivePartition -TargetLetter $targetLetter -SourceLetter $sourceLetter) -or $promoted)
+    }
     if (Get-PSDrive -Name $targetLetter -PSProvider FileSystem -ErrorAction SilentlyContinue) {
         return $false
     }
-    Write-ColorMessage -Message ("Creating program drive {0}: from the free space of {1}: (can take minutes)..." -f $targetLetter, $sourceLetter) -Type "Info"
-    $shrinkableMB = Get-ShrinkableMB -Drive ('{0}:' -f $sourceLetter)
-    if ($shrinkableMB -lt $Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB) {
-        Write-ColorMessage -Message ("defrag {0}: {1}" -f $sourceLetter, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
-        Invoke-ShrinkDefrag -Drive ('{0}:' -f $sourceLetter)
-        $shrinkableMB = Get-ShrinkableMB -Drive ('{0}:' -f $sourceLetter)
+    $extent = Get-DiskFreeExtents -DiskNumber $diskNumber | Sort-Object Size -Descending | Select-Object -First 1
+    if (($null -ne $extent) -and ($extent.Size -ge ([long]$Global:CN_PROGRAM_DRIVE_CREATE_MIN_MB * 1MB))) {
+        $partition = New-Partition -DiskNumber $diskNumber -Offset $extent.Offset -Size ([long][math]::Min($extent.Size, (Get-ProgramDriveMaxBytes))) -DriveLetter $targetLetter -ErrorAction Stop
+        Format-Volume -Partition $partition -FileSystem NTFS -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_CREATE_LABEL -Confirm:$false -ErrorAction Stop | Out-Null
+        Write-ColorMessage -Message ("Program drive {0}: created in unallocated space ({1} GB)" -f $targetLetter, [math]::Round($partition.Size / 1GB, 1)) -Type "Success"
+        return $true
     }
+    Write-ColorMessage -Message ("Creating program drive {0}: from the free space of {1}: (can take minutes)..." -f $targetLetter, $sourceLetter) -Type "Info"
+    $shrinkableMB = Get-DataDriveShrinkableMB -SourceLetter $sourceLetter -WantedMB $Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB
     $sizeMB = Get-ProgramDriveCreateSizeMB -ShrinkableMB $shrinkableMB
     if ($sizeMB -le 0) {
         Write-ColorMessage -Message ("{0}: has no shrinkable space for {1}:" -f $sourceLetter, $targetLetter) -Type "Warning"
         return $false
     }
     Write-ColorMessage -Message ("{0}: can shrink by {1} MB; giving {2} MB to {3}:" -f $sourceLetter, $shrinkableMB, $sizeMB, $targetLetter) -Type "Info"
-    $sourcePartition = Get-Partition -DriveLetter $sourceLetter
-    $diskNumber = $sourcePartition.DiskNumber
-    $minimumMB = [math]::Min($sizeMB, $Global:CN_PROGRAM_DRIVE_CREATE_MIN_MB)
-    Set-Content -LiteralPath $scriptPath -Value @(("select volume {0}" -f $sourceLetter), ("shrink desired={0} minimum={1}" -f $sizeMB, $minimumMB)) -Encoding Ascii
-    & $script:DISK_DISKPART_EXE /s $scriptPath | Out-Host
-    Remove-Item -LiteralPath $scriptPath -Force
-    Update-HostStorageCache
-    if ((Get-Partition -DriveLetter $sourceLetter).Size -ge $sourcePartition.Size) {
-        Write-ColorMessage -Message ("{0}: could not be shrunk; run NTFS repair after Linux for {0}: and then this step again" -f $sourceLetter) -Type "Warning"
+    if (-not (Invoke-DataDriveShrink -SourceLetter $sourceLetter -DesiredMB $sizeMB -MinimumMB ([math]::Min($sizeMB, $Global:CN_PROGRAM_DRIVE_CREATE_MIN_MB)))) {
         return $false
     }
-    $partition = New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $targetLetter -ErrorAction Stop
+    $sourcePartition = Get-Partition -DriveLetter $sourceLetter
+    $sourceEnd = [long]$sourcePartition.Offset + [long]$sourcePartition.Size
+    $extent = Get-DiskFreeExtents -DiskNumber $diskNumber | Where-Object { ($_.Offset -ge $sourceEnd) -and (($_.Offset - $sourceEnd) -lt $script:DISK_EXTENT_MIN_BYTES) } | Select-Object -First 1
+    if ($null -eq $extent) {
+        Write-ColorMessage -Message ("No unallocated space found after {0}:" -f $sourceLetter) -Type "Warning"
+        return $false
+    }
+    $partition = New-Partition -DiskNumber $diskNumber -Offset $extent.Offset -Size ([long][math]::Min($extent.Size, (Get-ProgramDriveMaxBytes))) -DriveLetter $targetLetter -ErrorAction Stop
     Format-Volume -Partition $partition -FileSystem NTFS -NewFileSystemLabel $Global:CN_PROGRAM_DRIVE_CREATE_LABEL -Confirm:$false -ErrorAction Stop | Out-Null
     Write-ColorMessage -Message ("Program drive {0}: created ({1} GB)" -f $targetLetter, [math]::Round($partition.Size / 1GB, 1)) -Type "Success"
     return $true

@@ -288,11 +288,14 @@
             "program_drive_primary": "E:",
             "program_drive_fallback": "D:",
             "program_drive_create": {
-                "purpose": "Step 1 creates the program drive when it is missing, by shrinking the data drive: min(max_mb, shrinkable); below min_mb it takes small_ratio of the shrinkable space",
+                "purpose": "Step 1 keeps the program drive at min(max_mb, available): it is created in unallocated space of the data drive's disk, else by shrinking the data drive (below min_mb it takes small_ratio of the shrinkable space); later runs extend it into trailing unallocated space, then merge leading unallocated space by copying it into a new partition there (merge_label, old partition relabeled retired_label then removed); when the data drive sits right before that space it is shrunk toward max_mb during a merge, or to start one when the program drive has less than grow_free_below_mb free",
                 "min_mb": 102400,
                 "max_mb": 512000,
-                "small_ratio": 0.8,
-                "label": "programs"
+                "small_ratio": 0.5,
+                "label": "programs",
+                "grow_free_below_mb": 51200,
+                "merge_label": "programs-merge",
+                "retired_label": "programs-old"
             },
             "program_partuuid": null,
             "program_partuuid_source": "detected per machine (the E: NTFS volume PARTUUID), stored in global vars, never committed",
