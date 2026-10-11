@@ -18,13 +18,7 @@ from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.wt_launcher import WindowsTerminalLauncher
 from pycore.pyutils.launcher.editor_launcher import EditorLauncher
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
-from pycore.pyutils.launcher.grid_profile import GridI18nKeys
-from pycore.pyutils.launcher.launcher_text import launcher_text
-from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.launch_guard import (
-    list_linux_grid_windows,
-    compute_terminal_deficit,
-    count_open_terminals,
     is_app_running,
     resolve_launch_path,
 )
@@ -42,14 +36,13 @@ class WindowLauncher:
                  window_chrome_title_bar_px=None, window_chrome_horizontal_px=None,
                  window_chrome_content_scale=None,
                  window_chrome_gap_horizontal_px=None, window_chrome_gap_vertical_px=None,
-                 screen_rect=None, auto_profile=''):
+                 screen_rect=None):
         """
         Initialize window launcher.
 
         Args:
             grid_columns, grid_rows: Grid size.
             screen_rect: (x, y, width, height) already detected; None = detect on launch.
-            auto_profile: Name of the resolution auto-grid profile that set the grid ('' = configured grid).
             measured_columns, measured_rows, measured_width_px, measured_height_px: Ratio calibration.
             calibration_actual_height, calibration_term_rows: Height calibration.
             window_chrome_title_bar_px: Reserve px for title bar (default 56).
@@ -62,7 +55,6 @@ class WindowLauncher:
         self.grid_columns = grid_columns or 3
         self.grid_rows = grid_rows or 2
         self.screen_rect = screen_rect
-        self.auto_profile = auto_profile
 
         # Use provided calibration or defaults
         self.calibration_actual_height = calibration_actual_height or 485
@@ -108,7 +100,6 @@ class WindowLauncher:
         else:
             self.wt_launcher = WindowsTerminalLauncher(self.script_generator)
         self.editor_launcher = EditorLauncher(self.script_generator)
-        self.window_placer = LinuxWindowPlacer()
 
     def _resolve_screen_rect(self):
         if self.screen_rect is not None:
@@ -246,8 +237,8 @@ class WindowLauncher:
                 y = screen_y + (row * cell_step_y)
                 # 8-tuple: (x, y, cols, rows, content_w_px, content_h_px,
                 # cell_step_x, cell_step_y). The cell steps let the Linux
-                # backend size deficit top-up windows (a single-row subset has
-                # no spacing to derive the cell height from).
+                # backend size cells of a single-column or single-row grid
+                # (no spacing to derive the cell size from).
                 windows.append((x, y, term_columns, term_rows, actual_width, actual_height,
                                 cell_step_x, cell_step_y))
 

@@ -26,8 +26,7 @@ from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
 _XDG_OPEN = 'xdg-open'
 _WINDOWS_TERMINAL = 'wt'
 _WINDOWS_SHELL = 'cmd.exe'
-# Fixed title prefix of app terminal windows (codex): never a grid cell, so the
-# Windows Terminal grid count (char_size_measurer.count_wt_windows) skips it.
+# Fixed title prefix of app terminal windows (codex); never a grid cell title.
 APP_TERMINAL_TITLE_PREFIX = 'pylauncher-app-'
 _WT_SUPPRESS_APP_TITLE = '--suppressApplicationTitle'
 # Terminal windows keep an interactive shell after the command exits so its

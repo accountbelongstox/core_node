@@ -60,8 +60,6 @@ class GridI18nKeys:
     MENU_TOGGLE_DISABLE_ITEM = 'launcher.grid.menu_toggle_disable_item'
     MENU_CROSS_DEVICE = 'launcher.grid.menu_cross_device'
     MODE_CROSS_DEVICE = 'launcher.grid.mode_cross_device'
-    RELAYOUT_DONE = 'launcher.grid.relayout_done'
-    RELAYOUT_HINT = 'launcher.grid.relayout_hint'
 
 
 @dataclass(frozen=True)

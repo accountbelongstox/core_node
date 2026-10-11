@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Backup history for the UI: list/search, read, open in the desktop editor and delete of terminal backup folders."""
+"""Backup history for the UI: list/search, read, open as the restore page in the browser and delete of terminal backup folders."""
 
 from __future__ import annotations
 
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from pycore.pyctl.terminal.terminal_backup_page import TerminalBackupPage, terminal_backup_page
 from pycore.pyctl.terminal.terminal_backup_store import (
     ERROR_BACKUP_NOT_FOUND,
     FOLDER_NAME_PATTERN,
@@ -18,11 +18,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     positive_int,
     terminal_backup_store,
 )
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_launcher import open_file_with_notepad
-from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
 
-LABEL = "TerminalBackupHistory"
 DEFAULT_LIST_LIMIT = 50
 MAX_LIST_LIMIT = 200
 MAX_LIST_OFFSET = 1000000
@@ -33,13 +29,11 @@ SEARCH_MAX_FILE_BYTES = READ_MAX_BYTES
 SEARCH_MAX_TOTAL_BYTES = 64 * 1024 * 1024
 SEARCH_MAX_MATCHES_PER_ITEM = 5
 SNIPPET_CHARS = 160
-OPEN_FILES_DELAY_SECONDS = 0.6
 DELETE_CONFIRMATION = "DEL"
 DATE_DISPLAY_FORMAT = "%Y-%m-%d %H:%M:%S"
 MILLISECONDS_PER_SECOND = 1000
 ERROR_INVALID_ID = "terminal_backup_invalid_id"
 ERROR_INVALID_TERMINAL = "terminal_backup_invalid_terminal"
-ERROR_OPEN_FAILED = "terminal_backup_open_failed"
 ERROR_DELETE_CONFIRMATION = "delete_confirmation_required"
 
 
@@ -52,14 +46,10 @@ class TerminalBackupHistoryService:
     def __init__(
         self,
         store: TerminalBackupStore = terminal_backup_store,
-        open_file: Callable[[Path, Optional[str]], bool] = open_file_with_notepad,
-        find_editor: Callable[[], Optional[str]] = text_editor_finder.find,
-        sleep: Callable[[float], Any] = time.sleep,
+        page: TerminalBackupPage = terminal_backup_page,
     ) -> None:
         self._store = store
-        self._open_file = open_file
-        self._find_editor = find_editor
-        self._sleep = sleep
+        self._page = page
 
     def _folders(self) -> Sequence[Tuple[str, Path, Dict[str, Any]]]:
         return self._store.list_manifests()
@@ -205,28 +195,7 @@ class TerminalBackupHistoryService:
             if number is None:
                 return {"success": False, "error_code": ERROR_INVALID_TERMINAL}
             numbers = [number]
-        exported = self._store.export_files(located["id"], numbers)
-        if not exported["success"]:
-            return exported
-        opened = self.open_files(
-            exported["files"], lambda path: ColorPrint.yellow(f"[{LABEL}] open failed path={path}")
-        )
-        if opened == 0:
-            return {"success": False, "error_code": ERROR_OPEN_FAILED, "opened": 0}
-        return {"success": True, "opened": opened}
-
-    def open_files(self, paths: Sequence[Path], on_failed: Optional[Callable[[Path], Any]] = None) -> int:
-        """One editor window per file; returns how many opened."""
-        editor = self._find_editor()
-        opened = 0
-        for index, path in enumerate(paths):
-            if index:
-                self._sleep(OPEN_FILES_DELAY_SECONDS)
-            if self._open_file(path, editor):
-                opened += 1
-            elif on_failed is not None:
-                on_failed(path)
-        return opened
+        return self._page.open(located["id"], numbers)
 
     def delete(self, folder_id: Any, terminal_number: Any = None, confirm: Any = None) -> Dict[str, Any]:
         if not isinstance(confirm, str) or confirm != DELETE_CONFIRMATION:
