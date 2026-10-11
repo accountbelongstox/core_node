@@ -172,6 +172,8 @@ ai_cli_upgrade_install() {
     if ai_cli_run_installer "$tool" --upgrade; then
         hash -r 2>/dev/null || true
         echo "[INFO] $label upgrade finished."
+        type prune_tool_caches >/dev/null 2>&1 || source "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh"
+        prune_tool_caches
         return 0
     fi
     echo "[WARN] $label upgrade failed; keeping the installed version."

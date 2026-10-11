@@ -1,8 +1,7 @@
 #!/bin/bash
 
 INSTALL_ITEM_RUNNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_ITEM_SHELLS_DIR="$(dirname "$INSTALL_ITEM_RUNNER_DIR")"
-INSTALL_SHELLS_DIR="${INSTALL_ITEM_SHELLS_DIR}/debian/install_shells"
+INSTALL_ITEM_SHELLS_DIR="$(dirname "$INSTALL_ITEM_RUNNER_DIR")"INSTALL_SHELLS_DIR="${INSTALL_ITEM_SHELLS_DIR}/debian/install_shells"
 MENU_ITEMS_DIR="${INSTALL_ITEM_SHELLS_DIR}/debian/menu_items"
 RUN_ITEM_VAR="DD_RUN_ITEM"
 FULL_CHAIN_ITEM_KEY="INSTALL_MODE"
@@ -89,6 +88,8 @@ run_install_script() {
         chmod +x "$script"
     fi
     "$script" || status=$?
+    type prune_tool_caches >/dev/null 2>&1 || source "$INSTALL_ITEM_RUNNER_DIR/shared_cache_env.sh"
+    prune_tool_caches
     run_install_permission_gateway
     return "$status"
 }
