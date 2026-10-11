@@ -16,6 +16,14 @@
     { "kind": "custom", "id": "claudeteam" },
     { "kind": "preset", "id": "dd_gitsync" }
   ],
+  "card": [
+    { "kind": "custom", "id": "claudeteam", "icon": "claude_team" },
+    { "kind": "custom", "id": "codexyolo", "icon": "codex" },
+    { "kind": "custom", "id": "piyolo", "icon": "pi" },
+    { "kind": "custom", "id": "kimiyolo", "icon": "kimi" },
+    { "kind": "custom", "id": "claudedeepseek", "icon": "deepseek" },
+    { "kind": "custom", "id": "ssh1", "icon": "ssh" }
+  ],
   "script_dirs": {
     "windows": ["scripts", "winenvs"],
     "linux": ["scripts", "linuxenvs"]

@@ -125,6 +125,7 @@ def _scan_quick_commands(platform: str, root: Path) -> Dict[str, Any]:
         "script_dir": str(_script_dir(root, platform)),
         "interrupt": INTERRUPT_POLICY,
         "pinned": [command_key(pin["kind"], pin["id"]) for pin in CONFIG["pinned"]],
+        "card": [{"key": command_key(item["kind"], item["id"]), "icon": item["icon"]} for item in CONFIG["card"]],
         "preset": _preset_commands(platform),
         "system": _system_commands(platform),
         "custom": custom,

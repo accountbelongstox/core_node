@@ -2740,13 +2740,13 @@ const PcTerminalNodeView: React.FC<{
                   void activate(windowInfo.id);
                 }}
                 disabled={busy || !snapshot?.supported || windowInfo.controllable === false}
-                className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+                title={t('terminal.activate')}
                 aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
               >
                 {busy
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <MousePointer2 className="h-3.5 w-3.5" />}
-                {!compactLayout && <span>{t('terminal.activate')}</span>}
               </button>
             )}
             {!windowInfo.online && (
