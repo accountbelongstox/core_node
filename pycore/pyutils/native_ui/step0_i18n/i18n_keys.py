@@ -91,6 +91,8 @@ class I18nKeys:
     TERMINAL_AGENT_DONE_MESSAGE = "terminal_backup.agent_done_message"  # "...{number} {name}"
     GITSYNC_CONFLICT_TITLE = "gitsync_watch.conflict_title"
     GITSYNC_CONFLICT_MESSAGE = "gitsync_watch.conflict_message"  # "...{path}"
+    GITSYNC_REMOTE_MOVED_TITLE = "gitsync_watch.remote_moved_title"
+    GITSYNC_REMOTE_MOVED_MESSAGE = "gitsync_watch.remote_moved_message"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

@@ -92,6 +92,8 @@
   },
   "gitsync_watch": {
     "conflict_title": "gitsync merge conflict - fix now",
-    "conflict_message": "Automatic gitsync stopped on a merge conflict. Details and the AI prompt: {path}. Click to copy the prompt for your AI."
+    "conflict_message": "Automatic gitsync stopped on a merge conflict. Details and the AI prompt: {path}. Click to copy the prompt for your AI.",
+    "remote_moved_title": "gitsync: another machine pushed",
+    "remote_moved_message": "Another machine pushed to the remote between this machine's pull and push. The local commits stay and the next automatic gitsync merges and pushes them."
   }
 }

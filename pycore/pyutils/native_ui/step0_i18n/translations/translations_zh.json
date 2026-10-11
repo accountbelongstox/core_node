@@ -92,6 +92,8 @@
   },
   "gitsync_watch": {
     "conflict_title": "gitsync 合并冲突，请立即修复",
-    "conflict_message": "自动 gitsync 遇到合并冲突已停止。详情和 AI 提示词：{path}。点击复制提示词交给 AI。"
+    "conflict_message": "自动 gitsync 遇到合并冲突已停止。详情和 AI 提示词：{path}。点击复制提示词交给 AI。",
+    "remote_moved_title": "gitsync：其他机器已推送",
+    "remote_moved_message": "本机 pull 与 push 之间有其他机器推送到了远端。本地提交保留，下一次自动 gitsync 会合并并推送。"
   }
 }

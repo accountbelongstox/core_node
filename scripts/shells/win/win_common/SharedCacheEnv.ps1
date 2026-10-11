@@ -797,23 +797,29 @@ function Invoke-CnToolCachePrune {
 }
 
 # Deletes an old D: entry file by file through the Python remover: locked
-# files stay (retried on the next run), everything else is removed. Returns
-# $true when the entry is fully gone.
+# files stay (retried on the next run), everything else is removed; paths in
+# -KeepFile (one per line) are never deleted. Returns $true when the entry is
+# fully gone.
 function Remove-CnLegacyEntry {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Path
+        [string]$Path,
+        [string]$KeepFile = ''
     )
 
     $cnPythonExe = Get-CnMigrationPython
     $cnSummary = ''
+    $cnRemoveArgs = @($Global:CN_LEGACY_REMOVE_SCRIPT, $Path, '--on-reboot')
 
     if (-not $cnPythonExe) {
         Write-Warning ('[PROGRAM-DRIVE] No Python found to delete {0}; it stays on D: until the next run' -f $Path)
         return $false
     }
 
-    $cnSummary = (& $cnPythonExe $Global:CN_LEGACY_REMOVE_SCRIPT $Path --on-reboot | Select-Object -Last 1)
+    if ($KeepFile -and (Test-Path -LiteralPath $KeepFile -PathType Leaf)) {
+        $cnRemoveArgs += @('--keep-file', $KeepFile)
+    }
+    $cnSummary = (& $cnPythonExe @cnRemoveArgs | Select-Object -Last 1)
     if (Test-Path -LiteralPath $Path) {
         Write-Warning ('[PROGRAM-DRIVE] {0} partly deleted ({1}); in-use files (e.g. Explorer shell extensions) are removed at the next Windows restart' -f $Path, $cnSummary)
         return $false
@@ -825,6 +831,8 @@ function Remove-CnLegacyEntry {
 # (scoop shims, pyvenv.cfg, .pth, launch scripts); binaries are never touched.
 $Global:CN_TEXT_REFERENCE_EXTENSIONS = @('.shim', '.cmd', '.bat', '.ps1', '.cfg', '.pth', '.ini', '.json', '.config', '.txt')
 $Global:CN_TEXT_REFERENCE_MAX_BYTES = 1MB
+# D: originals never deleted by one cleanup (their E: copy kept the old root).
+$Global:CN_LEGACY_KEEP_LIST_NAME = 'core_node_program_dir_keep.txt'
 
 # Rewrites the old root (as D:\x, D:/x and the JSON-escaped D:\\x) to the new
 # root in the text files of a copied tree; links are not followed. Idempotent.
@@ -854,13 +862,17 @@ function Update-CnTextReferences {
             if ($Global:CN_TEXT_REFERENCE_EXTENSIONS -notcontains $cnChild.Extension.ToLowerInvariant() -or $cnChild.Length -gt $Global:CN_TEXT_REFERENCE_MAX_BYTES) {
                 continue
             }
-            Update-CnTextFile -Path $cnChild.FullName -OldRoot $OldRoot -NewRoot $NewRoot
+            if (-not (Update-CnTextFile -Path $cnChild.FullName -OldRoot $OldRoot -NewRoot $NewRoot)) {
+                $cnChild.FullName
+            }
         }
     }
 }
 
 # One text file: the old root (as D:\x, D:/x and the JSON-escaped D:\\x)
 # re-rooted to the new root, encoding and BOM kept; binary files are skipped.
+# Hidden/System/ReadOnly (desktop.ini...) are lifted for the write and
+# restored. Returns $false when the file still holds the old root.
 function Update-CnTextFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -879,10 +891,13 @@ function Update-CnTextFile {
         , @($cnOld.Replace('\', '/'), $cnNew.Replace('\', '/'))
     )
 
+    $cnAttributes = $null
+    $cnLiftedAttributes = [System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::System -bor [System.IO.FileAttributes]::ReadOnly
+
     try {
         $cnBytes = [System.IO.File]::ReadAllBytes($Path)
         if ([Array]::IndexOf($cnBytes, [byte]0) -ge 0) {
-            return
+            return $true
         }
         $cnBomLength = 0
         if ($cnBytes.Length -ge 3 -and $cnBytes[0] -eq 0xEF -and $cnBytes[1] -eq 0xBB -and $cnBytes[2] -eq 0xBF) {
@@ -894,11 +909,24 @@ function Update-CnTextFile {
             $cnUpdated = [regex]::Replace($cnUpdated, [regex]::Escape($cnForm[0]), $cnForm[1].Replace('$', '$$'), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         }
         if ($cnUpdated -cne $cnText) {
-            [System.IO.File]::WriteAllText($Path, $cnUpdated, (New-Object System.Text.UTF8Encoding($cnBomLength -gt 0)))
+            $cnAttributes = [System.IO.File]::GetAttributes($Path)
+            if ($cnAttributes -band $cnLiftedAttributes) {
+                [System.IO.File]::SetAttributes($Path, ($cnAttributes -band (-bnot $cnLiftedAttributes)))
+            }
+            try {
+                [System.IO.File]::WriteAllText($Path, $cnUpdated, (New-Object System.Text.UTF8Encoding($cnBomLength -gt 0)))
+            }
+            finally {
+                if ($cnAttributes -band $cnLiftedAttributes) {
+                    [System.IO.File]::SetAttributes($Path, $cnAttributes)
+                }
+            }
         }
+        return $true
     }
     catch {
         Write-Warning ('[PROGRAM-DRIVE] References in {0} not updated: {1}' -f $Path, $_.Exception.Message)
+        return $false
     }
 }
 
@@ -953,7 +981,9 @@ function Invoke-CnPostSwitchRepairs {
     foreach ($cnOldRoot in $OldRoots) {
         $cnFailed += [int](@(Move-SystemReferenceRoot -OldRoot $cnOldRoot -NewRoot $TargetPath)[-1])
         if (Test-Path -LiteralPath $cnScoopConfig -PathType Leaf) {
-            Update-CnTextFile -Path $cnScoopConfig -OldRoot $cnOldRoot -NewRoot $TargetPath
+            if (-not (Update-CnTextFile -Path $cnScoopConfig -OldRoot $cnOldRoot -NewRoot $TargetPath)) {
+                $cnFailed++
+            }
         }
     }
 
@@ -1079,6 +1109,9 @@ function Move-CnLegacyProgramDir {
     $cnRunningPaths = @()
     $cnInUse = @()
     $cnDeferred = 0
+    $cnUnupdated = @()
+    $cnKeepFile = Join-Path $env:TEMP $Global:CN_LEGACY_KEEP_LIST_NAME
+    $cnTargetPrefix = $TargetPath.TrimEnd('\') + '\'
 
     Invoke-CnMarkedRepairs -MarkerPath $cnRepairsMarker -TargetPath $TargetPath
 
@@ -1168,7 +1201,7 @@ function Move-CnLegacyProgramDir {
         }
         foreach ($cnOldRoot in $cnOldRoots) {
             Start-CnProgress -Activity ('Re-rooting {0} -> {1} in text files under {1}' -f $cnOldRoot, $TargetPath)
-            Update-CnTextReferences -Root $TargetPath -OldRoot $cnOldRoot -NewRoot $TargetPath
+            $cnUnupdated += @(Update-CnTextReferences -Root $TargetPath -OldRoot $cnOldRoot -NewRoot $TargetPath)
             Stop-CnProgress
             try {
                 & $Global:CN_WINDOWS_PATH_FUNCTION moveroot $cnOldRoot $TargetPath -SkipInit
@@ -1183,6 +1216,14 @@ function Move-CnLegacyProgramDir {
         Invoke-CnMarkedRepairs -MarkerPath $cnRepairsMarker -TargetPath $TargetPath
         Write-Host ('[PROGRAM-DRIVE] Cleaning {0}' -f $LegacyPath) -ForegroundColor Green
 
+        # A D: original whose E: copy still holds the old root is never deleted.
+        Remove-Item -LiteralPath $cnKeepFile -Force -ErrorAction SilentlyContinue
+        $cnUnupdated = @($cnUnupdated | Where-Object { $_.StartsWith($cnTargetPrefix, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Join-Path $LegacyPath $_.Substring($cnTargetPrefix.Length) } | Select-Object -Unique)
+        if ($cnUnupdated.Count -gt 0) {
+            Set-Content -LiteralPath $cnKeepFile -Value $cnUnupdated -Encoding utf8
+            Write-Warning ('[PROGRAM-DRIVE] {0} file(s) on {1} kept: their copy under {2} could not be re-rooted' -f $cnUnupdated.Count, $LegacyPath, $TargetPath)
+        }
+
         $cnRunningPaths = @(Get-CnRunningExecutablePaths)
         foreach ($cnEntry in $cnEntries) {
             $cnInUse = @(Get-CnEntryRunningExecutables -Path $cnEntry.FullName -ExecutablePaths $cnRunningPaths)
@@ -1192,7 +1233,7 @@ function Move-CnLegacyProgramDir {
                 continue
             }
             Write-Host ('[PROGRAM-DRIVE] Deleting {0}' -f $cnEntry.FullName) -ForegroundColor DarkGray
-            Remove-CnLegacyEntry -Path $cnEntry.FullName | Out-Null
+            Remove-CnLegacyEntry -Path $cnEntry.FullName -KeepFile $cnKeepFile | Out-Null
         }
         foreach ($cnEntry in @($cnOldLinks + $cnEmpty)) {
             Write-Host ('[PROGRAM-DRIVE] Removing old {0} {1}' -f $(if (Test-CnReparsePoint -Item $cnEntry) { 'link' } else { 'empty dir' }), $cnEntry.FullName) -ForegroundColor DarkGray
@@ -1208,8 +1249,9 @@ function Move-CnLegacyProgramDir {
         }
         elseif (($cnDeferred -eq 0) -and @($cnLeft | Where-Object { Test-CnLegacyKeepItem -Name $_.Name }).Count -eq 0) {
             # Only locked leftovers remain: the old dir goes with them at the next restart.
-            Remove-CnLegacyEntry -Path $LegacyPath | Out-Null
+            Remove-CnLegacyEntry -Path $LegacyPath -KeepFile $cnKeepFile | Out-Null
         }
+        Remove-Item -LiteralPath $cnKeepFile -Force -ErrorAction SilentlyContinue
     }
 
     # Partial copies left by the superseded rename-based migration.

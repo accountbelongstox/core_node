@@ -6,7 +6,6 @@ docs_fix (alert document + first README line) and reminded on the desktop until 
 
 from __future__ import annotations
 
-import hashlib
 import itertools
 import json
 import os
@@ -60,7 +59,9 @@ TRIGGER_SCHEDULE = "schedule"
 TRIGGER_MANUAL = "manual"
 TRIGGER_PEER = "peer"
 NOTIFICATION_DURATION_MS = 8000
-SLOT_HASH_HEX_CHARS = 8
+RESULT_OK = "ok"
+RESULT_CONFLICT = "conflict"
+RESULT_REMOTE_MOVED = "remote_moved"
 PEER_PULL_DELAY_MIN_SECONDS = float(PIPELINE["peer_pull_delay_min_seconds"])
 PEER_PULL_DELAY_MAX_SECONDS = float(PIPELINE["peer_pull_delay_max_seconds"])
 PEER_PULL_MIN_GAP_SECONDS = float(PIPELINE["peer_pull_min_gap_seconds"])
@@ -138,6 +139,8 @@ class GitSyncWatchService:
         self._last_run_at: Optional[float] = None
         self._last_result = ""
         self._last_output = ""
+        # Drawn once per pycore start: this machine's fixed position inside every interval, so machines never share a slot.
+        self._slot_offset_fraction = random.random()
         settings = self._read_settings()
         self._interval_minutes = settings["interval_minutes"]
         self._reminder_seconds = settings["reminder_seconds"]
@@ -314,7 +317,10 @@ class GitSyncWatchService:
     def _run(self) -> None:
         if not self._acquire_lease():
             return
-        ColorPrint.green(f"[{LABEL}] started interval={self._interval_minutes}min reminder={self._reminder_seconds}s")
+        ColorPrint.green(
+            f"[{LABEL}] started interval={self._interval_minutes}min reminder={self._reminder_seconds}s "
+            f"slot_offset={self._slot_offset_fraction * self._interval_minutes * 60:.0f}s"
+        )
         next_sync = time.monotonic() + max(START_DELAY_SECONDS, self._slot_delay())
         next_reminder = time.monotonic()
         # True also at start: a README alert left without its document is cleaned once.
@@ -346,11 +352,10 @@ class GitSyncWatchService:
                 next_reminder = time.monotonic()
 
     def _slot_delay(self) -> float:
-        """Seconds to this machine's next wall-clock slot: a fixed offset (hash of the machine id) inside the
+        """Seconds to this machine's next wall-clock slot: the offset drawn at pycore start inside the
         interval, so machines that share an interval start at different moments."""
         period = self._interval_minutes * 60
-        digest = hashlib.sha256(gitsync_lan_turn.machine.encode("utf-8")).hexdigest()[:SLOT_HASH_HEX_CHARS]
-        offset = int(digest, 16) % period
+        offset = int(self._slot_offset_fraction * period)
         now = time.time()
         return ((now - offset) // period + 1) * period + offset - now
 
@@ -422,10 +427,13 @@ class GitSyncWatchService:
         conflicted = self._unmerged_files()
         blocking = self._blocking_states()
         if conflicted or blocking:
-            self._last_result = "conflict"
+            self._last_result = RESULT_CONFLICT
             self._record_conflict(conflicted, blocking)
+        elif self._count(f"{UPSTREAM_REF}..HEAD") > 0:
+            self._last_result = RESULT_REMOTE_MOVED
+            self._remind_remote_moved()
         else:
-            self._last_result = "ok"
+            self._last_result = RESULT_OK
             ColorPrint.green(f"[{LABEL}] gitsync finished in {time.time() - started:.1f}s")
         movement = self._upstream_movement(upstream_before, started)
         self._record_run({
@@ -606,6 +614,15 @@ class GitSyncWatchService:
             return
         rest = text.split("\n", 1)[1] if "\n" in text else ""
         path.write_text(rest.lstrip("\n"), encoding="utf-8")
+
+    def _remind_remote_moved(self) -> None:
+        """Another machine pushed between this run's pull and push: notice only, the next slot merges it."""
+        ColorPrint.yellow(f"[{LABEL}] push rejected: another machine pushed to the remote meanwhile; the next slot merges it")
+        show_system_notification(
+            i18n.get(I18nKeys.GITSYNC_REMOTE_MOVED_TITLE),
+            i18n.get(I18nKeys.GITSYNC_REMOTE_MOVED_MESSAGE),
+            duration_ms=NOTIFICATION_DURATION_MS,
+        )
 
     def _remind(self) -> None:
         show_system_notification(
