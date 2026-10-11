@@ -141,7 +141,15 @@ export function useQuickCommandCatalog() {
       .filter((entry): entry is TerminalQuickCommand => entry !== undefined),
     [allEntries, catalog],
   );
-  return { catalog, loading, loadFailed, load, findEntry, pinned };
+  // Card header commands (config/terminal_quick_commands.json `card`), shown as icons.
+  const card = useMemo(
+    () => (catalog?.card ?? []).flatMap(({ key, icon }) => {
+      const entry = allEntries.find((candidate) => candidate.key === key);
+      return entry ? [{ entry, icon }] : [];
+    }),
+    [allEntries, catalog],
+  );
+  return { catalog, loading, loadFailed, load, findEntry, pinned, card };
 }
 
 /** Shown name: the command line itself (PATH name plus arguments), never a description. */
