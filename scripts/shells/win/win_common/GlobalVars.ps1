@@ -677,3 +677,5 @@ $Global:MCP_SOURCE_DIR = Join-Path $Global:BASE_DIR "ncore\mcp_server"
 $Global:MCP_HTTP_SERVER_PORT = 38000
 $Global:MCP_HTTP_SERVER_SCRIPT = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "shells\scripts\mcp_http_server.js"
 
+Start-CnWorkDirPrune -WorkDir $Global:WORK_DIR
+
