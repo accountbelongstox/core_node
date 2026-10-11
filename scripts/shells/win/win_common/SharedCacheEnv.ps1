@@ -284,6 +284,48 @@ function Test-CnLegacyKeepItem {
 }
 
 # Entry names already copied completely to the E: target (manifest_name file there).
+$Global:CN_PROGRESS_INTERVAL_SECONDS = 5
+$script:cnProgressActivity = ''
+$script:cnProgressCount = 0
+$script:cnProgressLast = 0
+$script:cnProgressWatch = $null
+
+# Long walks of the migration print a start line, then the item count and the
+# current path every CN_PROGRESS_INTERVAL_SECONDS, then a done line.
+function Start-CnProgress {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Activity
+    )
+
+    $script:cnProgressActivity = $Activity
+    $script:cnProgressCount = 0
+    $script:cnProgressLast = 0
+    $script:cnProgressWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    Write-Host ('[PROGRAM-DRIVE] {0}...' -f $Activity) -ForegroundColor Cyan
+}
+
+function Step-CnProgress {
+    param(
+        [string]$Path = ''
+    )
+
+    $script:cnProgressCount++
+    if ($null -eq $script:cnProgressWatch -or ($script:cnProgressWatch.Elapsed.TotalSeconds - $script:cnProgressLast) -lt $Global:CN_PROGRESS_INTERVAL_SECONDS) {
+        return
+    }
+    $script:cnProgressLast = $script:cnProgressWatch.Elapsed.TotalSeconds
+    Write-Host ('[PROGRAM-DRIVE] {0}: {1:N0} items, {2} elapsed, at {3}' -f $script:cnProgressActivity, $script:cnProgressCount, $script:cnProgressWatch.Elapsed.ToString('hh\:mm\:ss'), $Path) -ForegroundColor DarkGray
+}
+
+function Stop-CnProgress {
+    if ($null -eq $script:cnProgressWatch) {
+        return
+    }
+    Write-Host ('[PROGRAM-DRIVE] {0}: done, {1:N0} items in {2}' -f $script:cnProgressActivity, $script:cnProgressCount, $script:cnProgressWatch.Elapsed.ToString('hh\:mm\:ss')) -ForegroundColor DarkGray
+    $script:cnProgressWatch = $null
+}
+
 function Get-CnMigratedNames {
     param(
         [Parameter(Mandatory = $true)]
@@ -421,6 +463,7 @@ function Copy-CnTree {
         return 0
     }
 
+    Step-CnProgress -Path $Source
     if ($cnSourceItem -is [System.IO.FileInfo]) {
         $cnExisting = Get-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
         if ($cnExisting -and $cnExisting.Length -eq $cnSourceItem.Length -and $cnExisting.LastWriteTimeUtc -eq $cnSourceItem.LastWriteTimeUtc) {
@@ -510,6 +553,7 @@ function Get-CnPendingCopyBytes {
             $cnFiles = @(Get-ChildItem -LiteralPath $cnEntry.FullName -Recurse -Force -File -Attributes !ReparsePoint -ErrorAction SilentlyContinue)
         }
         foreach ($cnFile in $cnFiles) {
+            Step-CnProgress -Path $cnFile.FullName
             $cnDestination = Join-Path $TargetPath $cnFile.FullName.Substring($cnSourcePrefix.Length)
             $cnExisting = Get-Item -LiteralPath $cnDestination -Force -ErrorAction SilentlyContinue
             if (-not $cnExisting -or $cnExisting.Length -ne $cnFile.Length) {
@@ -532,6 +576,7 @@ function Test-CnCopyComplete {
 
     $cnSourceItem = Get-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
     $cnTargetItem = Get-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+    Step-CnProgress -Path $Source
     # Links carry no data (recreated or, when broken, dropped by New-CnCopiedLinks).
     if ($cnSourceItem -and (Test-CnReparsePoint -Item $cnSourceItem)) {
         return $true
@@ -652,6 +697,7 @@ function Update-CnTextReferences {
 
     while ($cnPending.Count -gt 0) {
         foreach ($cnChild in @(Get-ChildItem -LiteralPath $cnPending.Pop() -Force -ErrorAction SilentlyContinue)) {
+            Step-CnProgress -Path $cnChild.FullName
             if (Test-CnReparsePoint -Item $cnChild) {
                 continue
             }
@@ -775,6 +821,7 @@ function Test-CnEmptyTree {
     )
 
     foreach ($cnChild in @(Get-ChildItem -LiteralPath $Directory.FullName -Force -ErrorAction SilentlyContinue)) {
+        Step-CnProgress -Path $cnChild.FullName
         if (Test-CnReparsePoint -Item $cnChild) {
             continue
         }
@@ -836,6 +883,7 @@ function Move-CnLegacyProgramDir {
 
     if ($cnLegacyItem) {
         New-CnNamespaceDirectory -Path $TargetPath
+        Start-CnProgress -Activity ('Scanning {0} (target {1})' -f $LegacyPath, $TargetPath)
         foreach ($cnChild in @(Get-ChildItem -LiteralPath $LegacyPath -Force -ErrorAction SilentlyContinue)) {
             if (Test-CnReparsePoint -Item $cnChild) {
                 $cnOldLinks += $cnChild
@@ -855,6 +903,8 @@ function Move-CnLegacyProgramDir {
                 $cnEntries += $cnChild
             }
         }
+        Stop-CnProgress
+        Write-Host ('[PROGRAM-DRIVE] {0}: {1} program entries, {2} old links, {3} empty dirs, {4} kept data' -f $LegacyPath, $cnEntries.Count, $cnOldLinks.Count, $cnEmpty.Count, $cnKept.Count) -ForegroundColor Cyan
     }
 
     if ($cnEntries.Count + $cnOldLinks.Count + $cnEmpty.Count + $cnKept.Count -gt 0) {
@@ -862,8 +912,11 @@ function Move-CnLegacyProgramDir {
         # again over the live E: copy, only their D: leftovers are deleted.
         $cnMigrated = @(Get-CnMigratedNames -TargetPath $TargetPath)
         $cnToCopy = @($cnEntries | Where-Object { $cnMigrated -notcontains $_.Name })
+        Start-CnProgress -Activity ('Measuring {0} entries still to copy from {1}' -f $cnToCopy.Count, $LegacyPath)
         $cnNeeded = Get-CnPendingCopyBytes -Entries $cnToCopy -TargetPath $TargetPath
+        Stop-CnProgress
         $cnFree = [System.IO.DriveInfo]::new($TargetPath).AvailableFreeSpace
+        Write-Host ('[PROGRAM-DRIVE] {0:N1} GB to copy, {1:N1} GB free on {2}' -f ($cnNeeded / 1GB), ($cnFree / 1GB), [System.IO.Path]::GetPathRoot($TargetPath)) -ForegroundColor Cyan
         if ($cnNeeded -gt $cnFree) {
             Write-Warning ('[PROGRAM-DRIVE] {0} needs {1:N1} GB but {2} has {3:N1} GB free; {0} stays live, partial copies removed' -f $LegacyPath, ($cnNeeded / 1GB), [System.IO.Path]::GetPathRoot($TargetPath), ($cnFree / 1GB))
             foreach ($cnEntry in $cnToCopy) {
@@ -879,7 +932,7 @@ function Move-CnLegacyProgramDir {
         }
 
         foreach ($cnEntry in $cnToCopy) {
-            Write-Host ('[PROGRAM-DRIVE] Copying {0} -> {1}' -f $cnEntry.FullName, (Join-Path $TargetPath $cnEntry.Name)) -ForegroundColor Cyan
+            Start-CnProgress -Activity ('Copying {0} -> {1}' -f $cnEntry.FullName, (Join-Path $TargetPath $cnEntry.Name))
             try {
                 $cnFailed += Copy-CnTree -Source $cnEntry.FullName -Destination (Join-Path $TargetPath $cnEntry.Name) -Links $cnLinks -ErrorAction Stop
             }
@@ -887,6 +940,7 @@ function Move-CnLegacyProgramDir {
                 Write-Warning ('[PROGRAM-DRIVE] Copy of {0} stopped: {1}' -f $cnEntry.FullName, $_.Exception.Message)
                 $cnFailed++
             }
+            Stop-CnProgress
         }
         foreach ($cnOuter in $cnOuterLinks) {
             $cnLinks.Add($cnOuter)
@@ -898,12 +952,14 @@ function Move-CnLegacyProgramDir {
             Write-Warning ('[PROGRAM-DRIVE] Links of {0} not recreated: {1}' -f $LegacyPath, $_.Exception.Message)
             $cnFailed++
         }
+        Start-CnProgress -Activity ('Verifying {0} copied entries under {1}' -f $cnToCopy.Count, $TargetPath)
         foreach ($cnEntry in $cnToCopy) {
             if (-not (Test-CnCopyComplete -Source $cnEntry.FullName -Destination (Join-Path $TargetPath $cnEntry.Name))) {
                 Write-Warning ('[PROGRAM-DRIVE] {0} is not fully copied to {1}' -f $cnEntry.FullName, $TargetPath)
                 $cnFailed++
             }
         }
+        Stop-CnProgress
         if ($cnFailed -gt 0) {
             Write-Warning ('[PROGRAM-DRIVE] {0}: {1} copy problem(s); nothing deleted, {0} stays live, retried on the next run' -f $LegacyPath, $cnFailed)
             return
@@ -913,7 +969,9 @@ function Move-CnLegacyProgramDir {
             Add-CnMigratedName -TargetPath $TargetPath -Name $cnEntry.Name
         }
         foreach ($cnOldRoot in $cnOldRoots) {
+            Start-CnProgress -Activity ('Re-rooting {0} -> {1} in text files under {1}' -f $cnOldRoot, $TargetPath)
             Update-CnTextReferences -Root $TargetPath -OldRoot $cnOldRoot -NewRoot $TargetPath
+            Stop-CnProgress
             try {
                 & $Global:CN_WINDOWS_PATH_FUNCTION moveroot $cnOldRoot $TargetPath -SkipInit
             }
@@ -926,6 +984,7 @@ function Move-CnLegacyProgramDir {
         Write-Host ('[PROGRAM-DRIVE] {0} is now live; cleaning {1}' -f $TargetPath, $LegacyPath) -ForegroundColor Green
 
         foreach ($cnEntry in $cnEntries) {
+            Write-Host ('[PROGRAM-DRIVE] Deleting {0}' -f $cnEntry.FullName) -ForegroundColor DarkGray
             Remove-CnLegacyEntry -Path $cnEntry.FullName | Out-Null
         }
         foreach ($cnEntry in @($cnOldLinks + $cnEmpty)) {
@@ -1163,6 +1222,9 @@ $Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB = [long](& $__sccGetContractValue -Contra
 $Global:CN_PROGRAM_DRIVE_CREATE_SMALL_RATIO = [double](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.small_ratio')
 $Global:CN_PROGRAM_DRIVE_MIGRATION_MUTEX = 'Global\core_node_program_drive_migration'
 $Global:CN_PROGRAM_DRIVE_CREATE_LABEL =[string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.label')
+$Global:CN_PROGRAM_DRIVE_GROW_FREE_BELOW_MB = [long](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.grow_free_below_mb')
+$Global:CN_PROGRAM_DRIVE_MERGE_LABEL =[string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.merge_label')
+$Global:CN_PROGRAM_DRIVE_RETIRED_LABEL = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.retired_label')
 
 # [Environment]::SystemDirectory (e.g. C:\Windows\System32) does not depend on
 # any environment variable, unlike $env:SystemDrive, which a caller that
