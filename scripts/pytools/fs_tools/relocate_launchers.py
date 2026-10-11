@@ -21,8 +21,10 @@ import os
 import re
 import stat
 import struct
+import time
 
 RELOCATED_PREFIX = 'RELOCATED='
+PROGRESS_INTERVAL_SECONDS = 5
 LOG_PREFIX = '[relocate-launchers] '
 EOCD_SIGNATURE = b'PK\x05\x06'
 EOCD_MIN_SIZE = 22
@@ -94,7 +96,12 @@ def relocate_file(path, old_pattern, new_root):
 
 def relocate_tree(root, old_pattern, new_root):
     relocated = 0
+    scanned = 0
+    launchers = 0
+    started = time.monotonic()
+    last_report = started
     pending = [root]
+    print(f'{LOG_PREFIX}scanning {root}', flush=True)
     while pending:
         current = pending.pop()
         try:
@@ -102,6 +109,11 @@ def relocate_tree(root, old_pattern, new_root):
                 children = list(entries)
         except OSError:
             continue
+        scanned += len(children)
+        if time.monotonic() - last_report >= PROGRESS_INTERVAL_SECONDS:
+            last_report = time.monotonic()
+            print(f'{LOG_PREFIX}{scanned:,} entries, {launchers:,} .exe checked, {relocated:,} relocated, '
+                  f'{int(last_report - started)}s, at {current}', flush=True)
         for entry in children:
             if is_link(entry.path):
                 continue
@@ -110,6 +122,7 @@ def relocate_tree(root, old_pattern, new_root):
                 continue
             if not entry.name.lower().endswith('.exe'):
                 continue
+            launchers += 1
             try:
                 if entry.stat(follow_symlinks=False).st_size > MAX_LAUNCHER_BYTES:
                     continue
@@ -125,10 +138,12 @@ def main():
     parser.add_argument('root', help='tree to scan (the new location)')
     parser.add_argument('old_root', help='old absolute root, e.g. D:\\.dev_win10')
     parser.add_argument('new_root', help='new absolute root, e.g. E:\\_win10_dev')
+    parser.add_argument('--extra-old-root', action='append', default=[], help='further old root re-rooted in the same pass (repeatable)')
     args = parser.parse_args()
-    old_root = args.old_root.rstrip('\\/')
+    old_roots = [root.rstrip('\\/') for root in [args.old_root] + args.extra_old_root if root.rstrip('\\/')]
     new_root = args.new_root.rstrip('\\/').encode('utf-8')
-    old_pattern = re.compile(re.escape(old_root.encode('utf-8')) + rb'(?=[\\/"\s]|$)', re.IGNORECASE)
+    alternatives = b'|'.join(re.escape(root.encode('utf-8')) for root in sorted(set(old_roots), key=len, reverse=True))
+    old_pattern = re.compile(b'(?:' + alternatives + rb')(?=[\\/"\s]|$)', re.IGNORECASE)
     print(f'{RELOCATED_PREFIX}{relocate_tree(os.path.abspath(args.root), old_pattern, new_root)}')
 
 

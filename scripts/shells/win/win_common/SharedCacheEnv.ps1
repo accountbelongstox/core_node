@@ -326,6 +326,148 @@ function Stop-CnProgress {
     $script:cnProgressWatch = $null
 }
 
+$Global:CN_ROBOCOPY_EXE = Join-Path (Join-Path $env:SystemRoot 'System32') 'robocopy.exe'
+$Global:CN_ROBOCOPY_LOG_DIR = Join-Path $env:SystemRoot 'Temp'
+$Global:CN_ROBOCOPY_FAILURE_CODE = 8
+$Global:CN_ROBOCOPY_COPIED_FLAG = 1
+$Global:CN_ROBOCOPY_MISMATCH_FLAG = 4
+$Global:CN_ROBOCOPY_POLL_MS = 2000
+$Global:CN_ROBOCOPY_SUMMARY_LINES = 14
+$Global:CN_ROBOCOPY_SUMMARY_ROW = '^\s*[^:]+:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$'
+$Global:CN_ROBOCOPY_BYTES_ROW_INDEX = 2
+$Global:CN_CONSOLE_DEFAULT_WIDTH = 119
+$Global:CN_MIGRATION_ROBOCOPY_LOG = 'core_node_program_dir_migration.log'
+# Program dirs: data, attributes and timestamps, multithreaded; links are
+# excluded here and recreated by New-CnCopiedLinks with re-rooted targets.
+$Global:CN_MIGRATION_ROBOCOPY_ARGUMENTS = @('/E', '/COPY:DAT', '/DCOPY:DAT', '/XJD', '/XJF', '/MT:16', '/R:1', '/W:1', '/NP', '/BYTES')
+
+function Get-CnConsoleLineWidth {
+    try {
+        return [math]::Max(20, $Host.UI.RawUI.WindowSize.Width - 1)
+    }
+    catch {
+        return $Global:CN_CONSOLE_DEFAULT_WIDTH
+    }
+}
+
+# Runs robocopy with a full Unicode log under CN_ROBOCOPY_LOG_DIR. A copy shows
+# one live line (bytes written to the target volume, % of -TotalBytes when
+# given, speed, ETA, current file) and the summary; -ListOnly (/L) runs
+# silently. Returns ExitCode, LogPath and the Bytes row's copied column.
+function Invoke-CnRobocopy {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Source,
+        [Parameter(Mandatory = $true)]
+        [string]$Destination,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [string]$LogName,
+        [long]$TotalBytes = 0,
+        [switch]$ListOnly
+    )
+
+    $cnLogPath = Join-Path $Global:CN_ROBOCOPY_LOG_DIR $LogName
+    $cnArguments = @($Source.TrimEnd('\'), $Destination.TrimEnd('\')) + $Arguments + @(('/UNILOG:{0}' -f $cnLogPath))
+    $cnArgumentLine = ''
+    $cnTargetRoot = [System.IO.Path]::GetPathRoot($Destination)
+    $cnStartUsed = [long]0
+    $cnWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $cnLineWidth = Get-CnConsoleLineWidth
+    $cnProcess = $null
+    $cnDrive = $null
+    $cnCopied = [long]0
+    $cnSpeed = [double]0
+    $cnPercent = ''
+    $cnEta = ''
+    $cnCurrent = ''
+    $cnStatus = ''
+    $cnRows = @()
+
+    if ($ListOnly) {
+        $cnArguments += '/L'
+    }
+    # A root like E:\ keeps its backslash; a quoted "E:" would mean the current dir.
+    $cnArgumentLine = ($cnArguments | ForEach-Object {
+            $cnValue = [string]$_
+            if ($cnValue -match '^[A-Za-z]:$') { $cnValue = $cnValue + '\' }
+            if ($cnValue -match '\s') { '"{0}"' -f $cnValue } else { $cnValue }
+        }) -join ' '
+    $cnStartUsed = [long]([System.IO.DriveInfo]::new($cnTargetRoot).TotalSize - [System.IO.DriveInfo]::new($cnTargetRoot).TotalFreeSpace)
+    if (-not $ListOnly) {
+        Write-Host ('[ROBOCOPY] {0}' -f $cnArgumentLine) -ForegroundColor DarkGray
+    }
+    $cnProcess = Start-Process -FilePath $Global:CN_ROBOCOPY_EXE -ArgumentList $cnArgumentLine -WindowStyle Hidden -PassThru
+    $null = $cnProcess.Handle
+    while (-not $cnProcess.WaitForExit($Global:CN_ROBOCOPY_POLL_MS)) {
+        if ($ListOnly) {
+            continue
+        }
+        $cnDrive = [System.IO.DriveInfo]::new($cnTargetRoot)
+        $cnCopied = [long]($cnDrive.TotalSize - $cnDrive.TotalFreeSpace) - $cnStartUsed
+        $cnSpeed = [math]::Max([double]0, $cnCopied) / [math]::Max([double]1, $cnWatch.Elapsed.TotalSeconds)
+        $cnPercent = if ($TotalBytes -gt 0) { '{0,5:N1}%  ' -f [math]::Min([double]100, 100 * $cnCopied / $TotalBytes) } else { '' }
+        $cnEta = if (($TotalBytes -gt 0) -and ($cnSpeed -gt 0)) { '  ETA {0}' -f [TimeSpan]::FromSeconds([math]::Max([double]0, ($TotalBytes - $cnCopied) / $cnSpeed)).ToString('hh\:mm\:ss') } else { '' }
+        try {
+            $cnCurrent = ([string](Get-Content -LiteralPath $cnLogPath -Tail 1 -Encoding Unicode -ErrorAction Stop)).Split("`t")[-1].Trim()
+        }
+        catch {
+            $cnCurrent = ''
+        }
+        $cnStatus = '{0}{1:N2} GB  {2:N1} MB/s{3}  {4}' -f $cnPercent, ([math]::Max([double]0, $cnCopied) / 1GB), ($cnSpeed / 1MB), $cnEta, $cnCurrent
+        $cnStatus = $cnStatus.Substring(0, [math]::Min($cnStatus.Length, $cnLineWidth))
+        Write-Host ("`r{0}" -f $cnStatus.PadRight($cnLineWidth)) -NoNewline
+    }
+    if (-not $ListOnly) {
+        Write-Host ''
+        Get-Content -LiteralPath $cnLogPath -Tail $Global:CN_ROBOCOPY_SUMMARY_LINES -Encoding Unicode -ErrorAction SilentlyContinue | Out-Host
+        Write-Host ('[ROBOCOPY] exit code {0} after {1}' -f $cnProcess.ExitCode, $cnWatch.Elapsed.ToString('hh\:mm\:ss')) -ForegroundColor DarkGray
+    }
+    $cnRows = @(Get-Content -LiteralPath $cnLogPath -Tail $Global:CN_ROBOCOPY_SUMMARY_LINES -Encoding Unicode -ErrorAction SilentlyContinue | ForEach-Object { [regex]::Match([string]$_, $Global:CN_ROBOCOPY_SUMMARY_ROW) } | Where-Object { $_.Success })
+    return [pscustomobject]@{
+        ExitCode    = [int]$cnProcess.ExitCode
+        LogPath     = $cnLogPath
+        CopiedBytes = $(if ($cnRows.Count -gt $Global:CN_ROBOCOPY_BYTES_ROW_INDEX) { [long]$cnRows[$Global:CN_ROBOCOPY_BYTES_ROW_INDEX].Groups[2].Value } else { [long]-1 })
+    }
+}
+
+# Queues every link below $Source (not descending into them) for
+# New-CnCopiedLinks; robocopy skips them with /XJD /XJF.
+function Add-CnTreeLinks {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Source,
+        [Parameter(Mandatory = $true)]
+        [string]$Destination,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$Links
+    )
+
+    $cnPending = New-Object System.Collections.Generic.Stack[System.IO.DirectoryInfo]
+    $cnPrefixLength = $Source.TrimEnd('\').Length
+    $cnPending.Push([System.IO.DirectoryInfo]::new($Source))
+    while ($cnPending.Count -gt 0) {
+        $cnChildren = @()
+        try {
+            $cnChildren = @($cnPending.Pop().EnumerateFileSystemInfos())
+        }
+        catch {
+            continue
+        }
+        foreach ($cnChild in $cnChildren) {
+            Step-CnProgress -Path $cnChild.FullName
+            if ($cnChild.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                $Links.Add([pscustomobject]@{ Source = (Get-Item -LiteralPath $cnChild.FullName -Force); Destination = (Join-Path $Destination $cnChild.FullName.Substring($cnPrefixLength).TrimStart('\')) })
+            }
+            elseif ($cnChild -is [System.IO.DirectoryInfo]) {
+                $cnPending.Push($cnChild)
+            }
+        }
+    }
+}
+
 function Get-CnMigratedNames {
     param(
         [Parameter(Mandatory = $true)]
@@ -479,10 +621,12 @@ function Copy-CnTree {
         return $cnFailed
     }
 
-    New-CnNamespaceDirectory -Path $Destination
-    foreach ($cnChild in @(Get-ChildItem -LiteralPath $Source -Force -ErrorAction Stop)) {
-        $cnFailed += Copy-CnTree -Source $cnChild.FullName -Destination (Join-Path $Destination $cnChild.Name) -Links $Links
+    $cnResult = Invoke-CnRobocopy -Source $Source -Destination $Destination -Arguments $Global:CN_MIGRATION_ROBOCOPY_ARGUMENTS -LogName $Global:CN_MIGRATION_ROBOCOPY_LOG
+    if ($cnResult.ExitCode -ge $Global:CN_ROBOCOPY_FAILURE_CODE) {
+        Write-Warning ('[PROGRAM-DRIVE] robocopy {0} failed with exit code {1}; see {2}' -f $Source, $cnResult.ExitCode, $cnResult.LogPath)
+        $cnFailed++
     }
+    Add-CnTreeLinks -Source $Source -Destination $Destination -Links $Links
     return $cnFailed
 }
 
@@ -550,6 +694,12 @@ function Get-CnPendingCopyBytes {
         $cnSourcePrefix = (Split-Path $cnEntry.FullName -Parent).TrimEnd('\') + '\'
         $cnFiles = @($cnEntry)
         if ($cnEntry -is [System.IO.DirectoryInfo]) {
+            Step-CnProgress -Path $cnEntry.FullName
+            $cnListed = Invoke-CnRobocopy -Source $cnEntry.FullName -Destination (Join-Path $TargetPath $cnEntry.Name) -Arguments $Global:CN_MIGRATION_ROBOCOPY_ARGUMENTS -LogName $Global:CN_MIGRATION_ROBOCOPY_LOG -ListOnly
+            if (($cnListed.ExitCode -lt $Global:CN_ROBOCOPY_FAILURE_CODE) -and ($cnListed.CopiedBytes -ge 0)) {
+                $cnBytes += $cnListed.CopiedBytes
+                continue
+            }
             $cnFiles = @(Get-ChildItem -LiteralPath $cnEntry.FullName -Recurse -Force -File -Attributes !ReparsePoint -ErrorAction SilentlyContinue)
         }
         foreach ($cnFile in $cnFiles) {
@@ -587,12 +737,8 @@ function Test-CnCopyComplete {
     if ($cnSourceItem -is [System.IO.FileInfo]) {
         return ($cnTargetItem -is [System.IO.FileInfo]) -and $cnTargetItem.Length -eq $cnSourceItem.Length
     }
-    foreach ($cnChild in @(Get-ChildItem -LiteralPath $Source -Force -ErrorAction Stop)) {
-        if (-not (Test-CnCopyComplete -Source $cnChild.FullName -Destination (Join-Path $Destination $cnChild.Name))) {
-            return $false
-        }
-    }
-    return $true
+    $cnListed = Invoke-CnRobocopy -Source $Source -Destination $Destination -Arguments $Global:CN_MIGRATION_ROBOCOPY_ARGUMENTS -LogName $Global:CN_MIGRATION_ROBOCOPY_LOG -ListOnly
+    return ($cnListed.ExitCode -lt $Global:CN_ROBOCOPY_FAILURE_CODE) -and (($cnListed.ExitCode -band ($Global:CN_ROBOCOPY_COPIED_FLAG -bor $Global:CN_ROBOCOPY_MISMATCH_FLAG)) -eq 0)
 }
 
 # Python for the migration helper scripts: the E: copy of the project Python
@@ -760,6 +906,7 @@ function Update-CnTextFile {
 # the python path embedded in pip/uv launcher .exe files, shortcuts, scheduled
 # tasks and registry references (SystemReferenceRelocation.ps1) and scoop's own
 # config; then scoop reset * once from the new location (shims, current links).
+# Returns the number of repairs that failed (the caller keeps its marker then).
 function Invoke-CnPostSwitchRepairs {
     param(
         [Parameter(Mandatory = $true)]
@@ -776,27 +923,35 @@ function Invoke-CnPostSwitchRepairs {
     $cnScoopConfigRoot = $env:XDG_CONFIG_HOME
     $cnScoopConfig = ''
     $cnOldRoot = ''
+    $cnFailed = 0
 
     . (Join-Path (Split-Path $Global:CN_WINDOWS_PATH_FUNCTION -Parent) 'SystemReferenceRelocation.ps1')
     if (-not $cnScoopConfigRoot) {
         $cnScoopConfigRoot = Join-Path $env:USERPROFILE '.config'
     }
     $cnScoopConfig = Join-Path (Join-Path $cnScoopConfigRoot 'scoop') 'config.json'
+    $cnRelocateArgs = @($Global:CN_LEGACY_RELOCATE_SCRIPT, $TargetPath, $OldRoots[0], $TargetPath) + @($OldRoots | Select-Object -Skip 1 | ForEach-Object { '--extra-old-root'; $_ })
 
+    if ($cnPythonExe) {
+        Write-Host ('[PROGRAM-DRIVE] Re-rooting launcher .exe files under {0} in one pass: {1} -> {0}' -f $TargetPath, ($OldRoots -join ', ')) -ForegroundColor Cyan
+        try {
+            & $cnPythonExe @cnRelocateArgs | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning ('[PROGRAM-DRIVE] Launcher re-root exited with code {0}' -f $LASTEXITCODE)
+                $cnFailed++
+            }
+        }
+        catch {
+            Write-Warning ('[PROGRAM-DRIVE] Launcher re-root failed: {0}' -f $_.Exception.Message)
+            $cnFailed++
+        }
+    }
+    else {
+        Write-Warning ('[PROGRAM-DRIVE] No Python found; launcher .exe files under {0} still point to {1}' -f $TargetPath, ($OldRoots -join ', '))
+        $cnFailed++
+    }
     foreach ($cnOldRoot in $OldRoots) {
-        if ($cnPythonExe) {
-            Write-Host ('[PROGRAM-DRIVE] Re-rooting launcher .exe files under {0}: {1} -> {0}' -f $TargetPath, $cnOldRoot) -ForegroundColor Cyan
-            try {
-                & $cnPythonExe $Global:CN_LEGACY_RELOCATE_SCRIPT $TargetPath $cnOldRoot $TargetPath | Out-Host
-            }
-            catch {
-                Write-Warning ('[PROGRAM-DRIVE] Launcher re-root failed: {0}' -f $_.Exception.Message)
-            }
-        }
-        else {
-            Write-Warning ('[PROGRAM-DRIVE] No Python found; launcher .exe files under {0} still point to {1}' -f $TargetPath, $cnOldRoot)
-        }
-        Move-SystemReferenceRoot -OldRoot $cnOldRoot -NewRoot $TargetPath
+        $cnFailed += [int](@(Move-SystemReferenceRoot -OldRoot $cnOldRoot -NewRoot $TargetPath)[-1])
         if (Test-Path -LiteralPath $cnScoopConfig -PathType Leaf) {
             Update-CnTextFile -Path $cnScoopConfig -OldRoot $cnOldRoot -NewRoot $TargetPath
         }
@@ -809,8 +964,53 @@ function Invoke-CnPostSwitchRepairs {
         }
         catch {
             Write-Warning ('[PROGRAM-DRIVE] scoop reset failed: {0}' -f $_.Exception.Message)
+            $cnFailed++
         }
     }
+    return $cnFailed
+}
+
+# Runs the repairs a switch recorded in its marker (this run's or an
+# interrupted earlier one's); the marker is removed only when all succeed, so
+# a failure is retried on the next run.
+function Invoke-CnMarkedRepairs {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$MarkerPath,
+        [Parameter(Mandatory = $true)]
+        [string]$TargetPath
+    )
+
+    $cnFailed = 0
+
+    if (-not (Test-Path -LiteralPath $MarkerPath -PathType Leaf)) {
+        return
+    }
+    $cnFailed = [int](@(Invoke-CnPostSwitchRepairs -OldRoots @(Get-Content -LiteralPath $MarkerPath | Where-Object { $_ }) -TargetPath $TargetPath)[-1])
+    if ($cnFailed -gt 0) {
+        Write-Warning ('[PROGRAM-DRIVE] {0} repair(s) for {1} failed; retried on the next run' -f $cnFailed, $TargetPath)
+        return
+    }
+    Remove-Item -LiteralPath $MarkerPath -Force -ErrorAction SilentlyContinue
+}
+
+# Executable paths of running processes (the elevated installer sees all).
+function Get-CnRunningExecutablePaths {
+    return @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.ExecutablePath } | Where-Object { $_ })
+}
+
+# Running executables under an old D: entry (a file or a dir tree).
+function Get-CnEntryRunningExecutables {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$ExecutablePaths
+    )
+
+    $cnPrefix = $Path.TrimEnd('\') + '\'
+    return @($ExecutablePaths | Where-Object { ($_ -ieq $Path) -or $_.StartsWith($cnPrefix, [System.StringComparison]::OrdinalIgnoreCase) })
 }
 
 # True when a directory holds no file anywhere below it (links are not data).
@@ -839,19 +1039,21 @@ function Test-CnEmptyTree {
 #      only a link to a third place that still exists is recreated on E:),
 #      empty dirs (removed), kept data (models, drafts...);
 #   2. copy every real entry not yet in the manifest with Copy-Item, recreate
-#      inner links on E: and verify every file; any failure stops here and
-#      nothing is deleted; the verified set is recorded in the manifest (the
-#      switch);
+#      inner links on E: and verify every file; any failure (or too little
+#      space) stops here, nothing is deleted and partial copies stay to be
+#      resumed; the verified set is recorded in the manifest (the switch);
 #   3. switch: re-root old-root references in E: text files, PATH and every
 #      environment variable (WindowsPathFunction.ps1 moveroot), record the live
 #      dirs, and leave a repairs marker on E:;
-#   4. clean D:: delete the real entries file by file (locked files stay until
-#      the next run), old links, empty dirs and obsolete staging copies, move
-#      kept data to the D: shared-data area (kept_data_root), and remove the
-#      old dir once empty, so D: holds shared data only;
-#   5. slow repairs last (launcher .exe files, shortcuts, scheduled tasks,
-#      registry, scoop reset *); the marker is removed when they finish, so an
-#      interrupted run resumes them next time.
+#   4. repairs before any D: deletion (launcher .exe files, shortcuts,
+#      scheduled tasks, registry, scoop reset *), so a restart mid-cleanup
+#      never starts a deleted D: program; the marker is removed only when all
+#      succeed, and a marker left by an earlier run is resumed first;
+#   5. clean D:: delete the real entries file by file (locked files stay until
+#      the next run; an entry a running process executes from stays whole
+#      until a later run), old links, empty dirs and obsolete staging copies,
+#      move kept data to the D: shared-data area (kept_data_root), and remove
+#      the old dir once empty, so D: holds shared data only.
 function Move-CnLegacyProgramDir {
     param(
         [Parameter(Mandatory = $true)]
@@ -874,6 +1076,11 @@ function Move-CnLegacyProgramDir {
     $cnEmpty = @()
     $cnKept = @()
     $cnFailed = 0
+    $cnRunningPaths = @()
+    $cnInUse = @()
+    $cnDeferred = 0
+
+    Invoke-CnMarkedRepairs -MarkerPath $cnRepairsMarker -TargetPath $TargetPath
 
     if ($cnLegacyItem -and (Test-CnReparsePoint -Item $cnLegacyItem)) {
         Write-Host ('[PROGRAM-DRIVE] Removing old link {0}' -f $LegacyPath) -ForegroundColor DarkGray
@@ -918,16 +1125,7 @@ function Move-CnLegacyProgramDir {
         $cnFree = [System.IO.DriveInfo]::new($TargetPath).AvailableFreeSpace
         Write-Host ('[PROGRAM-DRIVE] {0:N1} GB to copy, {1:N1} GB free on {2}' -f ($cnNeeded / 1GB), ($cnFree / 1GB), [System.IO.Path]::GetPathRoot($TargetPath)) -ForegroundColor Cyan
         if ($cnNeeded -gt $cnFree) {
-            Write-Warning ('[PROGRAM-DRIVE] {0} needs {1:N1} GB but {2} has {3:N1} GB free; {0} stays live, partial copies removed' -f $LegacyPath, ($cnNeeded / 1GB), [System.IO.Path]::GetPathRoot($TargetPath), ($cnFree / 1GB))
-            foreach ($cnEntry in $cnToCopy) {
-                $cnPartial = Join-Path $TargetPath $cnEntry.Name
-                if (Test-Path -LiteralPath $cnPartial -PathType Container) {
-                    & $env:ComSpec /c rd /s /q $cnPartial
-                }
-                elseif (Test-Path -LiteralPath $cnPartial -PathType Leaf) {
-                    Remove-Item -LiteralPath $cnPartial -Force -ErrorAction SilentlyContinue
-                }
-            }
+            Write-Warning ('[PROGRAM-DRIVE] {0} needs {1:N1} GB but {2} has {3:N1} GB free; {0} stays live, partial copies kept and resumed on the next run' -f $LegacyPath, ($cnNeeded / 1GB), [System.IO.Path]::GetPathRoot($TargetPath), ($cnFree / 1GB))
             return
         }
 
@@ -981,9 +1179,18 @@ function Move-CnLegacyProgramDir {
         }
         Save-CnResolvedProgramDirs
         Set-Content -LiteralPath $cnRepairsMarker -Value $cnOldRoots -Encoding utf8
-        Write-Host ('[PROGRAM-DRIVE] {0} is now live; cleaning {1}' -f $TargetPath, $LegacyPath) -ForegroundColor Green
+        Write-Host ('[PROGRAM-DRIVE] {0} is now live; repairing references to {1}' -f $TargetPath, $LegacyPath) -ForegroundColor Green
+        Invoke-CnMarkedRepairs -MarkerPath $cnRepairsMarker -TargetPath $TargetPath
+        Write-Host ('[PROGRAM-DRIVE] Cleaning {0}' -f $LegacyPath) -ForegroundColor Green
 
+        $cnRunningPaths = @(Get-CnRunningExecutablePaths)
         foreach ($cnEntry in $cnEntries) {
+            $cnInUse = @(Get-CnEntryRunningExecutables -Path $cnEntry.FullName -ExecutablePaths $cnRunningPaths)
+            if ($cnInUse.Count -gt 0) {
+                Write-Warning ('[PROGRAM-DRIVE] {0} kept: running from it ({1}); deleted on a later run once it stops' -f $cnEntry.FullName, (($cnInUse | Select-Object -Unique) -join ', '))
+                $cnDeferred++
+                continue
+            }
             Write-Host ('[PROGRAM-DRIVE] Deleting {0}' -f $cnEntry.FullName) -ForegroundColor DarkGray
             Remove-CnLegacyEntry -Path $cnEntry.FullName | Out-Null
         }
@@ -999,7 +1206,7 @@ function Move-CnLegacyProgramDir {
             Remove-Item -LiteralPath $LegacyPath -Force -ErrorAction SilentlyContinue
             Write-Host ('[PROGRAM-DRIVE] Removed {0}' -f $LegacyPath) -ForegroundColor Green
         }
-        elseif (@($cnLeft | Where-Object { Test-CnLegacyKeepItem -Name $_.Name }).Count -eq 0) {
+        elseif (($cnDeferred -eq 0) -and @($cnLeft | Where-Object { Test-CnLegacyKeepItem -Name $_.Name }).Count -eq 0) {
             # Only locked leftovers remain: the old dir goes with them at the next restart.
             Remove-CnLegacyEntry -Path $LegacyPath | Out-Null
         }
@@ -1008,11 +1215,6 @@ function Move-CnLegacyProgramDir {
     # Partial copies left by the superseded rename-based migration.
     foreach ($cnStale in @(Get-ChildItem -LiteralPath $TargetPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.EndsWith($Global:CN_OBSOLETE_STAGING_SUFFIX) })) {
         Remove-CnLegacyEntry -Path $cnStale.FullName | Out-Null
-    }
-
-    if (Test-Path -LiteralPath $cnRepairsMarker -PathType Leaf) {
-        Invoke-CnPostSwitchRepairs -OldRoots @(Get-Content -LiteralPath $cnRepairsMarker | Where-Object { $_ }) -TargetPath $TargetPath
-        Remove-Item -LiteralPath $cnRepairsMarker -Force -ErrorAction SilentlyContinue
     }
 }
 
