@@ -6,7 +6,7 @@ Program material never lands on the shared data tree (Windows D:, Linux
 /www or /www/www on a dual-boot NTFS share):
     Windows: the program-drive dirs Step 1 recorded
              (core_node_dirs.get_windows_program_dir 'downloads_root' /
-             'work_root', e.g. E:\_win10_dev\Downloads and E:\_win10_dev\work).
+             'work_root', e.g. E:\.tmp\Downloads and E:\_win10_dev\work).
     Linux:   the native pycore temp root (pygvar.TMP_DIR, /var/_core_node/_tmp
              on the root ext4 filesystem).
 """

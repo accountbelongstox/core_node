@@ -279,6 +279,7 @@
             "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/DESIGN_SHELL_HOSTS.md): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
             "namespaces": {
                 "windows_program_drive": "_<sys>_dev",
+                "windows_program_drive_temp": ".tmp",
                 "windows_data_drive": "www",
                 "linux_ext4": "/opt/core_node",
                 "linux_ntfs_shared_data": "/www/www",
@@ -305,8 +306,8 @@
                 "windows": "<program_drive>\\applications"
             },
             "downloads_root": {
-                "purpose": "Windows-only installer/package downloads (archives, setup files). Never on D: (shared data only); without E: they stay in legacy_program_dirs.downloads_root",
-                "windows": "<program_drive>\\_<sys>_dev\\Downloads"
+                "purpose": "Windows-only installer/package downloads (archives, setup files), in the program drive temp namespace (namespaces.windows_program_drive_temp). Never on D: (shared data only); without E: they stay in legacy_program_dirs.downloads_root. Step 1 moves legacy_program_dirs.superseded_downloads_roots here",
+                "windows": "<program_drive>\\.tmp\\Downloads"
             },
             "work_root": {
                 "purpose": "Windows-only scratch for unpacking, extracting and building program files. Never on D:; without E: the D:\\.tmp temp dir is used",
@@ -338,6 +339,7 @@
                 "keep_patterns": ["*model*", "*weight*", "*checkpoint*", "huggingface", "datasets", "*Drafts*"],
                 "kept_data_root": "D:\\www\\program_data",
                 "superseded_tool_roots": ["E:\\core_node_compiler\\_<sys>_compiler", "E:\\core_node_compiler\\.dev_<sys>"],
+                "superseded_downloads_roots": ["E:\\_<sys>_dev\\Downloads"],
                 "obsolete_staging_suffix": ".cn_moving",
                 "repairs_marker_name": ".cn_repairs_pending",
                 "manifest_name": ".cn_migrated",
