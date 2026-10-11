@@ -358,6 +358,15 @@
                 "windows_d_fallback": "D:\\www\\cache",
                 "linux": "/opt/core_node/cache"
             },
+            "cache_prune": {
+                "purpose": "After every dd install step (Windows Invoke-InstallerStepScript, Linux run_install_script) and AI CLI upgrades, script drops old tool caches. Every run: pnpm store version dirs older than the live one (pnpm store path), corepack package-manager versions older than the newest, pip's legacy http cache once http-v2 exists. When a tool was upgraded or installed globally (fingerprint: executable path+mtime and global node_modules mtime) or interval_days passed: pnpm store prune, npm cache verify, uv cache prune, composer clear-cache --gc. Stamp (fingerprints, last full run) and lock live in the cache root",
+                "script": "scripts/pytools/fs_tools/prune_tool_caches.py",
+                "interval_days": 7,
+                "command_timeout_seconds": 1800,
+                "lock_stale_minutes": 120,
+                "stamp_name": ".cn_cache_prune_stamp",
+                "lock_name": ".cn_cache_prune.lock"
+            },
             "cache_subdirs": [
                 "pnpm-store",
                 "bun",

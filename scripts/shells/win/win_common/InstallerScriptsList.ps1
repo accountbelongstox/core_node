@@ -182,6 +182,8 @@ function Invoke-InstallerStepScript {
     } catch {
         Write-Warning "Installer step failed ($ScriptName): $($_.Exception.Message)"
         return $false
+    } finally {
+        Invoke-CnToolCachePrune
     }
 }
 
