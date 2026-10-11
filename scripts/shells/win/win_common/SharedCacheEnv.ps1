@@ -259,6 +259,9 @@ function Get-CnProgramDirectoryMappings {
     $cnMappings += [pscustomobject]@{ Name = 'APP_INSTALL_DIR'; Legacy = $Global:CN_LEGACY_APP_ROOT; Target = $Global:CN_APP_ROOT; Superseded = @() }
     $cnMappings += [pscustomobject]@{ Name = 'DOWNLOADS_DIR'; Legacy = $Global:CN_LEGACY_DOWNLOADS_ROOT; Target = $Global:CN_DOWNLOADS_ROOT; Superseded = @() }
     $cnMappings += [pscustomobject]@{ Name = 'DOWNLOADS_CACHE'; Legacy = $Global:CN_LEGACY_DOWNLOADS_CACHE; Target = $Global:CN_DOWNLOADS_ROOT; Superseded = @() }
+    foreach ($cnSupersededDownloads in @($Global:CN_SUPERSEDED_DOWNLOADS_ROOTS)) {
+        $cnMappings += [pscustomobject]@{ Name = 'DOWNLOADS_DIR'; Legacy = $cnSupersededDownloads; Target = $Global:CN_DOWNLOADS_ROOT; Superseded = @() }
+    }
     $cnMappings += [pscustomobject]@{ Name = 'PIP_CACHE'; Legacy = $Global:CN_LEGACY_PIP_CACHE; Target = (Join-Path $Global:CN_CACHE_ROOT 'pip'); Superseded = @() }
     $cnMappings += [pscustomobject]@{ Name = 'PNPM_STORE'; Legacy = $Global:CN_LEGACY_PNPM_STORE; Target = (Join-Path $Global:CN_CACHE_ROOT $Global:CN_PNPM_STORE_SUBDIR); Superseded = @() }
     return $cnMappings
@@ -1225,6 +1228,7 @@ else {
     $Global:CN_DOWNLOADS_ROOT = ''
     $Global:CN_WORK_ROOT = $Global:CN_LEGACY_WORK_ROOT
 }
+$Global:CN_SUPERSEDED_DOWNLOADS_ROOTS = @(& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.superseded_downloads_roots' | ForEach-Object { Resolve-CnDriveLayoutPath -Template ([string]$_) -Replacements @{ '<sys>' = $__sccSystemName } })
 $Global:CN_LEGACY_KEEP_PATTERNS = @(& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.keep_patterns' | ForEach-Object { [string]$_ })
 $Global:CN_WINDOWS_PATH_FUNCTION = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
 $Global:CN_LEGACY_MANIFEST_NAME = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.manifest_name')
