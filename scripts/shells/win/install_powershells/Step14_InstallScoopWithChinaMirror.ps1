@@ -144,7 +144,7 @@ function Install-ScoopWithChinaMirror {
 
                 # Add essential buckets
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding essential buckets..." -Type "Warning"
-                if (-not (& scoop bucket list | Select-String "main")) {
+                if (-not (& $SCOOP_EXE bucket list | Select-String "main")) {
                     if ($Global:RegionIsChina) {
                         & $SCOOP_EXE bucket add main https://ghproxy.cc/https://github.com/ScoopInstaller/Main
                     } else {
@@ -152,7 +152,7 @@ function Install-ScoopWithChinaMirror {
                     }
                 }
 
-                if (-not (& scoop bucket list | Select-String "extras")) {
+                if (-not (& $SCOOP_EXE bucket list | Select-String "extras")) {
                     if ($Global:RegionIsChina) {
                         & $SCOOP_EXE bucket add extras https://ghproxy.cc/https://github.com/ScoopInstaller/Extras
                     } else {
