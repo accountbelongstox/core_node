@@ -1,10 +1,7 @@
 #!/bin/bash
 
 INSTALL_ITEM_RUNNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_ITEM_SHELLS_DIR="$(dirname "$INSTALL_ITEM_RUNNER_DIR")"
-INSTALL_ITEM_REPO_DIR="$(cd "$INSTALL_ITEM_RUNNER_DIR/../../../.." && pwd)"
-TOOL_CACHE_ENV_VARS="COREPACK_HOME,PIP_CACHE_DIR,npm_config_cache,UV_CACHE_DIR,COMPOSER_CACHE_DIR,BUN_INSTALL_CACHE_DIR"
-INSTALL_SHELLS_DIR="${INSTALL_ITEM_SHELLS_DIR}/debian/install_shells"
+INSTALL_ITEM_SHELLS_DIR="$(dirname "$INSTALL_ITEM_RUNNER_DIR")"INSTALL_SHELLS_DIR="${INSTALL_ITEM_SHELLS_DIR}/debian/install_shells"
 MENU_ITEMS_DIR="${INSTALL_ITEM_SHELLS_DIR}/debian/menu_items"
 RUN_ITEM_VAR="DD_RUN_ITEM"
 FULL_CHAIN_ITEM_KEY="INSTALL_MODE"
@@ -81,21 +78,6 @@ run_install_permission_gateway() {
     bash "$INSTALL_ITEM_RUNNER_DIR/pyservice_www_permissions.sh" || true
 }
 
-# Drops old package-manager caches after a step (contract paths.drive_layout.cache_prune);
-# under sudo it runs as the invoking user so the tool caches keep their owner.
-run_tool_cache_prune() {
-    local prune_script=""
-
-    [ -n "${CN_CACHE_ROOT:-}" ] || source "$INSTALL_ITEM_RUNNER_DIR/shared_cache_env.sh"
-    prune_script="$(sc_get paths.drive_layout.cache_prune.script 2>/dev/null)" || return 0
-    prune_script="$INSTALL_ITEM_REPO_DIR/$prune_script"
-    if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
-        sudo -u "$SUDO_USER" -H --preserve-env="$TOOL_CACHE_ENV_VARS" env PATH="$PATH" python3 "$prune_script" "$CN_CACHE_ROOT" || true
-    else
-        python3 "$prune_script" "$CN_CACHE_ROOT" || true
-    fi
-}
-
 run_install_script() {
     local script="$1"
     local status=0
@@ -106,7 +88,8 @@ run_install_script() {
         chmod +x "$script"
     fi
     "$script" || status=$?
-    run_tool_cache_prune
+    type prune_tool_caches >/dev/null 2>&1 || source "$INSTALL_ITEM_RUNNER_DIR/shared_cache_env.sh"
+    prune_tool_caches
     run_install_permission_gateway
     return "$status"
 }

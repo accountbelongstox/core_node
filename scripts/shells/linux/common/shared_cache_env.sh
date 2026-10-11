@@ -50,6 +50,8 @@ __scc_sc_common=""
 __scc_tool_root_raw=""
 __scc_subdir=""
 __scc_var=""
+SCC_REPO_DIR="$(cd "$SHARED_CACHE_ENV_DIR/../../../.." && pwd)"
+SCC_TOOL_CACHE_ENV_VARS="COREPACK_HOME,PIP_CACHE_DIR,npm_config_cache,UV_CACHE_DIR,COMPOSER_CACHE_DIR,BUN_INSTALL_CACHE_DIR"
 # NOTE: BUN_INSTALL_CACHE_DIR / npm_config_cache / UV_CACHE_DIR /
 # COMPOSER_CACHE_DIR / COREPACK_HOME are intentionally NOT pre-declared here --
 # same pattern as HF_HOME/TORCH_HOME/XDG_CACHE_HOME further below. The
@@ -200,6 +202,23 @@ done
 __scc_wire_tool_cache PIP_CACHE_DIR pip
 unset -f __scc_wire_tool_cache __scc_cache_var_for_subdir
 unset __scc_subdir __scc_var
+
+# Drops old package-manager caches after an install or upgrade (contract
+# paths.drive_layout.cache_prune); under sudo it runs as the invoking user so the
+# tool caches keep their owner. Never fails the caller.
+prune_tool_caches() {
+    local prune_script=""
+
+    [ -n "$CN_CACHE_ROOT" ] || return 0
+    prune_script="$(sc_get paths.drive_layout.cache_prune.script 2>/dev/null)" || return 0
+    prune_script="$SCC_REPO_DIR/$prune_script"
+    if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+        sudo -u "$SUDO_USER" -H --preserve-env="$SCC_TOOL_CACHE_ENV_VARS" env PATH="$PATH" python3 "$prune_script" "$CN_CACHE_ROOT" || true
+    else
+        python3 "$prune_script" "$CN_CACHE_ROOT" || true
+    fi
+    return 0
+}
 
 # Native shared MODEL-cache root. Pinned to the legacy native base
 # /var/_core_node ON PURPOSE: the unified runtime data root moved to

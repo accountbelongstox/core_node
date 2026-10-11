@@ -512,7 +512,7 @@ class TerminalBackupStore:
         return {"success": True, "data": data, "entry": entry}
 
     def export_files(self, folder_id: Any, numbers: Optional[Iterable[int]] = None) -> Dict[str, Any]:
-        """Write full text files of a backup into the restore area (native line endings) for a text editor: {success, files} or {success: False, error_code}."""
+        """Write full text files of a backup into the restore area (native line endings): {success, folder, terminals[{number, name, path, text}]} or {success: False, error_code}."""
         with self.lock:
             folder = self.folder_path(folder_id)
             manifest = self.read_manifest(folder) if folder is not None else None
@@ -529,21 +529,23 @@ class TerminalBackupStore:
             root = self.directory / RESTORE_DIR_NAME
             self._clear_restore_area(root, keep=folder.name)
             target = root / folder.name
-            files: List[Path] = []
+            terminals: List[Dict[str, Any]] = []
             for entry in entries:
                 data = self.read_entry_bytes(folder, entry)
                 if data is None:
                     continue
-                path = target / FILE_NAME_TEMPLATE.format(number=int(entry["number"]))
+                number = int(entry["number"])
+                text = normalized_text(data)
+                path = target / FILE_NAME_TEMPLATE.format(number=number)
                 try:
-                    atomic_write_bytes(path, encode_capture(normalized_text(data)))
+                    atomic_write_bytes(path, encode_capture(text))
                 except OSError as exc:
                     ColorPrint.yellow(f"[{LABEL}] restore write failed path={path}: {exc}")
                     continue
-                files.append(path)
-            if not files:
+                terminals.append({"number": number, "name": str(entry.get("name") or ""), "path": path, "text": text})
+            if not terminals:
                 return {"success": False, "error_code": ERROR_BACKUP_READ_FAILED}
-            return {"success": True, "files": files}
+            return {"success": True, "folder": target, "terminals": terminals}
 
     @staticmethod
     def _clear_restore_area(root: Path, keep: str) -> None:
