@@ -20,8 +20,11 @@
   "launcher.main.layout_calculation": "计算方法：窗口尺寸 = 屏幕 / 网格，再按列/行比例换算为列数.行数",
   "launcher.main.press_continue": "按 'y' 或回车键继续：",
   "launcher.main.restore_found": "[恢复] 最近一次终端备份：{date}，{count} 个终端，{kb} K，备份库 {archive_kb} K（{path}）",
-  "launcher.main.restore_prompt": "是否打开最近一次终端备份？[Y/n]（默认 Y，{seconds} 秒后自动选择）：",
-  "launcher.main.restore_opening": "[恢复] 正在用文本编辑器打开 {count} 个终端文件...",
+  "launcher.main.restore_prompt": "是否以 HTML 页面打开最近一次终端备份？[Y/n]（默认 Y，{seconds} 秒后自动选择）：",
+  "launcher.main.restore_opening": "[恢复] 正在浏览器中打开 {count} 个终端的历史记录页面...",
   "launcher.main.restore_open_failed": "[恢复] 无法打开 {path}",
-  "launcher.main.restore_skipped": "[恢复] 已跳过。"
+  "launcher.main.restore_skipped": "[恢复] 已跳过。",
+  "launcher.main.restore_conversation_prompt": "是否恢复上一次对话到各终端？[y/N]（默认 N，{seconds} 秒后自动选择）：",
+  "launcher.main.restore_conversation_queued": "[恢复] 已为 {count} 个终端排队：对应终端的 AI 启动后，pycore 会把该终端的历史记录和继续工作的提示词粘贴进去。",
+  "launcher.main.restore_conversation_failed": "[恢复] 无法排队恢复对话。"
 }

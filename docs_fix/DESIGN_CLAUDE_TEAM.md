@@ -72,6 +72,7 @@ One install per OS, called by dd (Linux `99_install_ai_tools.sh` runs `claude_te
 ## 6. Cross-device launch
 
 - Window Launcher menu option `1` (`--mode device`, `launcher.py` `OPTION_CROSS_DEVICE`) calls `grid_profile.enable_cross_device_mode`, which fills grid cells 1-8 with `claudeteam --device-slot <n>`; claudeteam resolves the device, profile and role.
+- The Window Launcher always opens the full terminal grid (columns x rows, cell 1 first): terminals already open are not counted and never shift the cell-to-command mapping. Only applications (browser, editors) keep the "already running, skip" guard.
 - Profiles (`device_profiles`, `{os}` = `windows`/`linux`): `gpu` = NVIDIA hardware, checked first (`gpu_hardware_present`, PCI vendor `10DE` on Windows): `pycore-lead`, `shell-{os}`. `desktop` = otherwise: `shell-{os}`, `pycore-ui`, `wordnew-lead`, `laravel-manager-lead`. `server` = Linux with no `graphical.target` and no `DISPLAY`/`WAYLAND_DISPLAY`: `laravel-remote`. Windows resolves only `gpu` or `desktop`. `CLAUDE_DEVICE_PROFILE` overrides detection. Slots beyond the profile run plain `claude`.
 - Session name `<Tailscale device>-<role>-<initials>` (hostname when Tailscale is not logged in) with `--remote-control <name>`; when Remote Control cannot be added at launch (for example a custom `ANTHROPIC_BASE_URL`), claudeteam prints the `/remote-control <name>` line to type.
 

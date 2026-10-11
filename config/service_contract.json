@@ -279,6 +279,7 @@
             "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/DESIGN_SHELL_HOSTS.md): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
             "namespaces": {
                 "windows_program_drive": "_<sys>_dev",
+                "windows_program_drive_temp": ".tmp",
                 "windows_data_drive": "www",
                 "linux_ext4": "/opt/core_node",
                 "linux_ntfs_shared_data": "/www/www",
@@ -308,15 +309,28 @@
                 "windows": "<program_drive>\\applications"
             },
             "downloads_root": {
-                "purpose": "Windows-only installer/package downloads (archives, setup files). Never on D: (shared data only); without E: they stay in legacy_program_dirs.downloads_root",
-                "windows": "<program_drive>\\_<sys>_dev\\Downloads"
+                "purpose": "Windows-only installer/package downloads (archives, setup files), in the program drive temp namespace (namespaces.windows_program_drive_temp). Never on D: (shared data only); without E: they stay in legacy_program_dirs.downloads_root. Step 1 moves legacy_program_dirs.superseded_downloads_roots here",
+                "windows": "<program_drive>\\.tmp\\Downloads"
             },
             "work_root": {
                 "purpose": "Windows-only scratch for unpacking, extracting and building program files. Never on D:; without E: the D:\\.tmp temp dir is used",
-                "windows": "<program_drive>\\_<sys>_dev\\work"
+                "windows": "<program_drive>\\_<sys>_dev\\work",
+                "prune": {
+                    "purpose": "Every session that resolves the work dir (GlobalVars.ps1, program_material_dirs.py) starts script in the background at most once per interval_minutes (stamp_name mtime, single-flight via lock_name, stale after lock_stale_minutes). Units are the top-level entries, except unit_containers (relative globs) whose children are units; a unit's age is its newest mtime/ctime below it, links not followed. Units idle over max_idle_days are deleted; then, while the dir exceeds max_mb, the oldest units idle over min_idle_hours. keep_entries (regenerable compile caches, relative globs) are never deleted. Deletion uses legacy_program_dirs.remove_script semantics (links removed as links, locked files kept). Never runs on the shared legacy_program_dirs.work_root or a filesystem root",
+                    "script": "scripts/pytools/fs_tools/prune_work_dir.py",
+                    "max_mb": 500,
+                    "max_idle_days": 7,
+                    "min_idle_hours": 12,
+                    "interval_minutes": 360,
+                    "lock_stale_minutes": 120,
+                    "keep_entries": ["node-compile-cache", "v8-compile-cache", "VBCSCompiler", "MSBuildTemp", "claude_voice_dictation_settings.json"],
+                    "unit_containers": ["claude", "claude/*", "pytools"],
+                    "stamp_name": ".cn_prune_stamp",
+                    "lock_name": ".cn_prune.lock"
+                }
             },
             "legacy_program_dirs": {
-                "purpose": "Pre-D30 Windows program dirs on D: (user-approved migration 2026-10-03), so D: holds shared data only: D:\\.dev_<sys> -> E:\\_<sys>_dev, D:\\applications -> E:\\applications, D:\\.tmp\\Downloads -> E:\\_<sys>_dev\\Downloads, D:\\.pnpm-store -> <cache_root.windows>\\pnpm-store, D:\\www\\cache\\core_node\\downloads -> downloads_root, D:\\www\\cache\\pip -> <cache_root.windows>\\pip (D:\\.tmp itself stays: shared temp). Migration branch only (a fresh install has no old dir): while an old dir still holds program entries, Step 1 (1) copies every entry not yet in manifest_name with PowerShell Copy-Item (in-use files still copy), recreates inner links (broken ones are dropped) and verifies every file; any failure stops here and nothing is deleted; (2) switches: records the verified set in the manifest, rewrites the old and superseded_tool_roots in E: text files, re-roots PATH and every environment variable (WindowsPathFunction.ps1 moveroot), launcher .exe files (relocate_script), shortcuts, scheduled tasks and registry (SystemReferenceRelocation.ps1), runs scoop reset * and records the live dirs (windows_resolved_vars); (3) deletes each D: entry file by file with remove_script (locked files stay until the next run), removes obsolete_staging_suffix leftovers, moves entries matching keep_patterns (models, drafts) to kept_data_root\\<target dir name> on D:, and removes the old dir once empty. No link is left at an old path",
+                "purpose": "Pre-D30 Windows program dirs on D: (user-approved migration 2026-10-03), so D: holds shared data only: D:\\.dev_<sys> -> E:\\_<sys>_dev, D:\\applications -> E:\\applications, D:\\.tmp\\Downloads and superseded_downloads_roots -> downloads_root, D:\\.pnpm-store -> <cache_root.windows>\\pnpm-store, D:\\www\\cache\\core_node\\downloads -> downloads_root, D:\\www\\cache\\pip -> <cache_root.windows>\\pip (D:\\.tmp itself stays: shared temp). Migration branch only (a fresh install has no old dir): while an old dir still holds program entries, Step 1 (1) copies every entry not yet in manifest_name with PowerShell Copy-Item (in-use files still copy), recreates inner links (broken ones are dropped) and verifies every file; any failure stops here and nothing is deleted; (2) switches: records the verified set in the manifest, rewrites the old and superseded_tool_roots in E: text files, re-roots PATH and every environment variable (WindowsPathFunction.ps1 moveroot), launcher .exe files (relocate_script), shortcuts, scheduled tasks and registry (SystemReferenceRelocation.ps1), runs scoop reset * and records the live dirs (windows_resolved_vars); (3) deletes each D: entry file by file with remove_script (locked files stay until the next run), removes obsolete_staging_suffix leftovers, moves entries matching keep_patterns (models, drafts) to kept_data_root\\<target dir name> on D:, and removes the old dir once empty. No link is left at an old path",
                 "tool_root": "D:\\.dev_<sys>",
                 "app_root": "D:\\applications",
                 "downloads_root": "D:\\.tmp\\Downloads",
@@ -328,6 +342,7 @@
                 "keep_patterns": ["*model*", "*weight*", "*checkpoint*", "huggingface", "datasets", "*Drafts*"],
                 "kept_data_root": "D:\\www\\program_data",
                 "superseded_tool_roots": ["E:\\core_node_compiler\\_<sys>_compiler", "E:\\core_node_compiler\\.dev_<sys>"],
+                "superseded_downloads_roots": ["E:\\_<sys>_dev\\Downloads"],
                 "obsolete_staging_suffix": ".cn_moving",
                 "repairs_marker_name": ".cn_repairs_pending",
                 "manifest_name": ".cn_migrated",
@@ -345,6 +360,15 @@
                 "windows": "<program_drive>\\_<sys>_dev\\cache",
                 "windows_d_fallback": "D:\\www\\cache",
                 "linux": "/opt/core_node/cache"
+            },
+            "cache_prune": {
+                "purpose": "After every dd install step (Windows Invoke-InstallerStepScript, Linux run_install_script) and AI CLI upgrades, script drops old tool caches. Every run: pnpm store version dirs older than the live one (pnpm store path), corepack package-manager versions older than the newest, pip's legacy http cache once http-v2 exists. When a tool was upgraded or installed globally (fingerprint: executable path+mtime and global node_modules mtime) or interval_days passed: pnpm store prune, npm cache verify, uv cache prune, composer clear-cache --gc. Stamp (fingerprints, last full run) and lock live in the cache root",
+                "script": "scripts/pytools/fs_tools/prune_tool_caches.py",
+                "interval_days": 7,
+                "command_timeout_seconds": 1800,
+                "lock_stale_minutes": 120,
+                "stamp_name": ".cn_cache_prune_stamp",
+                "lock_name": ".cn_cache_prune.lock"
             },
             "cache_subdirs": [
                 "pnpm-store",

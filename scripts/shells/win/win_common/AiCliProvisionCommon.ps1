@@ -734,6 +734,7 @@ function Invoke-AiCliUpgradeInstall {
     Write-Host "[INFO] Falling back to the global package manager for $Label..." -ForegroundColor Cyan
     if (Invoke-AiCliPackageManagerInstall -Package $Package) {
         Write-Host "[INFO] $Label upgraded with the global package manager." -ForegroundColor Green
+        Invoke-CnToolCachePrune
         return
     }
     Write-Host "[WARN] $Label upgrade failed; keeping the installed version." -ForegroundColor Yellow

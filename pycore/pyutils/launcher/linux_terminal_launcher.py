@@ -126,8 +126,7 @@ class LinuxTerminalLauncher:
     def _grid_shell_inner(self, title, startup=None):
         """
         Build the ``bash -lc`` snippet that opens an interactive grid shell
-        whose window keeps its ``pylauncher-NN`` title (the launch_guard
-        deficit counter matches that marker). Falls back to a plain login
+        whose window keeps its ``pylauncher-NN`` title. Falls back to a plain login
         shell when the rc file cannot be written.
 
         Every shell starts in PROJECT_ROOT; with ``startup`` the shell is
@@ -210,7 +209,7 @@ class LinuxTerminalLauncher:
     # Public surface (mirrors WindowsTerminalLauncher.launch_windows)
     # ------------------------------------------------------------------ #
 
-    def launch_windows(self, windows_config, delay=0.2, ubuntu_count=0, first_cell=0):
+    def launch_windows(self, windows_config, delay=0.2, ubuntu_count=0):
         """
         Launch the terminal grid described by ``windows_config``.
 
@@ -220,8 +219,6 @@ class LinuxTerminalLauncher:
             delay: Delay between launches in seconds.
             ubuntu_count: Windows/WSL split count. IGNORED on Linux -- every
                 entry is launched as a native terminal.
-            first_cell: Grid index of the first entry (deficit top-up); selects
-                each cell's grid_startup_command.
 
         Returns:
             list: Best-effort list of launched PIDs.
@@ -229,15 +226,14 @@ class LinuxTerminalLauncher:
         # Normalise to 4-tuples up front so both strategies share the shape.
         configs = [tuple(entry[:4]) for entry in windows_config]
         # Optional per-cell pixel spacing hint (fields 6-7 of an 8-tuple, see
-        # WindowLauncher.calculate_window_layout): lets a deficit top-up subset
-        # (e.g. one row) still size windows to a full cell.
+        # WindowLauncher.calculate_window_layout): lets a single-column or
+        # single-row grid still size windows to a full cell.
         cell_hint = None
         for entry in windows_config:
             if len(entry) >= 8 and entry[6] and entry[7]:
                 cell_hint = (int(entry[6]), int(entry[7]))
                 break
         self._cell_hint = cell_hint
-        self._first_cell = first_cell
         count = len(configs)
         if count == 0:
             ColorPrint.plain("No windows to launch.")
@@ -363,13 +359,13 @@ class LinuxTerminalLauncher:
             title = f"pylauncher-{i:0{width}d}"
             # Inner command: self-set a (cosmetic, fallback-only) unique title,
             # then run the target command or the grid shell (which re-asserts
-            # the title every prompt, so the deficit counter keeps seeing the
-            # pylauncher-NN marker). Placement matches by id, not title.
+            # the title every prompt, so the window keeps its pylauncher-NN
+            # marker). Placement matches by id, not title.
             if self.command:
                 inner = "printf '\\033]0;%s\\007'; exec %s" % (title, self.command)
             else:
                 inner = self._grid_shell_inner(
-                    title, grid_startup_command(self._first_cell + i - 1))
+                    title, grid_startup_command(i - 1))
             # A geometry hint gets the window roughly placed up front (harmless on
             # emulators that ignore it); the id-based move then snaps it exactly.
             geometry = f"{cols}x{rows}+{x}+{y}" if geom_capable else None
@@ -457,10 +453,10 @@ class LinuxTerminalLauncher:
                 argv = self._argv._build_x11_argv(emulator, title, geometry, self.command)
             else:
                 # Interactive shell: use the grid-shell snippet so the window
-                # keeps its pylauncher-NN title (deficit counting matches it).
+                # keeps its pylauncher-NN title.
                 argv = self._argv._build_titled_argv(
                     emulator,
-                    self._grid_shell_inner(title, grid_startup_command(self._first_cell + i - 1)),
+                    self._grid_shell_inner(title, grid_startup_command(i - 1)),
                     geometry)
             if argv is None:
                 continue

@@ -259,6 +259,9 @@ function Get-CnProgramDirectoryMappings {
     $cnMappings += [pscustomobject]@{ Name = 'APP_INSTALL_DIR'; Legacy = $Global:CN_LEGACY_APP_ROOT; Target = $Global:CN_APP_ROOT; Superseded = @() }
     $cnMappings += [pscustomobject]@{ Name = 'DOWNLOADS_DIR'; Legacy = $Global:CN_LEGACY_DOWNLOADS_ROOT; Target = $Global:CN_DOWNLOADS_ROOT; Superseded = @() }
     $cnMappings += [pscustomobject]@{ Name = 'DOWNLOADS_CACHE'; Legacy = $Global:CN_LEGACY_DOWNLOADS_CACHE; Target = $Global:CN_DOWNLOADS_ROOT; Superseded = @() }
+    foreach ($cnSupersededDownloads in @($Global:CN_SUPERSEDED_DOWNLOADS_ROOTS)) {
+        $cnMappings += [pscustomobject]@{ Name = 'DOWNLOADS_DIR'; Legacy = $cnSupersededDownloads; Target = $Global:CN_DOWNLOADS_ROOT; Superseded = @() }
+    }
     $cnMappings += [pscustomobject]@{ Name = 'PIP_CACHE'; Legacy = $Global:CN_LEGACY_PIP_CACHE; Target = (Join-Path $Global:CN_CACHE_ROOT 'pip'); Superseded = @() }
     $cnMappings += [pscustomobject]@{ Name = 'PNPM_STORE'; Legacy = $Global:CN_LEGACY_PNPM_STORE; Target = (Join-Path $Global:CN_CACHE_ROOT $Global:CN_PNPM_STORE_SUBDIR); Superseded = @() }
     return $cnMappings
@@ -609,6 +612,42 @@ function Get-CnMigrationPython {
         return (Get-Command python).Source
     }
     return ''
+}
+
+# Starts the work-dir pruner (contract paths.drive_layout.work_root.prune) in
+# the background at most once per interval; never on the shared legacy work_root.
+function Start-CnWorkDirPrune {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$WorkDir
+    )
+
+    $cnStampItem = $null
+    $cnPythonExe = ''
+
+    if ($WorkDir.TrimEnd('\') -ieq $Global:CN_LEGACY_WORK_ROOT.TrimEnd('\')) {
+        return
+    }
+    $cnStampItem = Get-Item -LiteralPath (Join-Path $WorkDir $Global:CN_WORK_PRUNE_STAMP_NAME) -Force -ErrorAction SilentlyContinue
+    if ($cnStampItem -and $cnStampItem.LastWriteTime -gt (Get-Date).AddMinutes(-$Global:CN_WORK_PRUNE_INTERVAL_MINUTES)) {
+        return
+    }
+    $cnPythonExe = Get-CnMigrationPython
+    if (-not $cnPythonExe) {
+        return
+    }
+    Start-Process -FilePath $cnPythonExe -ArgumentList @(('"{0}"' -f $Global:CN_WORK_PRUNE_SCRIPT), ('"{0}"' -f $WorkDir)) -WindowStyle Hidden | Out-Null
+}
+
+# Drops old package-manager caches after an install or upgrade (contract
+# paths.drive_layout.cache_prune); cheap when nothing changed.
+function Invoke-CnToolCachePrune {
+    $cnPythonExe = Get-CnMigrationPython
+
+    if (-not $cnPythonExe) {
+        return
+    }
+    & $cnPythonExe $Global:CN_CACHE_PRUNE_SCRIPT $Global:CN_CACHE_ROOT | Out-Host
 }
 
 # Deletes an old D: entry file by file through the Python remover: locked
@@ -1262,10 +1301,15 @@ else {
     $Global:CN_DOWNLOADS_ROOT = ''
     $Global:CN_WORK_ROOT = $Global:CN_LEGACY_WORK_ROOT
 }
+$Global:CN_SUPERSEDED_DOWNLOADS_ROOTS = @(& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.superseded_downloads_roots' | ForEach-Object { Resolve-CnDriveLayoutPath -Template ([string]$_) -Replacements @{ '<sys>' = $__sccSystemName } })
 $Global:CN_LEGACY_KEEP_PATTERNS = @(& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.keep_patterns' | ForEach-Object { [string]$_ })
 $Global:CN_WINDOWS_PATH_FUNCTION = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
 $Global:CN_LEGACY_MANIFEST_NAME = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.manifest_name')
 $Global:CN_LEGACY_REMOVE_SCRIPT = Join-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) ([string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.remove_script'))
+$Global:CN_WORK_PRUNE_SCRIPT = Join-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) ([string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.work_root.prune.script'))
+$Global:CN_WORK_PRUNE_STAMP_NAME = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.work_root.prune.stamp_name')
+$Global:CN_WORK_PRUNE_INTERVAL_MINUTES = [int](& $__sccGetContractValue -ContractPath 'paths.drive_layout.work_root.prune.interval_minutes')
+$Global:CN_CACHE_PRUNE_SCRIPT = Join-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) ([string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.cache_prune.script'))
 $Global:CN_LEGACY_RELOCATE_SCRIPT = Join-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) ([string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.legacy_program_dirs.relocate_script'))
 # scoop.cmd below a tool root (GlobalVars.ps1 SCOOP_EXE)
 $Global:CN_SCOOP_SHIM_SUBPATH = 'scoop\shims\scoop.cmd'

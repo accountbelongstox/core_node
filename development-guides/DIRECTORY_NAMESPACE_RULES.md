@@ -8,7 +8,7 @@ Every directory the project's scripts or programs create lives under **one names
 
 | Where | Namespace root | What goes under it |
 |---|---|---|
-| Windows program drive E: (when it qualifies) | `E:\_<sys>_dev\` (e.g. `E:\_win10_dev`) and `E:\applications\` | tool installs directly under `_<sys>_dev\`, plus `trees\<ns>\` (junction targets for node_modules/vendor/.venv, D28) and `cache\` (package caches); installed apps under `applications\` |
+| Windows program drive E: (when it qualifies) | `E:\_<sys>_dev\` (e.g. `E:\_win10_dev`), `E:\applications\` and `E:\.tmp\` | tool installs directly under `_<sys>_dev\`, plus `trees\<ns>\` (junction targets for node_modules/vendor/.venv, D28) and `cache\` (package caches); installed apps under `applications\`; installer/package downloads under `.tmp\Downloads\` |
 | Windows data drive D: | `D:\www\` | the shared data dir `D:\www\core_node\` (backups, logs, runtime data), web runtimes such as `D:\www\frankenphp\`, and everything else a script creates on D: |
 | Linux ext4 | `/opt/core_node/` | `_<os>_<ver>/` (tool installs), `trees/<ns>/` (per-project heavy dirs), `cache/` (package caches) |
 | Linux NTFS share (`/www` = D:) | `/www/www/` for shared data (= `D:\www\`); `/www/core_node_compiler/` only as the empty mount point of the ext4 trees bind (`trees` below it) | nothing else. Code stays where the user keeps it |
@@ -23,7 +23,7 @@ Every directory the project's scripts or programs create lives under **one names
   - They are listed in the audit record and left in place.
   - Moving them into a namespace is a migration step that needs the user's explicit approval. Scripts keep reading them until the migration is done.
   - Approved (2026-10-03), so D: holds shared data only (contract `paths.drive_layout.legacy_program_dirs`):
-    - `D:\.dev_<sys>` -> `E:\_<sys>_dev`, `D:\applications` -> `E:\applications`, `D:\.tmp\Downloads` -> `E:\_<sys>_dev\Downloads`, `D:\.pnpm-store` -> `E:\_<sys>_dev\cache\pnpm-store`. `D:\.tmp` stays (shared temp). Package caches point at `E:\_<sys>_dev\cache`.
+    - `D:\.dev_<sys>` -> `E:\_<sys>_dev`, `D:\applications` -> `E:\applications`, `D:\.tmp\Downloads` and `E:\_<sys>_dev\Downloads` -> `E:\.tmp\Downloads`, `D:\.pnpm-store` -> `E:\_<sys>_dev\cache\pnpm-store`. `D:\.tmp` stays (shared temp). Package caches point at `E:\_<sys>_dev\cache`.
     - Step 1, migration branch only (a fresh install has no old dir): copy every entry with `Copy-Item` (in-use files still copy) and verify every file; any failure stops the move and nothing is deleted.
     - Switch: re-root PATH and every environment variable (`WindowsPathFunction.ps1 moveroot`), E: text files, pip/uv launcher .exe files, shortcuts, scheduled tasks and registry (`SystemReferenceRelocation.ps1`), then `scoop reset *`.
     - Delete the D: entries file by file (locked files stay until the next run); data entries matching `keep_patterns` (models, drafts) move to `D:\www\program_data\<target dir name>`; the old dir is removed once empty. No link is left at an old path.
