@@ -12,6 +12,8 @@ $script:SrrShortcutDirs = @(
     [Environment]::GetFolderPath('CommonStartMenu'),
     (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch')
 )
+# References left on the old root by the current Move-SystemReferenceRoot call.
+$script:SrrFailedCount = 0
 $script:SrrRegistryRoots = @(
     @{ Hive = [Microsoft.Win32.Registry]::LocalMachine; Path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' },
     @{ Hive = [Microsoft.Win32.Registry]::LocalMachine; Path = 'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall' },
@@ -73,6 +75,7 @@ function Move-ShortcutRoot {
             }
             catch {
                 Write-Warning ('[RELOCATE] Shortcut {0} not updated: {1}' -f $file.FullName, $_.Exception.Message)
+                $script:SrrFailedCount++
             }
         }
     }
@@ -126,6 +129,7 @@ function Move-ScheduledTaskRoot {
         }
         catch {
             Write-Warning ('[RELOCATE] Task {0}{1} not updated: {2}' -f $task.TaskPath, $task.TaskName, $_.Exception.Message)
+            $script:SrrFailedCount++
         }
     }
     Write-Host ('[RELOCATE] {0} scheduled task(s) re-rooted {1} -> {2}' -f $count, $OldRoot, $NewRoot) -ForegroundColor Green
@@ -230,6 +234,7 @@ function Move-SrrRegistryTreeRoot {
         }
         catch {
             Write-Warning ('[RELOCATE] Registry {0}\{1} not updated: {2}' -f $Hive.Name, $keyPath, $_.Exception.Message)
+            $script:SrrFailedCount++
         }
     }
     return $count
@@ -253,7 +258,8 @@ function Move-RegistryRoot {
 }
 
 # Shortcuts, scheduled tasks and registry in one call; a failure in one part is
-# reported and never stops the others.
+# reported and never stops the others. Returns the number of references that
+# could not be re-rooted.
 function Move-SystemReferenceRoot {
     param(
         [string]$OldRoot,
@@ -261,12 +267,15 @@ function Move-SystemReferenceRoot {
     )
     $step = ''
 
+    $script:SrrFailedCount = 0
     foreach ($step in @('Move-ShortcutRoot', 'Move-ScheduledTaskRoot', 'Move-RegistryRoot')) {
         try {
             & $step -OldRoot $OldRoot -NewRoot $NewRoot
         }
         catch {
             Write-Warning ('[RELOCATE] {0} failed for {1}: {2}' -f $step, $OldRoot, $_.Exception.Message)
+            $script:SrrFailedCount++
         }
     }
+    return $script:SrrFailedCount
 }

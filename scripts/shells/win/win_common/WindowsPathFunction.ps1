@@ -220,10 +220,39 @@ function Normalize-WindowsPath {
     return $p
 }
 
+# Keeps exactly one valid backup per scope: an empty value is never written (the previous
+# backup stays), and older backups are removed only after the new one is written non-empty.
+function Save-PathScopeBackup {
+    param(
+        [string]$BackupDir,
+        [string]$Prefix,
+        [string]$Timestamp,
+        [string]$Value
+    )
+    $namePattern = '^{0}\d{{8}}_\d{{6}}\.bak$' -f [regex]::Escape($Prefix)
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        Write-Log "Skipped $Prefix backup: value is empty" -color "Yellow"
+        return
+    }
+    $backupFile = Join-Path $BackupDir ("{0}{1}.bak" -f $Prefix, $Timestamp)
+    Set-Content -Path $backupFile -Value $Value -ErrorAction Stop
+    $written = Get-Item -LiteralPath $backupFile -ErrorAction Stop
+    if ($written.Length -le 0) {
+        Remove-Item -LiteralPath $backupFile -Force -ErrorAction SilentlyContinue
+        Write-Log "Discarded empty $Prefix backup; previous backups kept" -color "Yellow"
+        return
+    }
+    Write-Log "Backup created at $backupFile" -color "Green"
+    $oldFiles = @(Get-ChildItem -Path $BackupDir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match $namePattern -and $_.FullName -ne $written.FullName })
+    foreach ($file in $oldFiles) {
+        Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Backup-Environment {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupDir = "D:\.tmp\.GlobalEnv"
-    $backupFile = Join-Path $backupDir ("path_{0}.bak" -f $timestamp)
 
     try {
         if (-not (Test-Path $backupDir)) {
@@ -231,23 +260,10 @@ function Backup-Environment {
             Write-Log "Created backup directory: $backupDir" -color "Yellow"
         }
 
-        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-        Set-Content -Path $backupFile -Value $currentPath -ErrorAction Stop
-        Write-Log "Backup created at $backupFile" -color "Green"
-        $userBackupFile = Join-Path $backupDir ("path_user_{0}.bak" -f $timestamp)
-        Set-Content -Path $userBackupFile -Value (Get-RawScopePath -Scope "User") -ErrorAction Stop
-        Write-Log "User PATH backup created at $userBackupFile" -color "Green"
-
-        $backupFiles = @(Get-ChildItem -Path $backupDir -Filter "path_*.bak" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
-        if ($backupFiles -and $backupFiles.Count -gt 100) {
-            $filesToDelete = @($backupFiles | Select-Object -Skip 100)
-            if ($filesToDelete -and $filesToDelete.Count -gt 0) {
-                foreach ($file in $filesToDelete) {
-                    Remove-Item -Path $file.FullName -Force -ErrorAction SilentlyContinue
-                }
-                Write-Log "Cleaned up $($filesToDelete.Count) old backup files, keeping the most recent 100" -color "Yellow"
-            }
-        }
+        Save-PathScopeBackup -BackupDir $backupDir -Prefix "path_" -Timestamp $timestamp `
+            -Value ([Environment]::GetEnvironmentVariable("Path", "Machine"))
+        Save-PathScopeBackup -BackupDir $backupDir -Prefix "path_user_" -Timestamp $timestamp `
+            -Value (Get-RawScopePath -Scope "User")
     } catch {
         Write-Log "Failed to create backup: $($_.Exception.Message)" -color "Yellow"
     }

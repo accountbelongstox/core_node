@@ -92,6 +92,8 @@
   },
   "gitsync_watch": {
     "conflict_title": "gitsync のマージ競合 - すぐに修正してください",
-    "conflict_message": "自動 gitsync はマージ競合で停止しました。詳細と AI 用プロンプト: {path}。クリックでプロンプトをコピーします。"
+    "conflict_message": "自動 gitsync はマージ競合で停止しました。詳細と AI 用プロンプト: {path}。クリックでプロンプトをコピーします。",
+    "remote_moved_title": "gitsync: 他のマシンがプッシュしました",
+    "remote_moved_message": "このマシンの pull と push の間に、他のマシンがリモートへプッシュしました。ローカルのコミットは保持され、次回の自動 gitsync でマージしてプッシュします。"
   }
 }

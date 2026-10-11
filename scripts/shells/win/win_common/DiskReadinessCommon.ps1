@@ -43,13 +43,8 @@ $script:DISK_ALIGN_BYTES = 1MB
 $script:DISK_GPT_TAIL_BYTES = 1MB
 $script:DISK_MERGE_SPACE_FACTOR = 1.05
 $script:DISK_STEP_CONFIRM_TIMEOUT_SECONDS = 10
-$script:DISK_CONSOLE_DEFAULT_WIDTH = 119
-$script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "robocopy.exe"
-$script:DISK_ROBOCOPY_FAILURE_CODE = 8
 $script:DISK_ROBOCOPY_ARGUMENTS = @("/MIR", "/B", "/COPY:DATSO", "/DCOPY:DAT", "/SL", "/SJ", "/R:1", "/W:1", "/MT:16", "/NP", "/BYTES", "/XD", '$RECYCLE.BIN', "System Volume Information")
 $script:DISK_ROBOCOPY_LOG_FILE = "core_node_program_drive_merge.log"
-$script:DISK_ROBOCOPY_POLL_MS = 2000
-$script:DISK_ROBOCOPY_SUMMARY_LINES = 14
 $script:DISK_NTFS_SECURITY_TYPE = "CoreNode.NtfsLegacySecurity"
 $script:DISK_NTFS_SECURITY_SOURCE = @'
 using System;
@@ -812,14 +807,6 @@ function Get-LabeledPartitions {
     @(Get-Partition -DiskNumber $DiskNumber | Where-Object { (Get-PartitionLabel -Partition $_) -eq $Label })
 }
 
-function Get-ConsoleLineWidth {
-    try {
-        return [math]::Max(20, $Host.UI.RawUI.WindowSize.Width - 1)
-    } catch {
-        return $script:DISK_CONSOLE_DEFAULT_WIDTH
-    }
-}
-
 function Update-ProgramDriveMarker {
     param(
         [Parameter(Mandatory = $true)] [string]$TargetLetter
@@ -874,44 +861,12 @@ function Invoke-ProgramDriveCopy {
         [Parameter(Mandatory = $true)] [string]$SourceRoot,
         [Parameter(Mandatory = $true)] [string]$TargetRoot
     )
-    $logPath = Join-Path (Join-Path $env:SystemRoot "Temp") $script:DISK_ROBOCOPY_LOG_FILE
-    $arguments = @($SourceRoot, $TargetRoot) + $script:DISK_ROBOCOPY_ARGUMENTS + @(("/UNILOG:{0}" -f $logPath))
-    $argumentLine = ($arguments | ForEach-Object { if ($_ -match '\s') { '"{0}"' -f $_ } else { $_ } }) -join " "
     $sourceDrive = New-Object System.IO.DriveInfo($SourceRoot)
     $targetDrive = New-Object System.IO.DriveInfo($TargetRoot)
-    $sourceBytes = [math]::Max([long]1, $sourceDrive.TotalSize - $sourceDrive.TotalFreeSpace)
-    $startBytes = $targetDrive.TotalSize - $targetDrive.TotalFreeSpace
-    $lineWidth = Get-ConsoleLineWidth
-    $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $process = $null
-    $copiedBytes = 0
-    $speed = 0
-    $etaText = ""
-    $currentFile = ""
-    $status = ""
+    $pendingBytes = [long][math]::Max([long]1, ($sourceDrive.TotalSize - $sourceDrive.TotalFreeSpace) - ($targetDrive.TotalSize - $targetDrive.TotalFreeSpace))
+    $result = Invoke-CnRobocopy -Source $SourceRoot -Destination $TargetRoot -Arguments $script:DISK_ROBOCOPY_ARGUMENTS -LogName $script:DISK_ROBOCOPY_LOG_FILE -TotalBytes $pendingBytes
 
-    Write-ColorMessage -Message ("robocopy {0}" -f $argumentLine) -Type "Info"
-    Write-ColorMessage -Message ("Full log: {0}" -f $logPath) -Type "Info"
-    $process = Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList $argumentLine -WindowStyle Hidden -PassThru
-    $null = $process.Handle
-    while (-not $process.WaitForExit($script:DISK_ROBOCOPY_POLL_MS)) {
-        $targetDrive = New-Object System.IO.DriveInfo($TargetRoot)
-        $copiedBytes = ($targetDrive.TotalSize - $targetDrive.TotalFreeSpace) - $startBytes
-        $speed = [math]::Max([double]0, $copiedBytes) / [math]::Max([double]1, $stopWatch.Elapsed.TotalSeconds)
-        $etaText = if ($speed -gt 0) { [TimeSpan]::FromSeconds([math]::Max([double]0, ($sourceBytes - $startBytes - $copiedBytes) / $speed)).ToString('hh\:mm\:ss') } else { "--:--:--" }
-        try {
-            $currentFile = [string](Get-Content -LiteralPath $logPath -Tail 1 -Encoding Unicode -ErrorAction Stop)
-        } catch {
-            $currentFile = ""
-        }
-        $status = "{0,5:N1}%  {1:N1}/{2:N1} GB  {3:N1} MB/s  ETA {4}  {5}" -f ([math]::Min([double]100, 100 * ($startBytes + $copiedBytes) / $sourceBytes)), (($startBytes + $copiedBytes) / 1GB), ($sourceBytes / 1GB), ($speed / 1MB), $etaText, $currentFile.Split("`t")[-1].Trim()
-        $status = $status.Substring(0, [math]::Min($status.Length, $lineWidth))
-        Write-Host ("`r{0}" -f $status.PadRight($lineWidth)) -NoNewline
-    }
-    Write-Host ""
-    Get-Content -LiteralPath $logPath -Tail $script:DISK_ROBOCOPY_SUMMARY_LINES -Encoding Unicode | Out-Host
-    Write-ColorMessage -Message ("robocopy exit code {0} after {1}" -f $process.ExitCode, $stopWatch.Elapsed.ToString('hh\:mm\:ss')) -Type "Info"
-    return ($process.ExitCode -lt $script:DISK_ROBOCOPY_FAILURE_CODE)
+    return ($result.ExitCode -lt $Global:CN_ROBOCOPY_FAILURE_CODE)
 }
 
 function Get-DataDriveShrinkableMB {

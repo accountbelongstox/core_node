@@ -49,6 +49,38 @@ function Install-BunGlobal {
     }
 }
 
+# pnpm refuses global installs (`pnpm setup` included) while global-bin-dir is not on PATH
+# (ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH): create it and put it on PATH before configuring pnpm.
+function Set-PnpmGlobalDirectories {
+    param(
+        [Parameter(Mandatory = $true)][string]$GlobalDir,
+        [Parameter(Mandatory = $true)][string]$GlobalBinDir
+    )
+    $processPaths = @()
+
+    if (-not (Test-Path -LiteralPath $GlobalBinDir)) {
+        New-Item -ItemType Directory -Path $GlobalBinDir -Force | Out-Null
+    }
+    Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $GlobalBinDir" -Type "Info"
+    Add-Path -newPath $GlobalBinDir
+    $processPaths = @($env:Path -split ';' | ForEach-Object { $_.TrimEnd('\') })
+    if ($processPaths -notcontains $GlobalBinDir.TrimEnd('\')) {
+        $env:Path = "$GlobalBinDir;$env:Path"
+    }
+    Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-dir: $GlobalDir" -Type "Info"
+    & $PnpmExePath config set global-dir $GlobalDir
+    Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-bin-dir: $GlobalBinDir" -Type "Info"
+    & $PnpmExePath config set global-bin-dir $GlobalBinDir
+    # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is a workspace-level
+    # setting in pnpm 10+, so a GLOBAL `pnpm config set` is rejected
+    # (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY). It's the default, so we do
+    # not set it globally; the .pnpmrc carries it. Docs: https://pnpm.io/settings
+    Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
+    "Y" | & $PnpmExePath setup
+}
+
 function Remove-OldNodeVersions {
     Write-ColorMessage -Message "$SCRIPT_INDEX Checking for old Node.js versions..." -Type "Info"
 
@@ -259,28 +291,9 @@ function Install-PackageManagers {
         $pnpmGlobalDir = Join-Path $NodeJSInstallDir "pnpm-global"
         $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
 
-        & $PnpmExePath config set global-dir $pnpmGlobalDir
-        & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
-        # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is a workspace-level
-        # setting in pnpm 10+, so a GLOBAL `pnpm config set` is rejected
-        # (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY). It's the default, so we do
-        # not set it globally; the .pnpmrc carries it. Docs: https://pnpm.io/settings
-        "Y" | & $PnpmExePath setup
-
-        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
-        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
+        Set-PnpmGlobalDirectories -GlobalDir $pnpmGlobalDir -GlobalBinDir $pnpmGlobalBinDir
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
-
-        # Always ensure pnpm global bin directory is in PATH (repair step)
-        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"
-        if (Test-Path $pnpmGlobalBinDir) {
-            Add-Path -newPath $pnpmGlobalBinDir
-            Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Type "Warning"
-            Write-ColorMessage -Message "$SCRIPT_INDEX Will be added to PATH when directory is created" -Type "Info"
-        }
     }
 
     # Install yarn
@@ -397,27 +410,7 @@ function Verify-AndFix-AllConfigs {
         $pnpmGlobalDir = Join-Path $NodeJSInstallDir "pnpm-global"
         $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
 
-        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-dir: $pnpmGlobalDir" -Type "Info"
-        & $PnpmExePath config set global-dir $pnpmGlobalDir
-
-        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Info"
-        & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
-
-        # enable-pre-post-scripts is the default (pnpm 7+) and workspace-level in pnpm 10+;
-        # a global `pnpm config set` errors, so we do NOT set it globally. Docs: https://pnpm.io/settings
-
-        Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
-        "Y" | & $PnpmExePath setup
-
-        # Always ensure pnpm global bin directory is in PATH (repair step)
-        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"
-        if (Test-Path $pnpmGlobalBinDir) {
-            Add-Path -newPath $pnpmGlobalBinDir
-            Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Type "Warning"
-            Write-ColorMessage -Message "$SCRIPT_INDEX Will be added to PATH when directory is created" -Type "Info"
-        }
+        Set-PnpmGlobalDirectories -GlobalDir $pnpmGlobalDir -GlobalBinDir $pnpmGlobalBinDir
 
         Configure-PnpmRegistry
 
