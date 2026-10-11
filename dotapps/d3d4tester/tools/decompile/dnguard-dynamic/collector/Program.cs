@@ -15,6 +15,7 @@ internal static class Program
     public static int Main(string[] args)
     {
         string targetPath;
+        string sourcePath;
         string outputPath;
         string tokenText = string.Empty;
         int? methodToken = null;
@@ -31,11 +32,13 @@ internal static class Program
         DynamicMethodAcquisitionOptions options;
         NativeHvmAnalysisReport hvmReport;
         DynamicMethodAssemblyMergeReport mergeReport;
+        HvmMethodAliasReport aliasReport;
         HvmOperandResolutionReport resolutionReport;
         DynamicMethodPreparationReport preparationReport;
         DynamicMethodInvocationReport invocationReport;
         IReadOnlyList<DynamicMethodInvocationReport> invocationReports;
         IReadOnlyList<int> methodTokens;
+        IReadOnlyList<HvmMethodAliasMapping> aliasMappings;
         ISet<uint> selectedMethodTokens;
         HvmContextDocument contextDocument;
         HvmMethodMetadataDocument metadataDocument;
@@ -165,6 +168,20 @@ internal static class Program
                 Console.WriteLine($"HVM MERGE candidates={mergeReport.CandidateCount} merged={mergeReport.MergedMethodCount} failures={mergeReport.Failures.Count}");
                 return mergeReport.MergedMethodCount > 0 && mergeReport.Failures.Count == 0 ? 0 : 3;
             }
+            if (args.Length >= 5 && args[0] == "--map-hvm-aliases")
+            {
+                targetPath = Path.GetFullPath(args[1]);
+                sourcePath = Path.GetFullPath(args[2]);
+                outputPath = Path.GetFullPath(args[3]);
+                aliasMappings = args.Skip(4).Select(ParseAliasMapping).ToArray();
+                aliasReport = new HvmMethodAliasMapper().Map(targetPath, sourcePath, aliasMappings, outputPath,
+                    Console.WriteLine);
+                foreach (DynamicMethodFailure failure in aliasReport.Failures)
+                    Console.WriteLine($"HVM ALIAS FAILURE {failure.Token}: {failure.Message}");
+                Console.WriteLine($"HVM ALIASES recovered={aliasReport.RecoveredMethodCount} requested={aliasReport.RequestedCount} mapped={aliasReport.MappedCount} failures={aliasReport.Failures.Count}");
+                return aliasReport.MappedCount == aliasReport.RequestedCount && aliasReport.Failures.Count == 0
+                    ? 0 : 3;
+            }
             if (args.Length == 5 && args[0] == "--disassemble-hvm")
             {
                 targetPath = Path.GetFullPath(args[1]);
@@ -210,7 +227,7 @@ internal static class Program
             }
             if (args.Length < 2)
             {
-                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] [--tokens <hex-token,...>] [--delay <seconds>] | --catalog <target> <output> | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --invoke-static-many <target> <hex-token>... | --invoke-static-many-delayed <target> <seconds> <hex-token>... | --invoke-static-many-event <target> <event-name> <hex-token>... | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> [hex-token...] | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
+                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] [--tokens <hex-token,...>] [--delay <seconds>] | --catalog <target> <output> | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --invoke-static-many <target> <hex-token>... | --invoke-static-many-delayed <target> <seconds> <hex-token>... | --invoke-static-many-event <target> <event-name> <hex-token>... | --merge-hvm <base> <output> <candidates...> | --map-hvm-aliases <base> <recovered> <output> <target=source...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> [hex-token...] | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
                 return 2;
             }
 
@@ -262,5 +279,20 @@ internal static class Program
             Console.Error.WriteLine(exception);
             return 1;
         }
+    }
+
+    private static HvmMethodAliasMapping ParseAliasMapping(string value)
+    {
+        string[] parts = value.Split('=');
+        int targetToken;
+        int sourceToken;
+
+        if (parts.Length != 2)
+            throw new FormatException($"Invalid HVM alias mapping: {value}");
+        targetToken = int.Parse(parts[0].Replace("0x", string.Empty), NumberStyles.HexNumber,
+            CultureInfo.InvariantCulture);
+        sourceToken = int.Parse(parts[1].Replace("0x", string.Empty), NumberStyles.HexNumber,
+            CultureInfo.InvariantCulture);
+        return new HvmMethodAliasMapping(targetToken, sourceToken);
     }
 }

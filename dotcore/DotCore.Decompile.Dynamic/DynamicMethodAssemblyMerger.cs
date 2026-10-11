@@ -47,29 +47,8 @@ public sealed class DynamicMethodAssemblyMerger
             try
             {
                 ModuleDefinition candidateModule = ModuleDefinition.FromFile(candidatePath);
-                foreach (MethodDefinition candidateMethod in candidateModule.GetAllTypes().SelectMany(type => type.Methods))
-                {
-                    int token = candidateMethod.MetadataToken.ToInt32();
-                    if (!targetMethods.TryGetValue(token, out MethodDefinition? targetMethod)
-                        || candidateMethod.CilMethodBody == null || targetMethod.CilMethodBody == null
-                        || DnGuardMethodBodyClassifier.IsPlaceholder(candidateMethod.CilMethodBody)
-                        || !DnGuardMethodBodyClassifier.IsPlaceholder(targetMethod.CilMethodBody))
-                        continue;
-
-                    try
-                    {
-                        targetMethod.CilMethodBody = CloneBody(candidateMethod.CilMethodBody, targetMethod,
-                            targetModule);
-                        mergedMethodCount++;
-                        writeLog($"Merged runtime method {targetMethod.MetadataToken} from {Path.GetFileName(candidatePath)}.");
-                    }
-                    catch (Exception exception)
-                    {
-                        string failureToken = targetMethod.MetadataToken.ToString();
-                        failures.Add(new DynamicMethodFailure(failureToken, exception.Message));
-                        writeLog($"Merge failed for method {failureToken} from {candidatePath}: {exception.Message}");
-                    }
-                }
+                mergedMethodCount += MergeRecoveredBodies(targetModule, targetMethods, candidateModule,
+                    Path.GetFileName(candidatePath), failures, writeLog);
             }
             catch (Exception exception)
             {
@@ -94,7 +73,39 @@ public sealed class DynamicMethodAssemblyMerger
             failures.AsReadOnly());
     }
 
-    private static CilMethodBody CloneBody(CilMethodBody source, MethodDefinition targetMethod,
+    internal static int MergeRecoveredBodies(ModuleDefinition targetModule,
+        IReadOnlyDictionary<int, MethodDefinition> targetMethods, ModuleDefinition candidateModule,
+        string candidateName, ICollection<DynamicMethodFailure> failures, Action<string> writeLog)
+    {
+        int mergedMethodCount = 0;
+
+        foreach (MethodDefinition candidateMethod in candidateModule.GetAllTypes().SelectMany(type => type.Methods))
+        {
+            int token = candidateMethod.MetadataToken.ToInt32();
+            if (!targetMethods.TryGetValue(token, out MethodDefinition? targetMethod)
+                || candidateMethod.CilMethodBody == null || targetMethod.CilMethodBody == null
+                || DnGuardMethodBodyClassifier.IsPlaceholder(candidateMethod.CilMethodBody)
+                || !DnGuardMethodBodyClassifier.IsPlaceholder(targetMethod.CilMethodBody))
+                continue;
+
+            try
+            {
+                targetMethod.CilMethodBody = CloneBody(candidateMethod.CilMethodBody, targetMethod,
+                    targetModule);
+                mergedMethodCount++;
+                writeLog($"Merged runtime method {targetMethod.MetadataToken} from {candidateName}.");
+            }
+            catch (Exception exception)
+            {
+                string failureToken = targetMethod.MetadataToken.ToString();
+                failures.Add(new DynamicMethodFailure(failureToken, exception.Message));
+                writeLog($"Merge failed for method {failureToken} from {candidateName}: {exception.Message}");
+            }
+        }
+        return mergedMethodCount;
+    }
+
+    internal static CilMethodBody CloneBody(CilMethodBody source, MethodDefinition targetMethod,
         ModuleDefinition targetModule)
     {
         var result = new CilMethodBody(targetMethod)
