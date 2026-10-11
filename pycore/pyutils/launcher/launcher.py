@@ -185,7 +185,6 @@ def _launch_terminal_grid(config_manager: ConfigManager) -> None:
         window_chrome_gap_horizontal_px=window_chrome.get('gap_horizontal_px', 16),
         window_chrome_gap_vertical_px=window_chrome.get('gap_vertical_px', 24),
         screen_rect=terminal_grid.screen_rect,
-        auto_profile=terminal_grid.profile
     )
 
     total_windows = grid_columns * grid_rows

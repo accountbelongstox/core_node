@@ -36,14 +36,13 @@ class WindowLauncher:
                  window_chrome_title_bar_px=None, window_chrome_horizontal_px=None,
                  window_chrome_content_scale=None,
                  window_chrome_gap_horizontal_px=None, window_chrome_gap_vertical_px=None,
-                 screen_rect=None, auto_profile=''):
+                 screen_rect=None):
         """
         Initialize window launcher.
 
         Args:
             grid_columns, grid_rows: Grid size.
             screen_rect: (x, y, width, height) already detected; None = detect on launch.
-            auto_profile: Name of the resolution auto-grid profile that set the grid ('' = configured grid).
             measured_columns, measured_rows, measured_width_px, measured_height_px: Ratio calibration.
             calibration_actual_height, calibration_term_rows: Height calibration.
             window_chrome_title_bar_px: Reserve px for title bar (default 56).
@@ -56,7 +55,6 @@ class WindowLauncher:
         self.grid_columns = grid_columns or 3
         self.grid_rows = grid_rows or 2
         self.screen_rect = screen_rect
-        self.auto_profile = auto_profile
 
         # Use provided calibration or defaults
         self.calibration_actual_height = calibration_actual_height or 485
