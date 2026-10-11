@@ -2,26 +2,21 @@
 """
 Idempotent launch guards for the window launcher.
 
-Before starting terminals, applications, or the pycore module, check whether the
-target is already running and skip when it is. Terminal counting mirrors
-193_install_window_launcher_shortcut.sh (Linux X11 client list/pgrep; Windows WT window class).
+Before starting applications or the pycore module, check whether the target is
+already running and skip when it is. The terminal grid has no guard: every
+launch opens the full grid regardless of terminals already open.
 """
 
-import platform
-import re
 import sys
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
 from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyfoundations.system_service_state import process_matches, tcp_port_open
-from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
-from pycore.pyutils.common.x11_display import x11_display
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.app_catalog import (
     APP_DEFINITIONS,
@@ -34,7 +29,6 @@ from pycore.pyutils.launcher.app_catalog import (
 from pycore.pyutils.launcher.app_finder import app_finder
 from pycore.pyutils.launcher.chrome_finder import chrome_finder
 from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
-from pycore.pyutils.launcher.char_size_measurer import count_wt_windows
 
 
 _PYCORE_MODULE_MARKER = 'pycore_module_caller'
@@ -182,24 +176,6 @@ def is_app_running(
     return any(process_manager.is_process_running(name) for name in names)
 
 
-def count_open_terminals() -> int:
-    """Count open terminal windows for the current platform."""
-    system = platform.system()
-    if system == 'Windows':
-        return count_wt_windows()
-    if system == 'Linux':
-        return _count_linux_terminals()
-    return 0
-
-
-def compute_terminal_deficit(grid_columns: int, grid_rows: int, open_count: Optional[int] = None) -> int:
-    """Return how many grid cells still need launching (0 = skip)."""
-    grid_total = grid_columns * grid_rows
-    if open_count is None:
-        open_count = count_open_terminals()
-    return max(0, grid_total - open_count)
-
-
 def is_pycore_module_running() -> bool:
     """True when a pycore_module_caller singleton instance is already alive."""
     if tcp_port_open(HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT, _SOCKET_TIMEOUT_SEC):
@@ -228,42 +204,3 @@ def is_cmdline_process_running(
         process_names=process_names,
         owner_names=owner_names,
     )
-
-
-# Title marker every grid window carries (re-asserted each prompt by the grid
-# shell rc written by LinuxTerminalLauncher._grid_shell_inner, so the
-# shell's own PS1 title escape cannot erase it).
-GRID_TITLE_RE = re.compile(r'pylauncher-\d+')
-
-
-def list_linux_grid_windows():
-    """Open GRID terminal windows (title carries pylauncher-NN), or None without an X11/Xwayland display."""
-    windows = x11_display.list_client_windows()
-    if windows is None:
-        return None
-    return [window for window in windows if GRID_TITLE_RE.search(window.title)]
-
-
-def _count_linux_terminals() -> int:
-    """Count open GRID terminal windows on Linux.
-
-    Only windows whose title carries the launcher marker (pylauncher-NN)
-    count: unrelated terminals -- the launcher's own menu window included --
-    must never shrink the deficit, otherwise a 4x3 grid launches fewer than
-    12 windows. Falls back to the terminal-class count (152 helper parity)
-    only when no X11/Xwayland display can be enumerated.
-    """
-    grid_windows = list_linux_grid_windows()
-    if grid_windows is not None:
-        return len(grid_windows)
-
-    ps = exec_silent(['ps', '-e', '-o', 'comm='], capture_output=True, text=True)
-    if ps.return_code != 0 or not ps.stdout:
-        return 0
-
-    count = 0
-    for line in ps.stdout.splitlines():
-        comm = line.strip()
-        if is_linux_terminal_class(comm):
-            count += 1
-    return count

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terminal Backup ${backup_id}</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1c1c1a; --muted: #6b6b66;
+  --border: #deded8; --accent: #2f6fdf; --note-bg: #fff8e1; --note-border: #e8c860;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --panel: #1f1f1d; --text: #e8e8e3; --muted: #9a9a93;
+    --border: #34342f; --accent: #7aa7ff; --note-bg: #2b2614; --note-border: #7a6420;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+.ai-note { background: var(--note-bg); border: 1px solid var(--note-border); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+.ai-note h1 { font-size: 16px; margin: 0 0 6px; }
+.ai-note p { margin: 4px 0; }
+code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; word-break: break-all; }
+nav { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+nav a { color: var(--accent); text-decoration: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; background: var(--panel); }
+section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; scroll-margin-top: 56px; }
+section header { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+section header h2 { font-size: 15px; margin: 0; }
+section header span { color: var(--muted); font-size: 12px; }
+pre { margin: 0; padding: 12px; max-height: 70vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; }
+</style>
+</head>
+<body>
+<main>
+<div class="ai-note">
+<h1>Instructions for AI agents</h1>
+<p>This page is the last terminal backup of this machine (backup <code>${backup_id}</code>, ${created}), one section per terminal with its whole history.</p>
+<p>Read every terminal history directly from the files in this folder: <code>${folder}</code> (<code>terminal-&lt;n&gt;.txt</code>, one file per terminal, the same text as below).</p>
+<p>For each terminal, find the task that was in progress and whether it was finished. Hand every unfinished task to an AI agent of the same kind running on this machine (for example Claude Code or ChatGPT / Codex), one terminal's task per agent, through the agent bus or that agent's terminal, and give it the history file path so it continues from where it stopped.</p>
+<p>Other AI agents may have changed the code in the meantime, so re-check the current state before editing.</p>
+</div>
+<nav id="terminal-nav"></nav>
+<div id="terminal-list"></div>
+</main>
+<script id="terminal-data" type="application/json">${data_json}</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('terminal-data').textContent);
+  var nav = document.getElementById('terminal-nav');
+  var list = document.getElementById('terminal-list');
+  data.terminals.forEach(function (terminal) {
+    var anchor = 'terminal-' + terminal.number;
+    var link = document.createElement('a');
+    link.href = '#' + anchor;
+    link.textContent = '#' + terminal.number;
+    nav.appendChild(link);
+    var section = document.createElement('section');
+    section.id = anchor;
+    var header = document.createElement('header');
+    var title = document.createElement('h2');
+    title.textContent = '#' + terminal.number + (terminal.name ? ' · ' + terminal.name : '');
+    var meta = document.createElement('span');
+    meta.textContent = terminal.file + ' · ' + Math.max(1, Math.round(terminal.chars / 1024)) + 'K';
+    header.appendChild(title);
+    header.appendChild(meta);
+    var body = document.createElement('pre');
+    body.textContent = terminal.text;
+    section.appendChild(header);
+    section.appendChild(body);
+    list.appendChild(section);
+  });
+})();
+</script>
+</body>
+</html>

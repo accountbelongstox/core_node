@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyctl.terminal.terminal_agent_activity import TerminalAgentActivity, TerminalAgentActivityThread
 from pycore.pyctl.terminal.terminal_agent_detector import TerminalAgentWatch, terminal_agent_detector
+from pycore.pyctl.terminal.terminal_conversation_restore import TerminalConversationRestore
 from pycore.pyctl.terminal.terminal_backup_store import (
     TERMINAL_BACKUP_DIR_NAME,
     TerminalBackupStore,
@@ -91,6 +92,7 @@ class TerminalBackupService:
         prompt_watch: Optional[TerminalPromptWatch] = None,
         physical_confirm_button: Optional[PhysicalConfirmButtonHandler] = None,
         resume_scheduler: Optional[TerminalResumeScheduler] = None,
+        conversation_restore: Optional[TerminalConversationRestore] = None,
         agent_watch: Optional[TerminalAgentWatch] = None,
         agent_activity: Optional[TerminalAgentActivity] = None,
     ) -> None:
@@ -102,6 +104,7 @@ class TerminalBackupService:
         self._prompt_watch = prompt_watch or TerminalPromptWatch()
         self._physical_confirm_button = physical_confirm_button or PhysicalConfirmButtonHandler(terminals)
         self._resume = resume_scheduler or TerminalResumeScheduler(terminals)
+        self._conversation_restore = conversation_restore or TerminalConversationRestore(terminals)
         self._agent_watch = agent_watch or TerminalAgentWatch(terminal_agent_detector)
         terminals.register_snapshot_decorator(self._agent_watch.decorate_snapshot)
         terminals.register_snapshot_decorator(terminal_permission_modes.decorate_snapshot)
@@ -425,6 +428,22 @@ class TerminalBackupService:
         finally:
             self._pass_lock.release()
 
+    def _run_conversation_restore(self) -> None:
+        if not self._pass_lock.acquire(blocking=False):
+            return
+        try:
+            windows = self._enumerate()
+            request = self._conversation_restore.due(windows)
+            if request is not None:
+                def restore() -> None:
+                    with self._focus.preserved(LABEL):
+                        self._conversation_restore.deliver(request, windows)
+                self._terminals.run_exclusive(restore)
+        except Exception as exc:  # noqa: BLE001 - a restore failure must not stop the scheduler
+            ColorPrint.yellow(f"[{LABEL}] conversation restore failed: {type(exc).__name__}: {exc}")
+        finally:
+            self._pass_lock.release()
+
     def run_pass(
         self, forced: bool = False, reason: str = REASON_INTERVAL, budget_seconds: Optional[float] = None
     ) -> Dict[str, Any]:
@@ -679,6 +698,8 @@ class TerminalBackupService:
             now = time.monotonic()
             if self._stopping():
                 continue
+            if self._conversation_restore.pending() and (idle is None or idle >= PROMPT_INTERVAL_SECONDS):
+                self._run_conversation_restore()
             if self._resume_due() and (idle is None or idle >= PROMPT_INTERVAL_SECONDS):
                 self._run_resume()
             elif now >= next_due and (idle is None or idle >= MIN_IDLE_SECONDS):

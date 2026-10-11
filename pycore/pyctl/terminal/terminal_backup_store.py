@@ -512,7 +512,7 @@ class TerminalBackupStore:
         return {"success": True, "data": data, "entry": entry}
 
     def export_files(self, folder_id: Any, numbers: Optional[Iterable[int]] = None) -> Dict[str, Any]:
-        """Write full text files of a backup into the restore area (native line endings): {success, folder, terminals[{number, name, path, text}]} or {success: False, error_code}."""
+        """Write full text files of a backup into the restore area (native line endings): {success, folder, created_at (ms), terminals[{number, name, path, text}]} or {success: False, error_code}."""
         with self.lock:
             folder = self.folder_path(folder_id)
             manifest = self.read_manifest(folder) if folder is not None else None
@@ -545,7 +545,12 @@ class TerminalBackupStore:
                 terminals.append({"number": number, "name": str(entry.get("name") or ""), "path": path, "text": text})
             if not terminals:
                 return {"success": False, "error_code": ERROR_BACKUP_READ_FAILED}
-            return {"success": True, "folder": target, "terminals": terminals}
+            return {
+                "success": True,
+                "folder": target,
+                "created_at": self.created_at_ms(folder.name, manifest),
+                "terminals": terminals,
+            }
 
     @staticmethod
     def _clear_restore_area(root: Path, keep: str) -> None:

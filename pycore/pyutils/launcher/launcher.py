@@ -198,7 +198,7 @@ def _launch_terminal_grid(config_manager: ConfigManager) -> None:
     ColorPrint.plain(launcher_text.get(LauncherI18nKeys.LAYOUT_CALCULATION))
     ColorPrint.plain(RULE)
 
-    # Idempotent: WindowLauncher tops up only the deficit.
+    # Always launches the full grid; already-open terminals are not counted.
     launcher.launch_windows()
 
 
