@@ -98,7 +98,7 @@ internal static class Program
                 methodTokens = args.Skip(tokenOffset).Select(value => int.Parse(value.Replace("0x", string.Empty),
                     NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToArray();
                 invocationReports = new DynamicMethodInvoker().InvokeStatics(targetPath, methodTokens,
-                    methodTimeout: eventInvocation ? TimeSpan.FromMinutes(1) : null,
+                    methodTimeout: eventInvocation ? TimeSpan.FromMinutes(5) : null,
                     initialized: () =>
                     {
                         using var gate = eventInvocation ? new System.Threading.EventWaitHandle(false,

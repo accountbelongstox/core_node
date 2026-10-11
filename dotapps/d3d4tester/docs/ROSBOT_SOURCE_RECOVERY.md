@@ -193,3 +193,11 @@ Merging this single body with strict v4, using the original target as the merge 
 ## Kimi continuation workspace
 
 To avoid sharing the working directory with the previous agent, a dedicated copy was created at `C:\\Users\\accou\\.core_node\\.d3check\\decompiled\\cn-3610031-runtime-20261010-kimi`. It contains the strict v5d base assembly, the target directory copy, verification logs, the method catalog and reference C# exports. Kimi is continuing recovery from this workspace; new traces and merged checkpoints will be written there. The still-protected casting and combat entry points listed above are the immediate targets.
+
+## Public skill entry-point continuation
+
+Five local-free static forwarding bodies recovered by the skill-readiness trace call public `LocalPlayer` entry points with matching names and signatures. The alias mapper validates the protected target, recovered source, exact source/target signature and the forwarded call name and signature before cloning a body. It also rebuilds from the preserved CN_36.10031 original target while merging the accepted checkpoint in memory, because a rewritten checkpoint cannot safely serve as the resource-writing base.
+
+Using strict v5d as the recovered source produced `RoS-BoT-HvmResolved-Strict-v6c.exe`: 88 accepted bodies were replayed from v5d and five aliases were mapped without failure. The recovered public entries are `0x06003951` `PowerCooldown` from `0x06003F4E`, `0x06003952` `PowerCooldownLeft` from `0x06003F30`, `0x06003953` `HasEnoughCharges` from `0x06003F88`, `0x06003954` `ChargeCount` from `0x06003F25`, and `0x06003955` `HasEnoughResource` from `0x06003F33`.
+
+The v5d/v6c catalogs contain 44,150 methods each and differ in protection state only for those five tokens; protected placeholders decreased from 41,554 to 41,549, giving 93 accepted business-method transitions. ILSpy emits all five public forwarding bodies without warning markers. PEVerify `/IL` emits the same 72 normalized error lines for v5d and v6c, with the verifier summary reporting the same 76 pre-existing errors. The accepted file is 11,416,064 bytes with SHA-256 `FE64708E2EC61D5FE9A8C2D833632104E3F8919C8A044D1AEB76CED5C1A2B1EA`. Full recovery remains incomplete; public `CastEx`, `Cast`, `CanCast`, `IsCastChannel` and combat `DoAttack` remain protected.

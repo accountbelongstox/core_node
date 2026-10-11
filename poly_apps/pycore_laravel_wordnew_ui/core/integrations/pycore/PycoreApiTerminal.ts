@@ -197,6 +197,8 @@ export interface TerminalQuickCommands {
   interrupt: TerminalQuickCommandInterruptPolicy;
   /** Keys of the commands kept in the collapsed row. */
   pinned: string[];
+  /** Commands of the terminal card header, each shown as an icon (older nodes omit it). */
+  card?: Array<{ key: string; icon: string }>;
   preset: TerminalQuickCommand[];
   system: TerminalQuickCommand[];
   custom: TerminalQuickCommand[];
